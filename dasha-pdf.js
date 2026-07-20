@@ -157,8 +157,13 @@ function buildDashaPDF({ dateStr, timeStr, mahadashas, chain }) {
     const pageCount = doc.bufferedPageRange().count;
     for (let i = 0; i < pageCount; i++) {
       doc.switchToPage(i);
+      // Временно убираем нижнее поле — иначе PDFKit считает, что текст не помещается
+      // на странице, и сам создаёт лишнюю пустую страницу для "переноса".
+      const savedBottom = doc.page.margins.bottom;
+      doc.page.margins.bottom = 0;
       doc.fillColor(COLORS.inkSoft).font('sans').fontSize(9)
         .text(`${i + 1} / ${pageCount}`, 0, doc.page.height - 40, { align: 'center', width: doc.page.width });
+      doc.page.margins.bottom = savedBottom;
     }
 
     doc.end();
