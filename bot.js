@@ -135,7 +135,7 @@ const birthDataWizard = new Scenes.WizardScene(
         `🌙 Луна: ${moonSign.name}, накшатра ${chart.planets['Луна'].nakshatra.name} (пада ${chart.planets['Луна'].nakshatra.pada})\n` +
         `☀️ Аянамша (Лахири): ${chart.ayanamsha.toFixed(2)}°\n\n` +
         `Whole Sign дома\n\n` +
-        `Команды /dasha и /transits теперь работают с этой картой.\n\n` +
+        `Теперь можно посмотреть периоды жизни или текущие транзиты — кнопками ниже или командами /dasha и /transits.\n\n` +
         `✨ Джанма Кундали — t.me/janma_kundali_bot`;
 
       // Сохраняем для последующих команд /dasha и /transits, и для переключения стиля карты
@@ -143,8 +143,8 @@ const birthDataWizard = new Scenes.WizardScene(
       userCharts.set(ctx.from.id, { params, chart, birthDateUTC, dateStr, timeStr, subtitle, style: 'north' });
 
       const keyboard = Markup.inlineKeyboard([
-        Markup.button.callback('◆ Северный стиль ✓', 'style_north'),
-        Markup.button.callback('▦ Южный стиль', 'style_south'),
+        [Markup.button.callback('◆ Северный стиль ✓', 'style_north'), Markup.button.callback('▦ Южный стиль', 'style_south')],
+        [Markup.button.callback('📜 Периоды жизни', 'menu_dasha'), Markup.button.callback('🔄 Транзиты', 'menu_transits')],
       ]);
 
       await ctx.replyWithPhoto({ source: pngBuffer }, { caption, ...keyboard });
@@ -165,7 +165,7 @@ const transitWizard = new Scenes.WizardScene(
   async (ctx) => {
     const stored = userCharts.get(ctx.from.id);
     if (!stored) {
-      await ctx.reply('Сначала постройте натальную карту командой /chart — транзиты считаются относительно неё.');
+      await ctx.reply('Сначала постройте карту — кнопка «🌟 Построить карту» выше, либо команда /chart. Транзиты считаются относительно неё.');
       return ctx.scene.leave();
     }
     ctx.wizard.state.transit = {};
@@ -296,8 +296,7 @@ async function finalizeTransit(ctx, stored, atDate, place) {
 
     const caption =
       `Транзитные планеты показаны рядом с натальными (приглушённый серо-синий цвет), в тех же домах.\n\n` +
-      `Обратите внимание: сама долгота планет одинакова в любой точке Земли в данный момент — ` +
-      `место здесь используется для перевода введённого времени в UTC и пока не влияет на положение планет.\n\n` +
+      `Все планеты видны одинаково из любой точки Земли — место здесь только помогает верно перевести время суток.\n\n` +
       `✨ Джанма Кундали — t.me/janma_kundali_bot`;
 
     await ctx.replyWithPhoto({ source: pngBuffer }, { caption });
@@ -415,15 +414,25 @@ bot.use(session());
 bot.use(stage.middleware());
 
 // ---------- Commands ----------
+const mainMenuKeyboard = Markup.inlineKeyboard([
+  [Markup.button.callback('🌟 Построить карту', 'menu_chart')],
+  [Markup.button.callback('📜 Периоды жизни', 'menu_dasha'), Markup.button.callback('🔄 Транзиты', 'menu_transits')],
+  [Markup.button.callback('📅 Панчанга', 'menu_panchanga')],
+]);
+
 bot.start(async (ctx) => {
   await ctx.reply(
-    'Здравствуйте! Я бот для расчёта натальной карты по системе джйотиш (ведическая астрология).\n\n' +
-    'Команда /chart — построить карту\n' +
-    'Whole Sign дома, аянамша Лахири, North Indian стиль отображения.'
+    'Добро пожаловать в Джанма Кундали — пространство точных расчётов джйотиш от Katya Das.\n\n' +
+    'Здесь вы можете построить свою натальную карту, рассчитать периоды и транзиты, а также ' +
+    'смотреть панчангу дня, чтобы следить за звёздной динамикой.\n\n' +
+    'Нажмите «Построить карту», чтобы начать.',
+    mainMenuKeyboard
   );
 });
 
-bot.command('chart', (ctx) => ctx.scene.enter('birth-data-wizard'));
+const startChartWizard = (ctx) => ctx.scene.enter('birth-data-wizard');
+bot.command('chart', startChartWizard);
+bot.action('menu_chart', async (ctx) => { await ctx.answerCbQuery(); return startChartWizard(ctx); });
 
 // ---------- Переключение стиля карты (Северный / Южный) по кнопкам под фото ----------
 async function switchChartStyle(ctx, style) {
@@ -450,8 +459,9 @@ async function switchChartStyle(ctx, style) {
     userCharts.set(ctx.from.id, stored);
 
     const keyboard = Markup.inlineKeyboard([
-      Markup.button.callback(style === 'north' ? '◆ Северный стиль ✓' : '◆ Северный стиль', 'style_north'),
-      Markup.button.callback(style === 'south' ? '▦ Южный стиль ✓' : '▦ Южный стиль', 'style_south'),
+      [Markup.button.callback(style === 'north' ? '◆ Северный стиль ✓' : '◆ Северный стиль', 'style_north'),
+       Markup.button.callback(style === 'south' ? '▦ Южный стиль ✓' : '▦ Южный стиль', 'style_south')],
+      [Markup.button.callback('📜 Периоды жизни', 'menu_dasha'), Markup.button.callback('🔄 Транзиты', 'menu_transits')],
     ]);
 
     await ctx.editMessageMedia(
@@ -467,10 +477,10 @@ async function switchChartStyle(ctx, style) {
 bot.action('style_north', (ctx) => switchChartStyle(ctx, 'north'));
 bot.action('style_south', (ctx) => switchChartStyle(ctx, 'south'));
 
-bot.command('dasha', async (ctx) => {
+async function sendDashaReport(ctx) {
   const stored = userCharts.get(ctx.from.id);
   if (!stored) {
-    await ctx.reply('Сначала постройте карту командой /chart — периоды считаются от неё.');
+    await ctx.reply('Сначала постройте карту — кнопка «🌟 Построить карту» выше, либо команда /chart. Периоды считаются от неё.');
     return;
   }
   const { chart, birthDateUTC, dateStr, timeStr } = stored;
@@ -488,10 +498,17 @@ bot.command('dasha', async (ctx) => {
     console.error(e);
     await ctx.reply('Ошибка при формировании PDF: ' + e.message);
   }
-});
+}
+bot.command('dasha', sendDashaReport);
+bot.action('menu_dasha', async (ctx) => { await ctx.answerCbQuery(); return sendDashaReport(ctx); });
 
-bot.command('transits', (ctx) => ctx.scene.enter('transit-wizard'));
-bot.command('panchanga', (ctx) => ctx.scene.enter('panchanga-wizard'));
+const startTransitWizard = (ctx) => ctx.scene.enter('transit-wizard');
+bot.command('transits', startTransitWizard);
+bot.action('menu_transits', async (ctx) => { await ctx.answerCbQuery(); return startTransitWizard(ctx); });
+
+const startPanchangaWizard = (ctx) => ctx.scene.enter('panchanga-wizard');
+bot.command('panchanga', startPanchangaWizard);
+bot.action('menu_panchanga', async (ctx) => { await ctx.answerCbQuery(); return startPanchangaWizard(ctx); });
 
 bot.command('help', async (ctx) => {
   await ctx.reply(
