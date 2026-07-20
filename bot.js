@@ -12,6 +12,7 @@ const { computeCurrentTransits } = require('./transits.js');
 const { computePanchanga } = require('./panchanga.js');
 const { buildDashaPDF } = require('./dasha-pdf.js');
 const { resolveCity } = require('./ru-timezone.js');
+const { resolveWorldCity } = require('./world-geocoding.js');
 const { withLogo } = require('./branding.js');
 const db = require('./database.js');
 
@@ -31,6 +32,19 @@ const bot = new Telegraf(BOT_TOKEN);
 // данные теряются. Для продакшена стоит заменить на файл/базу данных.
 const userCharts = new Map();
 
+// Проверка "аварийного выхода": если внутри любого шага любого мастера
+// человек написал /start, /menu или нажал «☰ Меню» — выходим из сцены
+// и показываем главное меню, вместо того чтобы упорно ждать первоначальный вопрос.
+async function checkGlobalEscape(ctx) {
+  const text = (ctx.message && ctx.message.text || '').trim().toLowerCase();
+  if (text === '/start' || text === '/menu' || text === '☰ меню') {
+    await ctx.scene.leave();
+    await sendMainMenu(ctx);
+    return true;
+  }
+  return false;
+}
+
 // ---------- Wizard scene: пошаговый сбор данных рождения ----------
 const birthDataWizard = new Scenes.WizardScene(
   'birth-data-wizard',
@@ -46,6 +60,7 @@ const birthDataWizard = new Scenes.WizardScene(
   // Шаг 2: парсим дату, спрашиваем время
   async (ctx) => {
     const text = (ctx.message && ctx.message.text || '').trim();
+    if (await checkGlobalEscape(ctx)) return;
     const m = text.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
     if (!m) {
       await ctx.reply('Не удалось распознать дату. Введите в формате ДД.ММ.ГГГГ, например: 15.08.1990');
@@ -64,6 +79,7 @@ const birthDataWizard = new Scenes.WizardScene(
   // Шаг 3: парсим время, спрашиваем город/координаты
   async (ctx) => {
     const text = (ctx.message && ctx.message.text || '').trim();
+    if (await checkGlobalEscape(ctx)) return;
     const m = text.match(/^(\d{1,2}):(\d{2})$/);
     if (!m) {
       await ctx.reply('Не удалось распознать время. Введите в формате ЧЧ:ММ, например: 14:30');
@@ -89,6 +105,7 @@ const birthDataWizard = new Scenes.WizardScene(
   // Шаг 4: парсим место (город или координаты), считаем карту
   async (ctx) => {
     const text = (ctx.message && ctx.message.text || '').trim();
+    if (await checkGlobalEscape(ctx)) return;
     let lat, lon, tz, placeLabel;
 
     const parts = text.split(',').map(s => s.trim());
@@ -98,20 +115,31 @@ const birthDataWizard = new Scenes.WizardScene(
       [lat, lon, tz] = asNumbers;
       placeLabel = `широта ${lat}, долгота ${lon}`;
     } else {
-      // Пробуем найти город по названию
+      // Сначала пробуем найти город в базе России (точная историческая таблица)
       const bd = ctx.wizard.state.birthData;
       const dateUTCForTz = new Date(Date.UTC(bd.year, bd.month - 1, bd.day, 12, 0, 0));
-      const found = resolveCity(text, dateUTCForTz);
-      if (!found) {
-        await ctx.reply(
-          'Не нашла такой город в базе (пока охвачены крупные города России) и не смогла распознать координаты.\n\n' +
-          'Попробуйте название города точнее (например "Пермь"), либо введите координаты: широта, долгота, часовой пояс.'
-        );
-        return;
+      let found = resolveCity(text, dateUTCForTz);
+
+      if (found) {
+        lat = found.lat; lon = found.lon; tz = found.utcOffset;
+        placeLabel = `${found.city} (${lat}, ${lon})`;
+        await ctx.reply(`Нашла: ${found.city}, часовой пояс на эту дату — UTC${tz >= 0 ? '+' : ''}${tz}`);
+      } else {
+        // Если не нашли в российской базе — ищем по всему миру
+        await ctx.reply('Ищу город...');
+        const worldFound = await resolveWorldCity(text, dateUTCForTz);
+        if (!worldFound) {
+          await ctx.reply(
+            'Не нашла такой город и не смогла распознать координаты.\n\n' +
+            'Попробуйте название точнее (можно с указанием страны, например "Париж, Франция"), ' +
+            'либо введите координаты: широта, долгота, часовой пояс.'
+          );
+          return;
+        }
+        lat = worldFound.lat; lon = worldFound.lon; tz = worldFound.utcOffset;
+        placeLabel = worldFound.city;
+        await ctx.reply(`Нашла: ${worldFound.city}\nЧасовой пояс (${worldFound.timezone}) на эту дату — UTC${tz >= 0 ? '+' : ''}${tz}`);
       }
-      lat = found.lat; lon = found.lon; tz = found.utcOffset;
-      placeLabel = `${found.city} (${lat}, ${lon})`;
-      await ctx.reply(`Нашла: ${found.city}, часовой пояс на эту дату — UTC${tz >= 0 ? '+' : ''}${tz}`);
     }
 
     const bd = ctx.wizard.state.birthData;
@@ -183,6 +211,7 @@ const transitWizard = new Scenes.WizardScene(
 
   // Шаг 2: если "сейчас" — сразу считаем; иначе спрашиваем время
   async (ctx) => {
+    if (await checkGlobalEscape(ctx)) return;
     const stored = userCharts.get(ctx.from.id);
     const text = (ctx.message && ctx.message.text || '').trim().toLowerCase();
 
@@ -218,6 +247,7 @@ const transitWizard = new Scenes.WizardScene(
   // Шаг 3: время, затем спрашиваем место
   async (ctx) => {
     const text = (ctx.message && ctx.message.text || '').trim();
+    if (await checkGlobalEscape(ctx)) return;
     const m = text.match(/^(\d{1,2}):(\d{2})$/);
     if (!m) {
       await ctx.reply('Не удалось распознать время. Введите в формате ЧЧ:ММ, например: 12:00');
@@ -244,6 +274,7 @@ const transitWizard = new Scenes.WizardScene(
   async (ctx) => {
     const stored = userCharts.get(ctx.from.id);
     const text = (ctx.message && ctx.message.text || '').trim();
+    if (await checkGlobalEscape(ctx)) return;
     const textLower = text.toLowerCase();
     const td = ctx.wizard.state.transit;
 
@@ -263,12 +294,18 @@ const transitWizard = new Scenes.WizardScene(
         place = { lat, lon, tz, label: `широта ${lat}, долгота ${lon}` };
       } else {
         const dateForTz = new Date(Date.UTC(td.year, td.month - 1, td.day, 12, 0, 0));
-        const found = resolveCity(text, dateForTz);
-        if (!found) {
-          await ctx.reply('Не нашла такой город и не смогла распознать координаты. Попробуйте точнее, либо введите координаты: широта, долгота, часовой пояс.');
-          return;
+        let found = resolveCity(text, dateForTz);
+        if (found) {
+          place = { lat: found.lat, lon: found.lon, tz: found.utcOffset, label: found.city };
+        } else {
+          await ctx.reply('Ищу город...');
+          const worldFound = await resolveWorldCity(text, dateForTz);
+          if (!worldFound) {
+            await ctx.reply('Не нашла такой город и не смогла распознать координаты. Попробуйте точнее, либо введите координаты: широта, долгота, часовой пояс.');
+            return;
+          }
+          place = { lat: worldFound.lat, lon: worldFound.lon, tz: worldFound.utcOffset, label: worldFound.city };
         }
-        place = { lat: found.lat, lon: found.lon, tz: found.utcOffset, label: found.city };
       }
     }
 
@@ -323,6 +360,7 @@ const panchangaWizard = new Scenes.WizardScene(
   },
 
   async (ctx) => {
+    if (await checkGlobalEscape(ctx)) return;
     const text = (ctx.message && ctx.message.text || '').trim().toLowerCase();
     let day, month, year;
 
@@ -354,6 +392,7 @@ const panchangaWizard = new Scenes.WizardScene(
 
   async (ctx) => {
     const text = (ctx.message && ctx.message.text || '').trim();
+    if (await checkGlobalEscape(ctx)) return;
     const textLower = text.toLowerCase();
     const pd = ctx.wizard.state.panchanga;
     let lat, lon, tz;
@@ -372,12 +411,18 @@ const panchangaWizard = new Scenes.WizardScene(
         [lat, lon, tz] = asNumbers;
       } else {
         const dateForTz = new Date(Date.UTC(pd.year, pd.month - 1, pd.day, 12, 0, 0));
-        const found = resolveCity(text, dateForTz);
-        if (!found) {
-          await ctx.reply('Не нашла такой город и не смогла распознать координаты. Попробуйте точнее, либо введите координаты: широта, долгота, часовой пояс.');
-          return;
+        let found = resolveCity(text, dateForTz);
+        if (found) {
+          lat = found.lat; lon = found.lon; tz = found.utcOffset;
+        } else {
+          await ctx.reply('Ищу город...');
+          const worldFound = await resolveWorldCity(text, dateForTz);
+          if (!worldFound) {
+            await ctx.reply('Не нашла такой город и не смогла распознать координаты. Попробуйте точнее, либо введите координаты: широта, долгота, часовой пояс.');
+            return;
+          }
+          lat = worldFound.lat; lon = worldFound.lon; tz = worldFound.utcOffset;
         }
-        lat = found.lat; lon = found.lon; tz = found.utcOffset;
       }
     }
 
@@ -427,6 +472,7 @@ const saveChartWizard = new Scenes.WizardScene(
   },
 
   async (ctx) => {
+    if (await checkGlobalEscape(ctx)) return;
     const label = (ctx.message && ctx.message.text || '').trim();
     if (!label) {
       await ctx.reply('Напишите короткое название текстом.');
@@ -463,14 +509,32 @@ const mainMenuKeyboard = Markup.inlineKeyboard([
   [Markup.button.callback('📅 Панчанга', 'menu_panchanga'), Markup.button.callback('📁 Архив', 'menu_archive')],
 ]);
 
-bot.start(async (ctx) => {
-  await ctx.reply(
-    'Добро пожаловать в Джанма Кундали — пространство точных расчётов джйотиш от Katya Das.\n\n' +
-    'Здесь вы можете построить свою натальную карту, рассчитать периоды и транзиты, а также ' +
-    'смотреть панчангу дня, чтобы следить за звёздной динамикой.\n\n' +
-    'Нажмите «Построить карту», чтобы начать.',
-    mainMenuKeyboard
-  );
+// Постоянная кнопка внизу экрана (не пропадает, в отличие от кнопок под сообщениями) —
+// нажатие всегда возвращает в главное меню, даже если бот "завис" посреди диалога.
+const persistentKeyboard = Markup.keyboard([['☰ Меню']]).resize();
+
+const WELCOME_TEXT =
+  'Добро пожаловать в Джанма Кундали — пространство точных расчётов джйотиш от Katya Das.\n\n' +
+  'Здесь вы можете построить свою натальную карту, рассчитать периоды и транзиты, а также ' +
+  'смотреть панчангу дня, чтобы следить за звёздной динамикой.\n\n' +
+  'Нажмите «Построить карту», чтобы начать.';
+
+async function sendMainMenu(ctx) {
+  await ctx.reply(WELCOME_TEXT, { reply_markup: mainMenuKeyboard.reply_markup });
+  await ctx.reply('Кнопка «☰ Меню» внизу всегда вернёт сюда.', persistentKeyboard);
+}
+
+bot.start(async (ctx) => { await sendMainMenu(ctx); });
+
+// Универсальный выход: если человек застрял посреди любого диалога (мастера),
+// команды /start, /menu или нажатие «☰ Меню» должны сработать в любой момент.
+bot.hears('☰ Меню', async (ctx) => {
+  if (ctx.scene && ctx.scene.current) await ctx.scene.leave();
+  await sendMainMenu(ctx);
+});
+bot.command('menu', async (ctx) => {
+  if (ctx.scene && ctx.scene.current) await ctx.scene.leave();
+  await sendMainMenu(ctx);
 });
 
 const startChartWizard = (ctx) => ctx.scene.enter('birth-data-wizard');
