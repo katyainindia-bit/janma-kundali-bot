@@ -38,10 +38,26 @@ db.exec(`
     lon REAL NOT NULL,
     utc_offset REAL NOT NULL,
     place_label TEXT,
+    is_favorite INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     FOREIGN KEY (telegram_id) REFERENCES users(telegram_id)
   );
+
+  CREATE TABLE IF NOT EXISTS chart_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chart_id INTEGER NOT NULL,
+    note TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (chart_id) REFERENCES charts(id)
+  );
 `);
+
+// На случай, если база уже существовала до добавления избранного (миграция «на лету»)
+try {
+  db.exec('ALTER TABLE charts ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0');
+} catch (e) {
+  // столбец уже есть — игнорируем
+}
 
 // --- Пользователи ---
 function upsertUser(ctx) {
@@ -80,7 +96,9 @@ function saveChart(telegramId, label, params, placeLabel) {
 }
 
 function listCharts(telegramId) {
-  return db.prepare('SELECT * FROM charts WHERE telegram_id = ? ORDER BY created_at DESC').all(telegramId);
+  return db.prepare(
+    'SELECT * FROM charts WHERE telegram_id = ? ORDER BY is_favorite DESC, created_at DESC'
+  ).all(telegramId);
 }
 
 function getChart(telegramId, chartId) {
@@ -91,7 +109,42 @@ function deleteChart(telegramId, chartId) {
   return db.prepare('DELETE FROM charts WHERE telegram_id = ? AND id = ?').run(telegramId, chartId);
 }
 
+function updateChart(telegramId, chartId, params, placeLabel) {
+  return db.prepare(`
+    UPDATE charts SET day = ?, month = ?, year = ?, hour = ?, minute = ?, lat = ?, lon = ?, utc_offset = ?, place_label = ?
+    WHERE telegram_id = ? AND id = ?
+  `).run(
+    params.day, params.month, params.year, params.hour, params.minute,
+    params.lat, params.lon, params.utcOffset, placeLabel || null,
+    telegramId, chartId
+  );
+}
+
+function toggleFavorite(telegramId, chartId) {
+  const row = getChart(telegramId, chartId);
+  if (!row) return null;
+  const newValue = row.is_favorite ? 0 : 1;
+  db.prepare('UPDATE charts SET is_favorite = ? WHERE telegram_id = ? AND id = ?').run(newValue, telegramId, chartId);
+  return newValue === 1;
+}
+
+// --- Заметки к карте ---
+function addNote(chartId, noteText) {
+  const now = new Date().toISOString();
+  const info = db.prepare('INSERT INTO chart_notes (chart_id, note, created_at) VALUES (?, ?, ?)').run(chartId, noteText, now);
+  return info.lastInsertRowid;
+}
+
+function listNotes(chartId) {
+  return db.prepare('SELECT * FROM chart_notes WHERE chart_id = ? ORDER BY created_at ASC').all(chartId);
+}
+
+function deleteNote(noteId) {
+  return db.prepare('DELETE FROM chart_notes WHERE id = ?').run(noteId);
+}
+
 module.exports = {
   upsertUser, getAllUserIds, getUserCount,
-  saveChart, listCharts, getChart, deleteChart,
+  saveChart, listCharts, getChart, deleteChart, updateChart, toggleFavorite,
+  addNote, listNotes, deleteNote,
 };

@@ -564,10 +564,131 @@ function renderNorthIndianWithTransitsPNG(natalChart, transitsResult, opts = {})
   return canvas.toBuffer('image/png');
 }
 
+// ============================================================
+// Дробная карта (Навамша D9 и т.п.) — та же геометрия ромба North Indian,
+// но без накшатр в таблице (в дробных картах накшатры традиционно не
+// показываются — там оценивают только знак/дом/достоинство).
+// ============================================================
+function renderDivisionalPNG(d9chart, opts = {}) {
+  const { title = 'Навамша (D9)', subtitle = '', width = 900, chartSize = 640 } = opts;
+  const ascSignIdx = d9chart.ascendant.sign.index;
+  const signPlanets = {};
+  for (let i = 0; i < 12; i++) signPlanets[i] = [];
+  for (const [name, p] of Object.entries(d9chart.planets)) {
+    signPlanets[p.sign.index].push({ name, p });
+  }
+
+  const order = ['Солнце','Луна','Меркурий','Венера','Марс','Юпитер','Сатурн','Раху','Кету'];
+  const headerH = 148;
+  const listRowH = 30;
+  const legendH = 34;
+  const listH = 40 + (order.length + 1) * listRowH + legendH;
+  const totalH = headerH + chartSize + listH;
+  const chartOffsetX = (width - chartSize) / 2;
+  const chartOffsetY = headerH;
+  const scale = chartSize / VB;
+
+  const canvas = createCanvas(width, totalH);
+  const ctx = canvas.getContext('2d');
+  rect(ctx, 0, 0, width, totalH, { fill: COLORS.parchment });
+
+  drawHeader(ctx, width, title, subtitle);
+
+  ctx.save();
+  ctx.translate(chartOffsetX, chartOffsetY);
+  ctx.scale(scale, scale);
+
+  strokePoly(ctx, [[0,0],[VB,0],[VB,VB],[0,VB]], COLORS.gold, 1.5);
+  line(ctx, 0, 0, VB, VB, COLORS.gold, 1.5);
+  line(ctx, VB, 0, 0, VB, COLORS.gold, 1.5);
+  strokePoly(ctx, [[C,0],[VB,C],[C,VB],[0,C]], COLORS.gold, 1.5);
+
+  for (let h = 1; h <= 12; h++) {
+    const poly = HP[h];
+    const [cx, cy] = polyCentroid(poly);
+    const signIdx = (ascSignIdx + h - 1) % 12;
+    const signNumber = signIdx + 1;
+
+    if (h === 1) {
+      fillPoly(ctx, poly, '#f9f1de');
+      strokePoly(ctx, poly, COLORS.gold, 1.5);
+    }
+
+    const [numX, numY] = signNumberPosition(poly);
+    if (h === 1) {
+      text(ctx, String(signNumber), numX, numY, { font: 'bold 17px JKSerif', color: COLORS.gold, align: 'center' });
+      roundRect(ctx, cx - 23, cy - 46, 46, 20, 4, COLORS.gold);
+      text(ctx, 'ASC', cx, cy - 32, { font: 'bold 11px JKSans', color: COLORS.parchmentCard, align: 'center' });
+    } else {
+      text(ctx, String(signNumber), numX, numY, { font: '15px JKSerif', color: COLORS.inkSoft, align: 'center' });
+    }
+
+    const planetsHere = signPlanets[signIdx] || [];
+    const count = planetsHere.length;
+    const cols = count > 2 ? 2 : 1;
+    const rows = Math.ceil(count / cols);
+    const fontSize = count > 3 ? 12 : count > 1 ? 13.5 : 15;
+    const colGap = fontSize * 2.6;
+    const rowGap = fontSize * 2.9;
+    const gridW = (cols - 1) * colGap;
+    const gridH = (rows - 1) * rowGap;
+    const startX = cx - gridW / 2;
+    const startY = cy - gridH / 2;
+
+    planetsHere.forEach((item, i) => {
+      const col = i % cols, row = Math.floor(i / cols);
+      const px = startX + col * colGap, py = startY + row * rowGap;
+      const color = COLORS[dignityOf(item.name, item.p.sign.index)];
+      text(ctx, PLANET_SYMBOLS[item.name], px, py, { font: `bold ${fontSize}px JKSans`, color, align: 'center', baseline: 'middle' });
+    });
+    planetsHere.forEach((item, i) => {
+      const col = i % cols, row = Math.floor(i / cols);
+      const px = startX + col * colGap, py = startY + row * rowGap;
+      text(ctx, dmsFromDeg(item.p.sign.degInSign), px, py + fontSize * 1.15, { font: '9px JKSans', color: COLORS.inkSoft, align: 'center' });
+    });
+  }
+  ctx.restore();
+
+  const legendY = chartOffsetY + chartSize + 26;
+  drawDignityLegend(ctx, legendY, false);
+
+  const listStartY = legendY + 30;
+  line(ctx, 40, listStartY - 24, width - 40, listStartY - 24, COLORS.gold, 1);
+  text(ctx, 'ПЛАНЕТА', 40, listStartY - 6, { font: 'bold 11px JKSans', color: COLORS.inkSoft });
+  text(ctx, 'ЗНАК', 180, listStartY - 6, { font: 'bold 11px JKSans', color: COLORS.inkSoft });
+  text(ctx, 'ГРАДУС', 280, listStartY - 6, { font: 'bold 11px JKSans', color: COLORS.inkSoft });
+  text(ctx, 'ДОМ', 400, listStartY - 6, { font: 'bold 11px JKSans', color: COLORS.inkSoft });
+
+  {
+    const asc = d9chart.ascendant;
+    const y = listStartY + 14;
+    rect(ctx, 30, y - 18, width - 60, listRowH, { fill: '#fbf6ec' });
+    text(ctx, 'Лагна', 40, y, { font: 'bold 13px JKSans', color: COLORS.gold });
+    text(ctx, `${asc.sign.index + 1}. ${asc.sign.name}`, 180, y, { font: '14px JKSans', color: COLORS.ink });
+    text(ctx, dmsFromDeg(asc.sign.degInSign), 280, y, { font: '14px JKSans', color: COLORS.inkSoft });
+    text(ctx, '1', 400, y, { font: '14px JKSans', color: COLORS.ink });
+  }
+
+  order.forEach((name, i) => {
+    const p = d9chart.planets[name];
+    const y = listStartY + (i + 1) * listRowH + 14;
+    const color = COLORS[dignityOf(name, p.sign.index)];
+    if (i % 2 === 0) rect(ctx, 30, y - 18, width - 60, listRowH, { fill: COLORS.parchmentCard });
+    text(ctx, PLANET_SYMBOLS[name], 40, y, { font: 'bold 14px JKSans', color });
+    text(ctx, name, 70, y, { font: '14px JKSans', color: COLORS.ink });
+    text(ctx, `${p.sign.index + 1}. ${p.sign.name}`, 180, y, { font: '14px JKSans', color: COLORS.ink });
+    text(ctx, dmsFromDeg(p.sign.degInSign), 280, y, { font: '14px JKSans', color: COLORS.inkSoft });
+    text(ctx, String(p.house), 400, y, { font: '14px JKSans', color: COLORS.ink });
+  });
+
+  return canvas.toBuffer('image/png');
+}
+
 module.exports = {
   renderNorthIndianPNG,
   renderSouthIndianPNG,
   renderNorthIndianWithTransitsPNG,
+  renderDivisionalPNG,
   dmsFromDeg,
   PLANET_SYMBOLS,
   dignityOf,

@@ -6,7 +6,8 @@
 const { Telegraf, Scenes, session, Markup } = require('telegraf');
 const sharp = require('sharp');
 const { calculateChart } = require('./engine.js');
-const { renderNorthIndianPNG, renderNorthIndianWithTransitsPNG, renderSouthIndianPNG } = require('./chart-canvas.js');
+const { renderNorthIndianPNG, renderNorthIndianWithTransitsPNG, renderSouthIndianPNG, renderDivisionalPNG } = require('./chart-canvas.js');
+const { calculateNavamsha } = require('./navamsha.js');
 const { computeVimshottariDasha, findCurrentDashaChain } = require('./dasha.js');
 const { computeCurrentTransits } = require('./transits.js');
 const { computePanchanga } = require('./panchanga.js');
@@ -165,7 +166,6 @@ const birthDataWizard = new Scenes.WizardScene(
         `🌕 Восходящий знак (Лагна): ${chart.ascendant.sign.name} ${chart.ascendant.sign.degInSign.toFixed(1)}°\n` +
         `🌙 Луна: ${moonSign.name}, накшатра ${chart.planets['Луна'].nakshatra.name} (пада ${chart.planets['Луна'].nakshatra.pada})\n` +
         `☀️ Аянамша (Лахири): ${chart.ayanamsha.toFixed(2)}°\n\n` +
-        `Whole Sign дома\n\n` +
         `Теперь можно посмотреть периоды жизни или текущие транзиты — кнопками ниже или командами /dasha и /transits.\n\n` +
         `✨ Джанма Кундали — t.me/janma_kundali_bot`;
 
@@ -173,10 +173,23 @@ const birthDataWizard = new Scenes.WizardScene(
       const birthDateUTC = new Date(Date.UTC(bd.year, bd.month - 1, bd.day, bd.hour, bd.minute, 0) - tz * 3600 * 1000);
       userCharts.set(ctx.from.id, { params, chart, birthDateUTC, dateStr, timeStr, subtitle, style: 'north' });
 
+      const editingChartId = ctx.scene.state && ctx.scene.state.editingChartId;
+      if (editingChartId) {
+        db.updateChart(ctx.from.id, editingChartId, params, placeLabel);
+        const keyboard = Markup.inlineKeyboard([
+          [Markup.button.callback('📜 Периоды жизни', 'menu_dasha'), Markup.button.callback('🔄 Транзиты', 'menu_transits')],
+          [Markup.button.callback('🔯 Навамша', 'menu_navamsha')],
+          [Markup.button.callback('📝 Заметки', `notes_${editingChartId}`), Markup.button.callback('🗑 Удалить', `delask_${editingChartId}`)],
+        ]);
+        await ctx.replyWithPhoto({ source: pngBuffer }, { caption: `✏️ Данные обновлены.\n\n${caption}`, ...keyboard });
+        return ctx.scene.leave();
+      }
+
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('◆ Северный стиль ✓', 'style_north'), Markup.button.callback('▦ Южный стиль', 'style_south')],
         [Markup.button.callback('📜 Периоды жизни', 'menu_dasha'), Markup.button.callback('🔄 Транзиты', 'menu_transits')],
         [Markup.button.callback('💾 Сохранить', 'save_chart'), Markup.button.callback('📁 Архив', 'menu_archive')],
+        [Markup.button.callback('🔯 Навамша', 'menu_navamsha')],
       ]);
 
       await ctx.replyWithPhoto({ source: pngBuffer }, { caption, ...keyboard });
@@ -484,8 +497,13 @@ const saveChartWizard = new Scenes.WizardScene(
       return ctx.scene.leave();
     }
     try {
-      db.saveChart(ctx.from.id, label, stored.params, stored.params.placeLabel);
-      await ctx.reply(`Сохранено как «${label}» — теперь доступно в 📁 Архиве.`);
+      const chartId = db.saveChart(ctx.from.id, label, stored.params, stored.params.placeLabel);
+      await ctx.reply(
+        `Сохранено как «${label}» — теперь доступно в 📁 Архиве.`,
+        Markup.inlineKeyboard([
+          [Markup.button.callback('☆ В избранное', `fav_${chartId}`), Markup.button.callback('📝 Заметки', `notes_${chartId}`)],
+        ])
+      );
     } catch (e) {
       console.error(e);
       await ctx.reply('Не получилось сохранить: ' + e.message);
@@ -507,6 +525,7 @@ const mainMenuKeyboard = Markup.inlineKeyboard([
   [Markup.button.callback('🌟 Построить карту', 'menu_chart')],
   [Markup.button.callback('📜 Периоды жизни', 'menu_dasha'), Markup.button.callback('🔄 Транзиты', 'menu_transits')],
   [Markup.button.callback('📅 Панчанга', 'menu_panchanga'), Markup.button.callback('📁 Архив', 'menu_archive')],
+  [Markup.button.callback('🔯 Навамша', 'menu_navamsha')],
 ]);
 
 // Постоянная кнопка внизу экрана (не пропадает, в отличие от кнопок под сообщениями) —
@@ -569,6 +588,7 @@ async function switchChartStyle(ctx, style) {
        Markup.button.callback(style === 'south' ? '▦ Южный стиль ✓' : '▦ Южный стиль', 'style_south')],
       [Markup.button.callback('📜 Периоды жизни', 'menu_dasha'), Markup.button.callback('🔄 Транзиты', 'menu_transits')],
       [Markup.button.callback('💾 Сохранить', 'save_chart'), Markup.button.callback('📁 Архив', 'menu_archive')],
+        [Markup.button.callback('🔯 Навамша', 'menu_navamsha')],
     ]);
 
     await ctx.editMessageMedia(
@@ -627,13 +647,34 @@ async function showArchive(ctx) {
     return;
   }
   const buttons = charts.map(c => [Markup.button.callback(
-    `${c.label} (${String(c.day).padStart(2,'0')}.${String(c.month).padStart(2,'0')}.${c.year})`,
+    `${c.is_favorite ? '⭐ ' : ''}${c.label} (${String(c.day).padStart(2,'0')}.${String(c.month).padStart(2,'0')}.${c.year})`,
     `open_chart_${c.id}`
   )]);
   await ctx.reply('Ваш архив карт:', Markup.inlineKeyboard(buttons));
 }
 bot.command('archive', showArchive);
 bot.action('menu_archive', async (ctx) => { await ctx.answerCbQuery(); return showArchive(ctx); });
+
+async function sendNavamsha(ctx) {
+  const stored = userCharts.get(ctx.from.id);
+  if (!stored) {
+    await ctx.reply('Сначала постройте карту — кнопка «🌟 Построить карту» выше, либо команда /chart. Навамша считается от неё.');
+    return;
+  }
+  try {
+    const d9 = calculateNavamsha(stored.chart);
+    let pngBuffer = renderDivisionalPNG(d9, { title: 'Навамша (D9)', subtitle: stored.subtitle });
+    pngBuffer = await withLogo(pngBuffer);
+    await ctx.replyWithPhoto({ source: pngBuffer }, {
+      caption: '🔯 Навамша (D9) — дробная карта, традиционно связана с браком, дхармой и внутренней силой планет. Накшатры и градусы в дробных картах не показываются — здесь важны только знак, дом и достоинство.'
+    });
+  } catch (e) {
+    console.error(e);
+    await ctx.reply('Ошибка при расчёте навамши: ' + e.message);
+  }
+}
+bot.command('navamsha', sendNavamsha);
+bot.action('menu_navamsha', async (ctx) => { await ctx.answerCbQuery(); return sendNavamsha(ctx); });
 
 bot.action(/^open_chart_(\d+)$/, async (ctx) => {
   await ctx.answerCbQuery('Открываю...');
@@ -659,14 +700,121 @@ bot.action(/^open_chart_(\d+)$/, async (ctx) => {
     const birthDateUTC = new Date(Date.UTC(row.year, row.month - 1, row.day, row.hour, row.minute, 0) - row.utc_offset * 3600 * 1000);
     userCharts.set(ctx.from.id, { params, chart, birthDateUTC, dateStr, timeStr, subtitle, style: 'north' });
 
-    await ctx.replyWithPhoto({ source: pngBuffer }, { caption: `📁 «${row.label}» — открыто из архива.` });
+    const keyboard = Markup.inlineKeyboard([
+      [Markup.button.callback('📜 Периоды жизни', 'menu_dasha'), Markup.button.callback('🔄 Транзиты', 'menu_transits')],
+      [Markup.button.callback('🔯 Навамша', 'menu_navamsha')],
+      [Markup.button.callback(row.is_favorite ? '⭐ В избранном' : '☆ В избранное', `fav_${row.id}`),
+       Markup.button.callback('📝 Заметки', `notes_${row.id}`)],
+      [Markup.button.callback('✏️ Изменить данные', `edit_chart_${row.id}`),
+       Markup.button.callback('🗑 Удалить', `delask_${row.id}`)],
+    ]);
+
+    await ctx.replyWithPhoto({ source: pngBuffer }, { caption: `📁 «${row.label}» — открыто из архива.`, ...keyboard });
   } catch (e) {
     console.error(e);
     await ctx.reply('Ошибка при открытии карты: ' + e.message);
   }
 });
 
-// ---------- Рассылка (только для администратора) ----------
+// ---------- Редактирование данных сохранённой карты ----------
+bot.action(/^edit_chart_(\d+)$/, async (ctx) => {
+  await ctx.answerCbQuery();
+  const chartId = Number(ctx.match[1]);
+  const row = db.getChart(ctx.from.id, chartId);
+  if (!row) {
+    await ctx.reply('Карта не найдена.');
+    return;
+  }
+  await ctx.reply(`Изменяем данные карты «${row.label}».`);
+  return ctx.scene.enter('birth-data-wizard', { editingChartId: chartId });
+});
+
+// ---------- Удаление с подтверждением (двойной клик, чтобы не удалить случайно) ----------
+bot.action(/^delask_(\d+)$/, async (ctx) => {
+  await ctx.answerCbQuery();
+  const chartId = Number(ctx.match[1]);
+  await ctx.reply('Точно удалить эту карту из архива? Это необратимо.', Markup.inlineKeyboard([
+    [Markup.button.callback('✅ Да, удалить', `delconfirm_${chartId}`), Markup.button.callback('Отмена', 'delcancel')],
+  ]));
+});
+
+bot.action(/^delconfirm_(\d+)$/, async (ctx) => {
+  const chartId = Number(ctx.match[1]);
+  db.deleteChart(ctx.from.id, chartId);
+  await ctx.answerCbQuery('Удалено');
+  await ctx.editMessageText('Карта удалена из архива.');
+});
+
+bot.action('delcancel', async (ctx) => {
+  await ctx.answerCbQuery('Отменено');
+  await ctx.editMessageText('Удаление отменено.');
+});
+
+// ---------- Избранное ----------
+bot.action(/^fav_(\d+)$/, async (ctx) => {
+  const chartId = Number(ctx.match[1]);
+  const newState = db.toggleFavorite(ctx.from.id, chartId);
+  if (newState === null) {
+    await ctx.answerCbQuery('Карта не найдена');
+    return;
+  }
+  await ctx.answerCbQuery(newState ? 'Добавлено в избранное' : 'Убрано из избранного');
+  try {
+    await ctx.editMessageReplyMarkup(
+      Markup.inlineKeyboard([
+        [Markup.button.callback(newState ? '⭐ В избранном' : '☆ В избранное', `fav_${chartId}`),
+         Markup.button.callback('📝 Заметки', `notes_${chartId}`)],
+      ]).reply_markup
+    );
+  } catch (e) { /* сообщение могло измениться — не критично */ }
+});
+
+// ---------- Заметки к карте ----------
+async function showNotes(ctx, chartId) {
+  const row = db.getChart(ctx.from.id, chartId);
+  if (!row) {
+    await ctx.reply('Карта не найдена.');
+    return;
+  }
+  const notes = db.listNotes(chartId);
+  let text = `📝 Заметки к «${row.label}»:\n\n`;
+  if (notes.length === 0) {
+    text += '(пока пусто)';
+  } else {
+    text += notes.map(n => `• ${n.note}\n  (${n.created_at.slice(0, 10).split('-').reverse().join('.')})`).join('\n\n');
+  }
+  await ctx.reply(text, Markup.inlineKeyboard([
+    [Markup.button.callback('➕ Добавить заметку', `addnote_${chartId}`)],
+  ]));
+}
+
+bot.action(/^notes_(\d+)$/, async (ctx) => {
+  await ctx.answerCbQuery();
+  return showNotes(ctx, Number(ctx.match[1]));
+});
+
+bot.action(/^addnote_(\d+)$/, async (ctx) => {
+  await ctx.answerCbQuery();
+  ctx.session.pendingNoteChartId = Number(ctx.match[1]);
+  await ctx.reply('Напишите текст заметки:');
+});
+
+// Обрабатываем текст заметки (когда ждём её после нажатия "Добавить заметку")
+// Это не сцена-мастер, а простая проверка сессии — чтобы не мешать другим сценам.
+bot.on('text', async (ctx, next) => {
+  if (ctx.session && ctx.session.pendingNoteChartId && !(ctx.scene && ctx.scene.current)) {
+    const chartId = ctx.session.pendingNoteChartId;
+    delete ctx.session.pendingNoteChartId;
+    const text = ctx.message.text.trim();
+    if (text === '☰ Меню' || text === '/menu') return next();
+    db.addNote(chartId, text);
+    await ctx.reply('Заметка сохранена.');
+    return;
+  }
+  return next();
+});
+
+
 bot.command('broadcast', async (ctx) => {
   if (!ADMIN_ID || ctx.from.id !== ADMIN_ID) {
     return; // тихо игнорируем для всех, кроме администратора
@@ -699,6 +847,7 @@ bot.command('help', async (ctx) => {
     '/transits — транзиты на выбранную дату, наложенные на натальную карту\n' +
     '/panchanga — панчанга (титхи, накшатра дня, Раху-калам и др.) на любую дату и место\n' +
     '/archive — архив сохранённых карт\n' +
+    '/navamsha — дробная карта D9 (Навамша)\n' +
     '/whoami — узнать свой Telegram ID (нужен для настройки администратора)\n' +
     '/help — это сообщение'
   );
