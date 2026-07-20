@@ -1,0 +1,17 @@
+{
+  "name": "jyotish-telegram-bot",
+  "version": "1.0.0",
+  "description": "Telegram-бот для расчёта натальной карты по системе джйотиш",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "pdfkit": "^0.19.1",
+    "sharp": "^0.35.3",
+    "telegraf": "^4.16.3"
+  }
+}
