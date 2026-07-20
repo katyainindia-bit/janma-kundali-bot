@@ -6,7 +6,7 @@
 const { Telegraf, Scenes, session, Markup } = require('telegraf');
 const sharp = require('sharp');
 const { calculateChart } = require('./engine.js');
-const { renderNorthIndianSVG, renderNorthIndianSVGWithTransits, renderSouthIndianSVG } = require('./chart-svg.js');
+const { renderNorthIndianPNG, renderNorthIndianWithTransitsPNG, renderSouthIndianPNG } = require('./chart-canvas.js');
 const { computeVimshottariDasha, findCurrentDashaChain } = require('./dasha.js');
 const { computeCurrentTransits } = require('./transits.js');
 const { computePanchanga } = require('./panchanga.js');
@@ -125,8 +125,7 @@ const birthDataWizard = new Scenes.WizardScene(
       const timeStr = `${String(bd.hour).padStart(2,'0')}:${String(bd.minute).padStart(2,'0')}`;
       const subtitle = `${dateStr}, ${timeStr} · ${placeLabel}`;
 
-      const svg = renderNorthIndianSVG(chart, { title: 'Натальная карта', subtitle });
-      let pngBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
+      let pngBuffer = renderNorthIndianPNG(chart, { title: 'Натальная карта', subtitle });
     pngBuffer = await withLogo(pngBuffer);
 
       const moonSign = chart.planets['Луна'].sign;
@@ -287,11 +286,10 @@ async function finalizeTransit(ctx, stored, atDate, place) {
     const timeLabel = atDate.toISOString().slice(11, 16);
     const subtitle = `${dateLabel}, ${timeLabel} UTC · ${place.label}`;
 
-    const svg = renderNorthIndianSVGWithTransits(chart, transits, {
+    let pngBuffer = renderNorthIndianWithTransitsPNG(chart, transits, {
       title: 'Транзиты',
       subtitle
     });
-    let pngBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
     pngBuffer = await withLogo(pngBuffer);
 
     const caption =
@@ -449,10 +447,9 @@ async function switchChartStyle(ctx, style) {
   await ctx.answerCbQuery('Перерисовываю...');
   try {
     const { chart, subtitle } = stored;
-    const svg = style === 'south'
-      ? renderSouthIndianSVG(chart, { title: 'Натальная карта', subtitle })
-      : renderNorthIndianSVG(chart, { title: 'Натальная карта', subtitle });
-    let pngBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
+    let pngBuffer = style === 'south'
+      ? renderSouthIndianPNG(chart, { title: 'Натальная карта', subtitle })
+      : renderNorthIndianPNG(chart, { title: 'Натальная карта', subtitle });
     pngBuffer = await withLogo(pngBuffer);
 
     stored.style = style;

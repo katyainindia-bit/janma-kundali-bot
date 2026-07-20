@@ -30,14 +30,15 @@ function fmtDate(d) {
 function drawHeader(doc, title, subtitle) {
   doc.rect(0, 0, doc.page.width, doc.page.height).fill(COLORS.parchment);
 
-  // Логотип слева + название и кликабельная ссылка на бота справа от него
+  // Логотип слева, название и кликабельная ссылка — в правом углу
   try {
-    doc.image(LOGO_PATH, 50, 14, { width: 36 });
+    doc.image(LOGO_PATH, 50, 16, { width: 38 });
   } catch (e) {
     // если файл логотипа недоступен — просто пропускаем, не ломаем PDF
   }
-  doc.fillColor(COLORS.ink).font(FONT_SERIF_BOLD).fontSize(13).text('Джанма Кундали', 96, 18);
-  doc.fillColor(COLORS.gold).font(FONT_SANS).fontSize(10).text(BOT_LINK_LABEL, 96, 34, { link: BOT_LINK, underline: false });
+  const rightBoxX = 50, rightBoxW = doc.page.width - 100;
+  doc.fillColor(COLORS.ink).font(FONT_SERIF_BOLD).fontSize(13).text('Джанма Кундали', rightBoxX, 22, { width: rightBoxW, align: 'right' });
+  doc.fillColor(COLORS.gold).font(FONT_SANS).fontSize(10).text(BOT_LINK_LABEL, rightBoxX, 40, { width: rightBoxW, align: 'right', link: BOT_LINK, underline: false });
 
   doc.fillColor(COLORS.ink).font(FONT_SERIF_BOLD).fontSize(20).text(title, 50, 66, { align: 'center', width: doc.page.width - 100 });
   if (subtitle) {
