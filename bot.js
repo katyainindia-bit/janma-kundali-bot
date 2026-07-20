@@ -13,6 +13,10 @@ const { computePanchanga } = require('./panchanga.js');
 const { buildDashaPDF } = require('./dasha-pdf.js');
 const { resolveCity } = require('./ru-timezone.js');
 const { withLogo } = require('./branding.js');
+const db = require('./database.js');
+
+// ID администратора (тебя) для команды /broadcast — задаётся переменной окружения ADMIN_ID
+const ADMIN_ID = process.env.ADMIN_ID ? Number(process.env.ADMIN_ID) : null;
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 if (!BOT_TOKEN) {
@@ -114,7 +118,7 @@ const birthDataWizard = new Scenes.WizardScene(
     const params = {
       day: bd.day, month: bd.month, year: bd.year,
       hour: bd.hour, minute: bd.minute, second: 0,
-      utcOffset: tz, lat, lon, ayanamshaType: 'lahiri'
+      utcOffset: tz, lat, lon, ayanamshaType: 'lahiri', placeLabel
     };
 
     await ctx.reply('Считаю карту...');
@@ -144,6 +148,7 @@ const birthDataWizard = new Scenes.WizardScene(
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('◆ Северный стиль ✓', 'style_north'), Markup.button.callback('▦ Южный стиль', 'style_south')],
         [Markup.button.callback('📜 Периоды жизни', 'menu_dasha'), Markup.button.callback('🔄 Транзиты', 'menu_transits')],
+        [Markup.button.callback('💾 Сохранить', 'save_chart'), Markup.button.callback('📁 Архив', 'menu_archive')],
       ]);
 
       await ctx.replyWithPhoto({ source: pngBuffer }, { caption, ...keyboard });
@@ -407,15 +412,55 @@ const panchangaWizard = new Scenes.WizardScene(
   }
 );
 
-const stage = new Scenes.Stage([birthDataWizard, transitWizard, panchangaWizard]);
+// ---------- Wizard scene: сохранение карты в архив (спросить имя) ----------
+const saveChartWizard = new Scenes.WizardScene(
+  'save-chart-wizard',
+
+  async (ctx) => {
+    const stored = userCharts.get(ctx.from.id);
+    if (!stored) {
+      await ctx.reply('Сначала постройте карту — кнопка «🌟 Построить карту», либо команда /chart.');
+      return ctx.scene.leave();
+    }
+    await ctx.reply('Как назвать эту карту в архиве? (например: имя человека)');
+    return ctx.wizard.next();
+  },
+
+  async (ctx) => {
+    const label = (ctx.message && ctx.message.text || '').trim();
+    if (!label) {
+      await ctx.reply('Напишите короткое название текстом.');
+      return;
+    }
+    const stored = userCharts.get(ctx.from.id);
+    if (!stored) {
+      await ctx.reply('Карта потерялась — постройте заново через /chart.');
+      return ctx.scene.leave();
+    }
+    try {
+      db.saveChart(ctx.from.id, label, stored.params, stored.params.placeLabel);
+      await ctx.reply(`Сохранено как «${label}» — теперь доступно в 📁 Архиве.`);
+    } catch (e) {
+      console.error(e);
+      await ctx.reply('Не получилось сохранить: ' + e.message);
+    }
+    return ctx.scene.leave();
+  }
+);
+
+const stage = new Scenes.Stage([birthDataWizard, transitWizard, panchangaWizard, saveChartWizard]);
 bot.use(session());
 bot.use(stage.middleware());
+bot.use((ctx, next) => {
+  try { db.upsertUser(ctx); } catch (e) { console.error('Ошибка сохранения пользователя:', e.message); }
+  return next();
+});
 
 // ---------- Commands ----------
 const mainMenuKeyboard = Markup.inlineKeyboard([
   [Markup.button.callback('🌟 Построить карту', 'menu_chart')],
   [Markup.button.callback('📜 Периоды жизни', 'menu_dasha'), Markup.button.callback('🔄 Транзиты', 'menu_transits')],
-  [Markup.button.callback('📅 Панчанга', 'menu_panchanga')],
+  [Markup.button.callback('📅 Панчанга', 'menu_panchanga'), Markup.button.callback('📁 Архив', 'menu_archive')],
 ]);
 
 bot.start(async (ctx) => {
@@ -459,6 +504,7 @@ async function switchChartStyle(ctx, style) {
       [Markup.button.callback(style === 'north' ? '◆ Северный стиль ✓' : '◆ Северный стиль', 'style_north'),
        Markup.button.callback(style === 'south' ? '▦ Южный стиль ✓' : '▦ Южный стиль', 'style_south')],
       [Markup.button.callback('📜 Периоды жизни', 'menu_dasha'), Markup.button.callback('🔄 Транзиты', 'menu_transits')],
+      [Markup.button.callback('💾 Сохранить', 'save_chart'), Markup.button.callback('📁 Архив', 'menu_archive')],
     ]);
 
     await ctx.editMessageMedia(
@@ -507,6 +553,80 @@ const startPanchangaWizard = (ctx) => ctx.scene.enter('panchanga-wizard');
 bot.command('panchanga', startPanchangaWizard);
 bot.action('menu_panchanga', async (ctx) => { await ctx.answerCbQuery(); return startPanchangaWizard(ctx); });
 
+// ---------- Сохранение и архив карт ----------
+bot.action('save_chart', async (ctx) => { await ctx.answerCbQuery(); return ctx.scene.enter('save-chart-wizard'); });
+
+async function showArchive(ctx) {
+  const charts = db.listCharts(ctx.from.id);
+  if (charts.length === 0) {
+    await ctx.reply('Архив пуст — постройте карту и нажмите «💾 Сохранить».');
+    return;
+  }
+  const buttons = charts.map(c => [Markup.button.callback(
+    `${c.label} (${String(c.day).padStart(2,'0')}.${String(c.month).padStart(2,'0')}.${c.year})`,
+    `open_chart_${c.id}`
+  )]);
+  await ctx.reply('Ваш архив карт:', Markup.inlineKeyboard(buttons));
+}
+bot.command('archive', showArchive);
+bot.action('menu_archive', async (ctx) => { await ctx.answerCbQuery(); return showArchive(ctx); });
+
+bot.action(/^open_chart_(\d+)$/, async (ctx) => {
+  await ctx.answerCbQuery('Открываю...');
+  const chartId = Number(ctx.match[1]);
+  const row = db.getChart(ctx.from.id, chartId);
+  if (!row) {
+    await ctx.reply('Карта не найдена — возможно, была удалена.');
+    return;
+  }
+  try {
+    const params = {
+      day: row.day, month: row.month, year: row.year, hour: row.hour, minute: row.minute, second: 0,
+      utcOffset: row.utc_offset, lat: row.lat, lon: row.lon, ayanamshaType: 'lahiri'
+    };
+    const chart = calculateChart(params);
+    const dateStr = `${String(row.day).padStart(2,'0')}.${String(row.month).padStart(2,'0')}.${row.year}`;
+    const timeStr = `${String(row.hour).padStart(2,'0')}:${String(row.minute).padStart(2,'0')}`;
+    const subtitle = `${dateStr}, ${timeStr}` + (row.place_label ? ` · ${row.place_label}` : '');
+
+    let pngBuffer = renderNorthIndianPNG(chart, { title: row.label, subtitle });
+    pngBuffer = await withLogo(pngBuffer);
+
+    const birthDateUTC = new Date(Date.UTC(row.year, row.month - 1, row.day, row.hour, row.minute, 0) - row.utc_offset * 3600 * 1000);
+    userCharts.set(ctx.from.id, { params, chart, birthDateUTC, dateStr, timeStr, subtitle, style: 'north' });
+
+    await ctx.replyWithPhoto({ source: pngBuffer }, { caption: `📁 «${row.label}» — открыто из архива.` });
+  } catch (e) {
+    console.error(e);
+    await ctx.reply('Ошибка при открытии карты: ' + e.message);
+  }
+});
+
+// ---------- Рассылка (только для администратора) ----------
+bot.command('broadcast', async (ctx) => {
+  if (!ADMIN_ID || ctx.from.id !== ADMIN_ID) {
+    return; // тихо игнорируем для всех, кроме администратора
+  }
+  const text = ctx.message.text.replace(/^\/broadcast\s*/, '').trim();
+  if (!text) {
+    await ctx.reply('Использование: /broadcast текст сообщения');
+    return;
+  }
+  const userIds = db.getAllUserIds();
+  await ctx.reply(`Начинаю рассылку на ${userIds.length} пользователей...`);
+  let sent = 0, failed = 0;
+  for (const id of userIds) {
+    try {
+      await bot.telegram.sendMessage(id, text);
+      sent++;
+    } catch (e) {
+      failed++;
+    }
+    await new Promise(r => setTimeout(r, 50)); // пауза, чтобы не упереться в лимиты Telegram
+  }
+  await ctx.reply(`Готово: доставлено ${sent}, не удалось ${failed}.`);
+});
+
 bot.command('help', async (ctx) => {
   await ctx.reply(
     'Доступные команды:\n' +
@@ -514,8 +634,14 @@ bot.command('help', async (ctx) => {
     '/dasha — периоды Вимшоттари даша (по последней построенной карте)\n' +
     '/transits — транзиты на выбранную дату, наложенные на натальную карту\n' +
     '/panchanga — панчанга (титхи, накшатра дня, Раху-калам и др.) на любую дату и место\n' +
+    '/archive — архив сохранённых карт\n' +
+    '/whoami — узнать свой Telegram ID (нужен для настройки администратора)\n' +
     '/help — это сообщение'
   );
+});
+
+bot.command('whoami', async (ctx) => {
+  await ctx.reply(`Ваш Telegram ID: ${ctx.from.id}`);
 });
 
 bot.launch();
