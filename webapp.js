@@ -17,7 +17,14 @@ const { resolveWorldCity } = require('./world-geocoding.js');
 function startWebApp() {
   const app = express();
   app.use(express.json());
-  app.use(express.static(path.join(__dirname, 'public')));
+  app.use(express.static(path.join(__dirname, 'public'), {
+    setHeaders: (res) => {
+      // Запрещаем кэширование — иначе Telegram может подолгу показывать старую версию страницы
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  }));
 
   app.post('/api/geocode', async (req, res) => {
     try {

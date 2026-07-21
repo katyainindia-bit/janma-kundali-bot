@@ -258,6 +258,16 @@
   }
   .dasha-accordion[open] > summary::after { transform: rotate(270deg); }
   .dasha-accordion .inner { padding: 4px 16px 10px 24px; }
+
+  /* ---------- Таблица транзитов по домам ---------- */
+  .transit-table { background: var(--card-light); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; font-size: 12px; }
+  .transit-table .row { display: flex; padding: 9px 12px; border-bottom: 1px solid var(--line); align-items: center; }
+  .transit-table .row:last-child { border-bottom: none; }
+  .transit-table .row.header { font-weight: 700; color: var(--taupe); font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .transit-table .c-house { width: 26px; font-weight: 700; color: var(--gold); flex-shrink: 0; }
+  .transit-table .c-sign { width: 78px; flex-shrink: 0; }
+  .transit-table .c-natal { flex: 1; }
+  .transit-table .c-transit { flex: 1; color: #6b8299; }
   .dasha-accordion.current > summary { background: var(--card); }
 
   .antar-row summary {
@@ -321,6 +331,7 @@
 
 <main>
 
+<div id="page-home">
   <div class="form-card" id="form-card">
     <h2>Построить натальную карту</h2>
     <div class="field">
@@ -392,6 +403,15 @@
     </div>
 
     <div class="tab-content" id="tab-transits">
+      <div class="form-card" style="padding:14px 16px;margin-bottom:14px;">
+        <div class="row2" style="align-items:end;">
+          <div class="field" style="margin-bottom:0;">
+            <label for="t-date">Дата транзита</label>
+            <input type="date" id="t-date">
+          </div>
+          <button class="btn-primary" id="t-refresh-btn" style="margin-top:0;">Показать</button>
+        </div>
+      </div>
       <div class="chart-wrap">
         <svg class="chart-svg" id="transit-svg" viewBox="0 0 400 400"></svg>
         <div class="legend">
@@ -401,9 +421,45 @@
           <span><i class="dot" style="background:#6b8299"></i>транзит</span>
         </div>
       </div>
-      <div class="planet-list" id="transits-list" style="margin-top:14px;"></div>
+      <div id="transits-table"></div>
     </div>
   </div>
+
+</div>
+
+<div id="page-panchanga" style="display:none;">
+  <div class="form-card">
+    <h2>Панчанга дня</h2>
+    <div class="field">
+      <label for="p-date">Дата</label>
+      <input type="date" id="p-date">
+    </div>
+    <div class="field">
+      <label for="p-city">Место</label>
+      <input type="text" id="p-city" placeholder="Например: Пермь" value="Пермь">
+    </div>
+    <button class="btn-primary" id="p-build-btn">Показать панчангу</button>
+    <div class="error-msg" id="p-error-msg"></div>
+  </div>
+
+  <div id="panchanga-result" style="display:none;">
+    <div class="info-card" style="display:block;">
+      <div class="name" id="p-res-title" style="margin-bottom:8px;">—</div>
+      <div class="current-period-row"><span class="label">Вара</span><span class="value" id="p-vara">—</span></div>
+      <div class="current-period-row"><span class="label">Титхи</span><span class="value" id="p-tithi">—</span></div>
+      <div class="current-period-row"><span class="label">Накшатра дня</span><span class="value" id="p-nakshatra">—</span></div>
+      <div class="current-period-row"><span class="label">Йога</span><span class="value" id="p-yoga">—</span></div>
+      <div class="current-period-row"><span class="label">Карана</span><span class="value" id="p-karana">—</span></div>
+    </div>
+    <div class="info-card" style="display:block;">
+      <div class="current-period-row"><span class="label">🌅 Восход</span><span class="value" id="p-sunrise">—</span></div>
+      <div class="current-period-row"><span class="label">🌇 Закат</span><span class="value" id="p-sunset">—</span></div>
+      <div class="current-period-row" style="color:#a8654a;"><span class="label">⚠️ Раху-калам</span><span class="value" id="p-rahu">—</span></div>
+      <div class="current-period-row"><span class="label">Ямаганда</span><span class="value" id="p-yama">—</span></div>
+      <div class="current-period-row"><span class="label">Гулика-калам</span><span class="value" id="p-gulika">—</span></div>
+    </div>
+  </div>
+</div>
 
 </main>
 
@@ -436,6 +492,8 @@
     'Солнце':'Su','Луна':'Mo','Меркурий':'Me','Венера':'Ve','Марс':'Ma',
     'Юпитер':'Ju','Сатурн':'Sa','Раху':'Ra','Кету':'Ke'
   };
+  const SIGN_NAMES = ['Овен','Телец','Близнецы','Рак','Лев','Дева','Весы','Скорпион','Стрелец','Козерог','Водолей','Рыбы'];
+  let currentChart = null;
   const EXALTATION = {'Солнце':0,'Луна':1,'Марс':9,'Меркурий':5,'Юпитер':3,'Венера':11,'Сатурн':6};
   const DEBILITATION = {'Солнце':6,'Луна':7,'Марс':3,'Меркурий':11,'Юпитер':9,'Венера':5,'Сатурн':0};
   const OWN_SIGNS = {'Солнце':[4],'Луна':[3],'Марс':[0,7],'Меркурий':[2,5],'Юпитер':[8,11],'Венера':[1,6],'Сатурн':[9,10]};
@@ -567,16 +625,24 @@
   function renderPlanetList(chart) {
     const order = ['Солнце','Луна','Меркурий','Венера','Марс','Юпитер','Сатурн','Раху','Кету'];
     const container = document.getElementById('planet-list');
-    container.innerHTML = order.map(name => {
+    const asc = chart.ascendant;
+    let html = `<div class="planet-row" style="background:var(--card);">
+      <div class="sym" style="color:var(--gold)">Asc</div>
+      <div class="pname">Лагна</div>
+      <div class="pdeg">${dms(asc.sign.degInSign)}</div>
+      <div class="psign">${asc.sign.index+1}. ${asc.sign.name}<br><span style="font-size:11px;">${asc.nakshatra.name} (пада ${asc.nakshatra.pada})</span></div>
+    </div>`;
+    html += order.map(name => {
       const p = chart.planets[name];
       const color = dignityColor(name, p.sign.index);
       return `<div class="planet-row">
         <div class="sym" style="color:${color}">${PLANET_SYMBOLS[name]}</div>
         <div class="pname">${name}</div>
         <div class="pdeg">${dms(p.sign.degInSign)}</div>
-        <div class="psign">${p.sign.index+1}. ${p.sign.name}</div>
+        <div class="psign">${p.sign.index+1}. ${p.sign.name}<br><span style="font-size:11px;">${p.nakshatra.name} (пада ${p.nakshatra.pada})</span></div>
       </div>`;
     }).join('');
+    container.innerHTML = html;
   }
 
   document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -588,12 +654,17 @@
     });
   });
 
+  const PAGES = ['home', 'panchanga', 'archive', 'profile'];
   document.querySelectorAll('.nav-item').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
-      // Разделы «Панчанга», «Архив», «Профиль» — в разработке, появятся здесь позже.
-      if (btn.dataset.nav !== 'home' && window.Telegram && window.Telegram.WebApp) {
+      const nav = btn.dataset.nav;
+      PAGES.forEach(p => {
+        const el = document.getElementById('page-' + p);
+        if (el) el.style.display = (p === nav) ? 'block' : 'none';
+      });
+      if ((nav === 'archive' || nav === 'profile') && window.Telegram && window.Telegram.WebApp) {
         Telegram.WebApp.showAlert('Этот раздел скоро появится здесь.');
       }
     });
@@ -633,6 +704,7 @@
 
       renderChartSVG(chart, 'chart-svg');
       renderPlanetList(chart);
+      currentChart = chart;
 
       const birthDateUTC = new Date(Date.UTC(year, month-1, day, hour, minute, 0) - geo.utcOffset*3600000).toISOString();
 
@@ -643,13 +715,9 @@
       const { mahadashas, chain } = await dashaRes.json();
       renderDasha(mahadashas, chain);
 
-      const transitsRes = await fetch('/api/transits', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ chart })
-      });
-      const { transits } = await transitsRes.json();
-      renderChartSVG(chart, 'transit-svg', transits);
-      renderTransits(transits, chart);
+      const today = new Date();
+      document.getElementById('t-date').value = today.toISOString().slice(0,10);
+      await loadAndRenderTransits();
 
       document.getElementById('results').style.display = 'block';
     } catch (e) {
@@ -696,17 +764,101 @@
 
   function renderTransits(transits, natalChart) {
     const order = ['Солнце','Луна','Меркурий','Венера','Марс','Юпитер','Сатурн','Раху','Кету'];
-    const container = document.getElementById('transits-list');
-    container.innerHTML = order.map(name => {
+    const ascIdx = natalChart.ascendant.sign.index;
+
+    const natalByHouse = {};
+    for (let h=1; h<=12; h++) natalByHouse[h] = [];
+    for (const name of order) {
+      const p = natalChart.planets[name];
+      natalByHouse[p.house].push(`${PLANET_SYMBOLS[name]} ${dms(p.sign.degInSign)}`);
+    }
+    const transitByHouse = {};
+    for (let h=1; h<=12; h++) transitByHouse[h] = [];
+    for (const name of order) {
       const t = transits.planets[name];
-      return `<div class="planet-row">
-        <div class="sym">${PLANET_SYMBOLS[name]}</div>
-        <div class="pname">${name}</div>
-        <div class="pdeg">${dms(t.sign.degInSign)}</div>
-        <div class="psign">${t.sign.index+1}. ${t.sign.name} · дом ${t.transitHouse}</div>
+      transitByHouse[t.transitHouse].push(`${PLANET_SYMBOLS[name]} ${dms(t.sign.degInSign)}`);
+    }
+
+    let html = `<div class="transit-table">
+      <div class="row header"><div class="c-house">Дом</div><div class="c-sign">Знак</div><div class="c-natal">Натал</div><div class="c-transit">Транзит</div></div>`;
+    for (let h=1; h<=12; h++) {
+      const signIdx = (ascIdx + h - 1) % 12;
+      html += `<div class="row">
+        <div class="c-house">${h}</div>
+        <div class="c-sign">${signIdx+1}. ${SIGN_NAMES[signIdx]}</div>
+        <div class="c-natal">${natalByHouse[h].join(' ') || '—'}</div>
+        <div class="c-transit">${transitByHouse[h].join(' ') || '—'}</div>
       </div>`;
-    }).join('');
+    }
+    html += `</div>`;
+    document.getElementById('transits-table').innerHTML = html;
   }
+
+  async function loadAndRenderTransits() {
+    if (!currentChart) return;
+    const dateVal = document.getElementById('t-date').value;
+    const atDate = dateVal ? new Date(dateVal + 'T12:00:00Z').toISOString() : new Date().toISOString();
+    const transitsRes = await fetch('/api/transits', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ chart: currentChart, atDate })
+    });
+    const { transits } = await transitsRes.json();
+    renderChartSVG(currentChart, 'transit-svg', transits);
+    renderTransits(transits, currentChart);
+  }
+
+  document.getElementById('t-refresh-btn').addEventListener('click', loadAndRenderTransits);
+
+  // Дата по умолчанию — сегодня
+  document.getElementById('p-date').value = new Date().toISOString().slice(0,10);
+
+  document.getElementById('p-build-btn').addEventListener('click', async () => {
+    const errorEl = document.getElementById('p-error-msg');
+    errorEl.style.display = 'none';
+    const dateVal = document.getElementById('p-date').value;
+    const city = document.getElementById('p-city').value.trim();
+    if (!dateVal) { errorEl.textContent = 'Укажите дату'; errorEl.style.display='block'; return; }
+    const [year, month, day] = dateVal.split('-').map(Number);
+
+    try {
+      const geoRes = await fetch('/api/geocode', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ city, day, month, year })
+      });
+      const geo = await geoRes.json();
+      if (geo.error) { errorEl.textContent = geo.error; errorEl.style.display='block'; return; }
+
+      const pRes = await fetch('/api/panchanga', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ day, month, year, lat: geo.lat, lon: geo.lon, utcOffset: geo.utcOffset })
+      });
+      const { panchanga: p } = await pRes.json();
+
+      if (p.sunError) {
+        errorEl.textContent = p.sunError;
+        errorEl.style.display = 'block';
+        document.getElementById('panchanga-result').style.display = 'none';
+        return;
+      }
+
+      document.getElementById('p-res-title').textContent = `${p.date} · ${geo.city}`;
+      document.getElementById('p-vara').textContent = p.vara;
+      document.getElementById('p-tithi').textContent = `${p.tithi.name} (№${p.tithi.number}, ${p.tithi.paksha})`;
+      document.getElementById('p-nakshatra').textContent = p.nakshatraOfDay;
+      document.getElementById('p-yoga').textContent = p.yoga.name;
+      document.getElementById('p-karana').textContent = p.karana.name;
+      document.getElementById('p-sunrise').textContent = p.sunrise;
+      document.getElementById('p-sunset').textContent = p.sunset;
+      document.getElementById('p-rahu').textContent = `${p.rahuKalam.start}–${p.rahuKalam.end}`;
+      document.getElementById('p-yama').textContent = `${p.yamaganda.start}–${p.yamaganda.end}`;
+      document.getElementById('p-gulika').textContent = `${p.gulikaKalam.start}–${p.gulikaKalam.end}`;
+
+      document.getElementById('panchanga-result').style.display = 'block';
+    } catch (e) {
+      errorEl.textContent = 'Ошибка: ' + e.message;
+      errorEl.style.display = 'block';
+    }
+  });
 </script>
 </body>
 </html>
