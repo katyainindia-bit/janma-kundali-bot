@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Janma Kundali</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="/engine.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');
 
@@ -404,12 +405,20 @@
 
     <div class="tab-content" id="tab-transits">
       <div class="form-card" style="padding:14px 16px;margin-bottom:14px;">
-        <div class="row2" style="align-items:end;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
+          <label style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--taupe);">Момент транзита</label>
+          <span id="t-slider-label" style="font-family:'Playfair Display',serif;font-size:15px;font-weight:600;">—</span>
+        </div>
+        <input type="range" id="t-slider" min="-876600" max="876600" step="1" value="0" style="width:100%;accent-color:#C8A26B;">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--taupe);margin-top:2px;">
+          <span>−100 лет</span><span>сегодня</span><span>+100 лет</span>
+        </div>
+        <div class="row2" style="margin-top:12px;align-items:end;">
           <div class="field" style="margin-bottom:0;">
-            <label for="t-date">Дата транзита</label>
+            <label for="t-date">Точная дата</label>
             <input type="date" id="t-date">
           </div>
-          <button class="btn-primary" id="t-refresh-btn" style="margin-top:0;">Показать</button>
+          <button class="btn-primary" id="t-jump-btn" style="margin-top:0;">Перейти</button>
         </div>
       </div>
       <div class="chart-wrap">
@@ -717,7 +726,8 @@
 
       const today = new Date();
       document.getElementById('t-date').value = today.toISOString().slice(0,10);
-      await loadAndRenderTransits();
+      document.getElementById('t-slider').value = 0;
+      renderTransitsAt(dateFromSliderValue(0));
 
       document.getElementById('results').style.display = 'block';
     } catch (e) {
@@ -794,20 +804,52 @@
     document.getElementById('transits-table').innerHTML = html;
   }
 
-  async function loadAndRenderTransits() {
-    if (!currentChart) return;
-    const dateVal = document.getElementById('t-date').value;
-    const atDate = dateVal ? new Date(dateVal + 'T12:00:00Z').toISOString() : new Date().toISOString();
-    const transitsRes = await fetch('/api/transits', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ chart: currentChart, atDate })
-    });
-    const { transits } = await transitsRes.json();
-    renderChartSVG(currentChart, 'transit-svg', transits);
-    renderTransits(transits, currentChart);
+  // Считаем транзитные позиции планет прямо в браузере (без обращения к серверу) —
+  // движок работает и на клиенте одинаково, поэтому бегунок абсолютно мгновенный.
+  function computeTransitsClientSide(atDate) {
+    const params = {
+      year: atDate.getUTCFullYear(), month: atDate.getUTCMonth()+1, day: atDate.getUTCDate(),
+      hour: atDate.getUTCHours(), minute: atDate.getUTCMinutes(), second: 0,
+      utcOffset: 0, lat: 0, lon: 0, ayanamshaType: 'lahiri'
+    };
+    const transitChart = window.JyotishEngine.calculateChart(params);
+    const natalAscSignIdx = currentChart.ascendant.sign.index;
+    const planets = {};
+    for (const [name, p] of Object.entries(transitChart.planets)) {
+      const transitHouse = (p.sign.index - natalAscSignIdx + 12) % 12 + 1;
+      planets[name] = { sign: p.sign, nakshatra: p.nakshatra, transitHouse };
+    }
+    return { planets };
   }
 
-  document.getElementById('t-refresh-btn').addEventListener('click', loadAndRenderTransits);
+  const SLIDER_EPOCH = new Date(); // "сегодня" в момент открытия приложения — точка отсчёта бегунка
+
+  function dateFromSliderValue(hoursOffset) {
+    return new Date(SLIDER_EPOCH.getTime() + hoursOffset * 3600000);
+  }
+
+  function renderTransitsAt(atDate) {
+    if (!currentChart) return;
+    const transits = computeTransitsClientSide(atDate);
+    renderChartSVG(currentChart, 'transit-svg', transits);
+    renderTransits(transits, currentChart);
+    document.getElementById('t-slider-label').textContent =
+      atDate.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+  }
+
+  document.getElementById('t-slider').addEventListener('input', (e) => {
+    renderTransitsAt(dateFromSliderValue(Number(e.target.value)));
+  });
+
+  document.getElementById('t-jump-btn').addEventListener('click', () => {
+    const dateVal = document.getElementById('t-date').value;
+    if (!dateVal) return;
+    const target = new Date(dateVal + 'T12:00:00Z');
+    const hoursOffset = Math.round((target.getTime() - SLIDER_EPOCH.getTime()) / 3600000);
+    const clamped = Math.max(-876600, Math.min(876600, hoursOffset));
+    document.getElementById('t-slider').value = clamped;
+    renderTransitsAt(dateFromSliderValue(clamped));
+  });
 
   // Дата по умолчанию — сегодня
   document.getElementById('p-date').value = new Date().toISOString().slice(0,10);
