@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Janma Kundali</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+  :root {
+    --bg: #F6F2EC;
+    --card: #E9E2D6;
+    --card-light: #FBF8F3;
+    --gold: #C8A26B;
+    --taupe: #7A6B5A;
+    --ink: #1F1F1F;
+    --line: #DCD2C0;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding-bottom: 70px;
+  }
+
+  h1, h2, .display {
+    font-family: 'Playfair Display', serif;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 20px 10px;
+  }
+  header .brand {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  header .brand img { width: 26px; height: 26px; }
+  header .menu-btn {
+    background: none; border: none; font-size: 20px; color: var(--ink); cursor: pointer;
+    padding: 6px;
+  }
+
+  main { padding: 0 16px; }
+
+  /* ---------- Форма ввода ---------- */
+  .form-card {
+    background: var(--card-light);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .form-card h2 {
+    font-size: 17px;
+    margin: 0 0 14px;
+    font-weight: 600;
+  }
+  .field { margin-bottom: 12px; }
+  .field label {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--taupe);
+    margin-bottom: 5px;
+  }
+  .field input {
+    width: 100%;
+    padding: 11px 13px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--bg);
+    font-family: 'Inter', sans-serif;
+    font-size: 15px;
+    color: var(--ink);
+  }
+  .field input:focus { outline: 2px solid var(--gold); outline-offset: -1px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .btn-primary {
+    width: 100%;
+    background: var(--ink);
+    color: var(--bg);
+    border: none;
+    padding: 14px;
+    border-radius: 12px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 15px;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  .btn-primary:active { opacity: 0.85; }
+
+  .error-msg {
+    color: #a8654a;
+    font-size: 13px;
+    margin-top: 10px;
+    display: none;
+  }
+
+  /* ---------- Инфо-карточка карты ---------- */
+  #results { display: none; }
+
+  .info-card {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 16px 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 14px;
+  }
+  .info-card .name {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .info-card .meta {
+    font-size: 13px;
+    color: var(--taupe);
+  }
+  .info-card .bookmark {
+    font-size: 20px;
+    color: var(--gold);
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+
+  /* ---------- Вкладки ---------- */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--card);
+    border-radius: 12px;
+    padding: 4px;
+    margin-bottom: 16px;
+  }
+  .tab-btn {
+    flex: 1;
+    border: none;
+    background: none;
+    padding: 10px 4px;
+    border-radius: 9px;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--taupe);
+    cursor: pointer;
+  }
+  .tab-btn.active {
+    background: var(--card-light);
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* ---------- Диаграмма (North Indian ромб) ---------- */
+  .chart-wrap {
+    background: var(--card-light);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .chart-svg { width: 100%; height: auto; display: block; }
+
+  .legend {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    font-size: 11px;
+    color: var(--taupe);
+    margin-top: 12px;
+  }
+  .legend span { display: flex; align-items: center; gap: 4px; }
+  .legend .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+
+  /* ---------- Таблица планет ---------- */
+  .planet-list { background: var(--card-light); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+  .planet-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+    font-size: 14px;
+  }
+  .planet-row:last-child { border-bottom: none; }
+  .planet-row .sym { font-weight: 700; width: 28px; flex-shrink: 0; }
+  .planet-row .pname { width: 90px; flex-shrink: 0; font-weight: 500; }
+  .planet-row .pdeg { font-family: 'Inter', monospace; color: var(--taupe); width: 60px; flex-shrink: 0; font-size: 13px; }
+  .planet-row .psign { color: var(--taupe); font-size: 13px; }
+
+  .placeholder-note {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--taupe);
+    font-size: 14px;
+  }
+
+  /* ---------- Нижняя навигация ---------- */
+  .bottom-nav {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card-light);
+    border-top: 1px solid var(--line);
+    display: flex;
+    justify-content: space-around;
+    padding: 8px 0 max(8px, env(safe-area-inset-bottom));
+  }
+  .nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    background: none;
+    border: none;
+    color: var(--taupe);
+    font-size: 10px;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer;
+    padding: 4px 8px;
+  }
+  .nav-item.active { color: var(--ink); font-weight: 600; }
+  .nav-item .icon { font-size: 18px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <img src="/assets/logo-ink.png" alt="">
+    Janma Kundali
+  </div>
+  <button class="menu-btn">☰</button>
+</header>
+
+<main>
+
+  <div class="form-card" id="form-card">
+    <h2>Построить натальную карту</h2>
+    <div class="field">
+      <label for="f-name">Имя (для подписи)</label>
+      <input type="text" id="f-name" placeholder="Например: Катя Дас">
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label for="f-day">День</label>
+        <input type="number" id="f-day" min="1" max="31" value="7">
+      </div>
+      <div class="field">
+        <label for="f-month">Месяц</label>
+        <input type="number" id="f-month" min="1" max="12" value="12">
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label for="f-year">Год</label>
+        <input type="number" id="f-year" value="1989">
+      </div>
+      <div class="field">
+        <label for="f-time">Время (ЧЧ:ММ)</label>
+        <input type="text" id="f-time" value="06:25" placeholder="06:25">
+      </div>
+    </div>
+    <div class="field">
+      <label for="f-city">Город рождения</label>
+      <input type="text" id="f-city" value="Пермь" placeholder="Например: Пермь">
+    </div>
+    <button class="btn-primary" id="build-btn">Построить карту</button>
+    <div class="error-msg" id="error-msg"></div>
+  </div>
+
+  <div id="results">
+    <div class="info-card">
+      <div>
+        <div class="name" id="res-name">—</div>
+        <div class="meta" id="res-meta">—</div>
+      </div>
+      <button class="bookmark" id="bookmark-btn">🔖</button>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="chart">Карта</button>
+      <button class="tab-btn" data-tab="planets">Планеты</button>
+      <button class="tab-btn" data-tab="dasha">Даши</button>
+      <button class="tab-btn" data-tab="transits">Транзиты</button>
+    </div>
+
+    <div class="tab-content active" id="tab-chart">
+      <div class="chart-wrap">
+        <svg class="chart-svg" id="chart-svg" viewBox="0 0 400 400"></svg>
+        <div class="legend">
+          <span><i class="dot" style="background:#4f7a52"></i>экзальтация</span>
+          <span><i class="dot" style="background:#4a6d8c"></i>своя обитель</span>
+          <span><i class="dot" style="background:#b23b2e"></i>падение</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-planets">
+      <div class="planet-list" id="planet-list"></div>
+    </div>
+
+    <div class="tab-content" id="tab-dasha">
+      <div class="placeholder-note">Раздел «Даши» — в разработке, скоро появится здесь.</div>
+    </div>
+
+    <div class="tab-content" id="tab-transits">
+      <div class="placeholder-note">Раздел «Транзиты» — в разработке, скоро появится здесь.</div>
+    </div>
+  </div>
+
+</main>
+
+<div class="bottom-nav">
+  <button class="nav-item active"><span class="icon">🏠</span>Главная</button>
+  <button class="nav-item"><span class="icon">📅</span>Панчанга</button>
+  <button class="nav-item"><span class="icon">📁</span>Архив</button>
+  <button class="nav-item"><span class="icon">👤</span>Профиль</button>
+</div>
+
+<script>
+  if (window.Telegram && window.Telegram.WebApp) {
+    Telegram.WebApp.ready();
+    Telegram.WebApp.expand();
+  }
+
+  const PLANET_SYMBOLS = {
+    'Солнце':'Su','Луна':'Mo','Меркурий':'Me','Венера':'Ve','Марс':'Ma',
+    'Юпитер':'Ju','Сатурн':'Sa','Раху':'Ra','Кету':'Ke'
+  };
+  const EXALTATION = {'Солнце':0,'Луна':1,'Марс':9,'Меркурий':5,'Юпитер':3,'Венера':11,'Сатурн':6};
+  const DEBILITATION = {'Солнце':6,'Луна':7,'Марс':3,'Меркурий':11,'Юпитер':9,'Венера':5,'Сатурн':0};
+  const OWN_SIGNS = {'Солнце':[4],'Луна':[3],'Марс':[0,7],'Меркурий':[2,5],'Юпитер':[8,11],'Венера':[1,6],'Сатурн':[9,10]};
+  function dignityColor(name, signIdx) {
+    if (EXALTATION[name] === signIdx) return '#4f7a52';
+    if (DEBILITATION[name] === signIdx) return '#b23b2e';
+    if (OWN_SIGNS[name] && OWN_SIGNS[name].includes(signIdx)) return '#4a6d8c';
+    return '#1F1F1F';
+  }
+  function dms(deg) {
+    const d = Math.floor(deg);
+    const m = Math.floor((deg-d)*60);
+    return d + '°' + String(m).padStart(2,'0') + "'";
+  }
+
+  const VB = 400, C = 200;
+  const HP = {
+    1:[[C,0],[300,100],[C,C],[100,100]], 2:[[0,0],[C,0],[100,100]], 3:[[0,0],[100,100],[0,C]],
+    4:[[0,C],[100,100],[C,C],[100,300]], 5:[[0,C],[100,300],[0,VB]], 6:[[0,VB],[100,300],[C,VB]],
+    7:[[100,300],[C,C],[300,300],[C,VB]], 8:[[C,VB],[300,300],[VB,VB]], 9:[[VB,VB],[300,300],[VB,C]],
+    10:[[300,300],[C,C],[300,100],[VB,C]], 11:[[VB,C],[300,100],[VB,0]], 12:[[VB,0],[300,100],[C,0]],
+  };
+  function centroid(poly) {
+    let x=0,y=0; for (const p of poly) { x+=p[0]; y+=p[1]; }
+    return [x/poly.length, y/poly.length];
+  }
+  function signNumberPos(poly) {
+    let nearest = poly[0], best = Infinity;
+    for (const v of poly) { const d=(v[0]-C)**2+(v[1]-C)**2; if (d<best){best=d;nearest=v;} }
+    const c = centroid(poly);
+    let dx=c[0]-nearest[0], dy=c[1]-nearest[1];
+    const len = Math.sqrt(dx*dx+dy*dy)||1; dx/=len; dy/=len;
+    return [nearest[0]+dx*30, nearest[1]+dy*30];
+  }
+
+  function renderChartSVG(chart) {
+    const svg = document.getElementById('chart-svg');
+    svg.innerHTML = '';
+    const ns = 'http://www.w3.org/2000/svg';
+    const ascIdx = chart.ascendant.sign.index;
+    const signPlanets = {};
+    for (let i=0;i<12;i++) signPlanets[i]=[];
+    for (const [name,p] of Object.entries(chart.planets)) signPlanets[p.sign.index].push({name,p});
+
+    function el(tag, attrs) {
+      const e = document.createElementNS(ns, tag);
+      for (const k in attrs) e.setAttribute(k, attrs[k]);
+      return e;
+    }
+
+    svg.appendChild(el('polygon', {points:'0,0 400,0 400,400 0,400', fill:'none', stroke:'#C8A26B', 'stroke-width':1.5}));
+    svg.appendChild(el('line', {x1:0,y1:0,x2:400,y2:400, stroke:'#C8A26B','stroke-width':1.5}));
+    svg.appendChild(el('line', {x1:400,y1:0,x2:0,y2:400, stroke:'#C8A26B','stroke-width':1.5}));
+    svg.appendChild(el('polygon', {points:'200,0 400,200 200,400 0,200', fill:'none', stroke:'#C8A26B','stroke-width':1.5}));
+
+    for (let h=1; h<=12; h++) {
+      const poly = HP[h];
+      const [cx,cy] = centroid(poly);
+      const signIdx = (ascIdx + h - 1) % 12;
+
+      if (h === 1) {
+        const pts = poly.map(p=>p.join(',')).join(' ');
+        svg.appendChild(el('polygon', {points:pts, fill:'#FBF3DF'}));
+        svg.appendChild(el('polygon', {points:pts, fill:'none', stroke:'#C8A26B','stroke-width':1.5}));
+      }
+
+      const [nx,ny] = signNumberPos(poly);
+      const numText = el('text', {x:nx,y:ny,'text-anchor':'middle','font-family':'Playfair Display, serif','font-size':h===1?17:15,fill:h===1?'#C8A26B':'#7A6B5A','font-weight':h===1?700:400});
+      numText.textContent = signIdx+1;
+      svg.appendChild(numText);
+
+      if (h === 1) {
+        const badge = el('rect', {x:cx-23,y:cy-46,width:46,height:20,rx:4,fill:'#C8A26B'});
+        svg.appendChild(badge);
+        const ascT = el('text', {x:cx,y:cy-32,'text-anchor':'middle','font-family':'Inter, sans-serif','font-size':11,fill:'#FBF8F3','font-weight':700});
+        ascT.textContent = 'ASC';
+        svg.appendChild(ascT);
+      }
+
+      const planetsHere = signPlanets[signIdx] || [];
+      const count = planetsHere.length;
+      const cols = count>2?2:1;
+      const rows = Math.ceil(count/cols);
+      const fs = count>3?12:count>1?13.5:15;
+      const colGap=fs*2.6, rowGap=fs*2.9;
+      const gridW=(cols-1)*colGap, gridH=(rows-1)*rowGap;
+      const startX=cx-gridW/2, startY=cy-gridH/2;
+
+      planetsHere.forEach((item,i)=>{
+        const col=i%cols, row=Math.floor(i/cols);
+        const px=startX+col*colGap, py=startY+row*rowGap;
+        const color = dignityColor(item.name, item.p.sign.index);
+        const t = el('text', {x:px,y:py,'text-anchor':'middle','dominant-baseline':'central','font-family':'Inter, sans-serif','font-size':fs,'font-weight':700,fill:color});
+        t.textContent = PLANET_SYMBOLS[item.name];
+        svg.appendChild(t);
+        const dt = el('text', {x:px,y:py+fs*1.2,'text-anchor':'middle','font-family':'Inter, sans-serif','font-size':9,fill:'#7A6B5A'});
+        dt.textContent = dms(item.p.sign.degInSign);
+        svg.appendChild(dt);
+      });
+    }
+  }
+
+  function renderPlanetList(chart) {
+    const order = ['Солнце','Луна','Меркурий','Венера','Марс','Юпитер','Сатурн','Раху','Кету'];
+    const container = document.getElementById('planet-list');
+    container.innerHTML = order.map(name => {
+      const p = chart.planets[name];
+      const color = dignityColor(name, p.sign.index);
+      return `<div class="planet-row">
+        <div class="sym" style="color:${color}">${PLANET_SYMBOLS[name]}</div>
+        <div class="pname">${name}</div>
+        <div class="pdeg">${dms(p.sign.degInSign)}</div>
+        <div class="psign">${p.sign.index+1}. ${p.sign.name}</div>
+      </div>`;
+    }).join('');
+  }
+
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  document.getElementById('build-btn').addEventListener('click', async () => {
+    const errorEl = document.getElementById('error-msg');
+    errorEl.style.display = 'none';
+    const day = parseInt(document.getElementById('f-day').value);
+    const month = parseInt(document.getElementById('f-month').value);
+    const year = parseInt(document.getElementById('f-year').value);
+    const timeStr = document.getElementById('f-time').value.trim();
+    const city = document.getElementById('f-city').value.trim();
+    const name = document.getElementById('f-name').value.trim() || 'Без имени';
+
+    const timeMatch = timeStr.match(/^(\d{1,2}):(\d{2})$/);
+    if (!timeMatch) { errorEl.textContent = 'Введите время в формате ЧЧ:ММ'; errorEl.style.display='block'; return; }
+    const hour = parseInt(timeMatch[1]), minute = parseInt(timeMatch[2]);
+
+    try {
+      const geoRes = await fetch('/api/geocode', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ city, day, month, year })
+      });
+      const geo = await geoRes.json();
+      if (geo.error) { errorEl.textContent = geo.error; errorEl.style.display='block'; return; }
+
+      const chartRes = await fetch('/api/chart', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ day, month, year, hour, minute, lat: geo.lat, lon: geo.lon, utcOffset: geo.utcOffset })
+      });
+      const { chart } = await chartRes.json();
+
+      document.getElementById('res-name').textContent = name;
+      document.getElementById('res-meta').textContent =
+        `${String(day).padStart(2,'0')}.${String(month).padStart(2,'0')}.${year} · ${timeStr} · ${geo.city}`;
+
+      renderChartSVG(chart);
+      renderPlanetList(chart);
+
+      document.getElementById('results').style.display = 'block';
+    } catch (e) {
+      errorEl.textContent = 'Ошибка: ' + e.message;
+      errorEl.style.display = 'block';
+    }
+  });
+</script>
+</body>
+</html>

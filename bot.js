@@ -162,7 +162,10 @@ const birthDataWizard = new Scenes.WizardScene(
     pngBuffer = await withLogo(pngBuffer);
 
       const moonSign = chart.planets['Луна'].sign;
+      const userName = ctx.from && ctx.from.first_name;
+      const namePrefix = userName ? `${userName}, вот ваша карта:\n\n` : '';
       const caption =
+        namePrefix +
         `🌕 Восходящий знак (Лагна): ${chart.ascendant.sign.name} ${chart.ascendant.sign.degInSign.toFixed(1)}°\n` +
         `🌙 Луна: ${moonSign.name}, накшатра ${chart.planets['Луна'].nakshatra.name} (пада ${chart.planets['Луна'].nakshatra.pada})\n` +
         `☀️ Аянамша (Лахири): ${chart.ayanamsha.toFixed(2)}°\n\n` +
@@ -521,25 +524,36 @@ bot.use((ctx, next) => {
 });
 
 // ---------- Commands ----------
-const mainMenuKeyboard = Markup.inlineKeyboard([
+const WEBAPP_URL = process.env.WEBAPP_URL; // публичный HTTPS-адрес мини-приложения (задаётся в Railway)
+
+const mainMenuButtons = [
   [Markup.button.callback('🌟 Построить карту', 'menu_chart')],
   [Markup.button.callback('📜 Периоды жизни', 'menu_dasha'), Markup.button.callback('🔄 Транзиты', 'menu_transits')],
   [Markup.button.callback('📅 Панчанга', 'menu_panchanga'), Markup.button.callback('📁 Архив', 'menu_archive')],
   [Markup.button.callback('🔯 Навамша', 'menu_navamsha')],
-]);
+];
+if (WEBAPP_URL) {
+  mainMenuButtons.push([Markup.button.webApp('🌐 Открыть приложение', WEBAPP_URL)]);
+}
+const mainMenuKeyboard = Markup.inlineKeyboard(mainMenuButtons);
 
 // Постоянная кнопка внизу экрана (не пропадает, в отличие от кнопок под сообщениями) —
 // нажатие всегда возвращает в главное меню, даже если бот "завис" посреди диалога.
 const persistentKeyboard = Markup.keyboard([['☰ Меню']]).resize();
 
-const WELCOME_TEXT =
-  'Добро пожаловать в Джанма Кундали — пространство точных расчётов джйотиш от Katya Das.\n\n' +
-  'Здесь вы можете построить свою натальную карту, рассчитать периоды и транзиты, а также ' +
-  'смотреть панчангу дня, чтобы следить за звёздной динамикой.\n\n' +
-  'Нажмите «Построить карту», чтобы начать.';
+function welcomeTextFor(ctx) {
+  const name = ctx.from && ctx.from.first_name;
+  const greeting = name ? `${name}, добро пожаловать` : 'Добро пожаловать';
+  return (
+    `${greeting} в Джанма Кундали — пространство точных расчётов джйотиш от Katya Das.\n\n` +
+    'Здесь вы можете построить свою натальную карту, рассчитать периоды и транзиты, а также ' +
+    'смотреть панчангу дня, чтобы следить за звёздной динамикой.\n\n' +
+    'Нажмите «Построить карту», чтобы начать.'
+  );
+}
 
 async function sendMainMenu(ctx) {
-  await ctx.reply(WELCOME_TEXT, { reply_markup: mainMenuKeyboard.reply_markup });
+  await ctx.reply(welcomeTextFor(ctx), { reply_markup: mainMenuKeyboard.reply_markup });
   await ctx.reply('Кнопка «☰ Меню» внизу всегда вернёт сюда.', persistentKeyboard);
 }
 
@@ -859,6 +873,10 @@ bot.command('whoami', async (ctx) => {
 
 bot.launch();
 console.log('Бот запущен.');
+
+// Запускаем сервер мини-приложения в том же процессе (один сервис на Railway)
+const { startWebApp } = require('./webapp.js');
+startWebApp();
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
