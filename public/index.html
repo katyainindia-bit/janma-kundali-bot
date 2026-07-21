@@ -392,7 +392,16 @@
     </div>
 
     <div class="tab-content" id="tab-transits">
-      <div class="planet-list" id="transits-list"></div>
+      <div class="chart-wrap">
+        <svg class="chart-svg" id="transit-svg" viewBox="0 0 400 400"></svg>
+        <div class="legend">
+          <span><i class="dot" style="background:#4f7a52"></i>экзальтация</span>
+          <span><i class="dot" style="background:#4a6d8c"></i>своя обитель</span>
+          <span><i class="dot" style="background:#b23b2e"></i>падение</span>
+          <span><i class="dot" style="background:#6b8299"></i>транзит</span>
+        </div>
+      </div>
+      <div class="planet-list" id="transits-list" style="margin-top:14px;"></div>
     </div>
   </div>
 
@@ -462,14 +471,20 @@
     return [nearest[0]+dx*30, nearest[1]+dy*30];
   }
 
-  function renderChartSVG(chart) {
-    const svg = document.getElementById('chart-svg');
+  function renderChartSVG(chart, svgId, transitsData) {
+    const svg = document.getElementById(svgId || 'chart-svg');
     svg.innerHTML = '';
     const ns = 'http://www.w3.org/2000/svg';
     const ascIdx = chart.ascendant.sign.index;
     const signPlanets = {};
     for (let i=0;i<12;i++) signPlanets[i]=[];
     for (const [name,p] of Object.entries(chart.planets)) signPlanets[p.sign.index].push({name,p});
+
+    const transitsByHouse = {};
+    if (transitsData) {
+      for (let h=1;h<=12;h++) transitsByHouse[h]=[];
+      for (const [name,t] of Object.entries(transitsData.planets)) transitsByHouse[t.transitHouse].push({name,t});
+    }
 
     function el(tag, attrs) {
       const e = document.createElementNS(ns, tag);
@@ -526,6 +541,26 @@
         dt.textContent = dms(item.p.sign.degInSign);
         svg.appendChild(dt);
       });
+
+      // Слой транзитов — компактно ниже натальных планет, приглушённым цветом
+      if (transitsData) {
+        const tHere = transitsByHouse[h] || [];
+        if (tHere.length > 0) {
+          const tCols = tHere.length>2?2:1;
+          const tFs = 10;
+          const tColGap = tFs*3.2, tRowGap = tFs*2.1;
+          const tGridW = (tCols-1)*tColGap;
+          const tStartX = cx - tGridW/2;
+          const tStartY = startY + gridH + fs*1.2 + 14;
+          tHere.forEach((item,i)=>{
+            const col=i%tCols, row=Math.floor(i/tCols);
+            const px=tStartX+col*tColGap, py=tStartY+row*tRowGap;
+            const tt = el('text', {x:px,y:py,'text-anchor':'middle','font-family':'Inter, sans-serif','font-size':tFs,'font-weight':600,fill:'#6b8299'});
+            tt.textContent = PLANET_SYMBOLS[item.name] + ' ' + dms(item.t.sign.degInSign);
+            svg.appendChild(tt);
+          });
+        }
+      }
     }
   }
 
@@ -596,7 +631,7 @@
       document.getElementById('res-meta').textContent =
         `${String(day).padStart(2,'0')}.${String(month).padStart(2,'0')}.${year} · ${timeStr} · ${geo.city}`;
 
-      renderChartSVG(chart);
+      renderChartSVG(chart, 'chart-svg');
       renderPlanetList(chart);
 
       const birthDateUTC = new Date(Date.UTC(year, month-1, day, hour, minute, 0) - geo.utcOffset*3600000).toISOString();
@@ -613,6 +648,7 @@
         body: JSON.stringify({ chart })
       });
       const { transits } = await transitsRes.json();
+      renderChartSVG(chart, 'transit-svg', transits);
       renderTransits(transits, chart);
 
       document.getElementById('results').style.display = 'block';
