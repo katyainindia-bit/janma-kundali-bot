@@ -40,14 +40,22 @@
     padding: 18px 20px 10px;
   }
   header .brand {
-    font-family: 'Playfair Display', serif;
-    font-size: 20px;
-    font-weight: 600;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
   }
-  header .brand img { width: 26px; height: 26px; }
+  header .brand img { width: 32px; height: 32px; object-fit: contain; }
+  header .brand-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1.15;
+  }
+  header .brand-by {
+    font-size: 10px;
+    color: var(--taupe);
+    letter-spacing: 0.02em;
+  }
   header .menu-btn {
     background: none; border: none; font-size: 20px; color: var(--ink); cursor: pointer;
     padding: 6px;
@@ -216,6 +224,60 @@
     font-size: 14px;
   }
 
+  /* ---------- Текущий период (Даши) ---------- */
+  .current-period-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    font-size: 13px;
+  }
+  .current-period-row .label { color: var(--taupe); }
+  .current-period-row .value { font-weight: 600; }
+
+  /* ---------- Аккордеон Даш ---------- */
+  .dasha-accordion { background: var(--card-light); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+  .dasha-accordion summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 13px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+    font-weight: 600;
+    border-bottom: 1px solid var(--line);
+  }
+  .dasha-accordion summary::-webkit-details-marker { display: none; }
+  .dasha-accordion summary .dates { font-weight: 400; color: var(--taupe); font-size: 12px; }
+  .dasha-accordion summary::after {
+    content: '›';
+    font-size: 18px;
+    color: var(--gold);
+    transform: rotate(90deg);
+    transition: transform 0.15s;
+  }
+  .dasha-accordion[open] > summary::after { transform: rotate(270deg); }
+  .dasha-accordion .inner { padding: 4px 16px 10px 24px; }
+  .dasha-accordion.current > summary { background: var(--card); }
+
+  .antar-row summary {
+    font-size: 13px;
+    font-weight: 500;
+    padding: 9px 4px;
+    border-bottom: 1px solid var(--line);
+  }
+  .antar-row.current > summary { color: var(--gold); }
+  .praty-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 4px 6px 14px;
+    font-size: 12px;
+    color: var(--taupe);
+    border-bottom: 1px solid var(--line);
+  }
+  .praty-row.current { color: var(--gold); font-weight: 600; }
+  .praty-row:last-child { border-bottom: none; }
+
   /* ---------- Нижняя навигация ---------- */
   .bottom-nav {
     position: fixed;
@@ -240,15 +302,19 @@
     padding: 4px 8px;
   }
   .nav-item.active { color: var(--ink); font-weight: 600; }
-  .nav-item .icon { font-size: 18px; }
+  .nav-item .icon { width: 21px; height: 21px; color: var(--taupe); }
+  .nav-item.active .icon { color: var(--gold); }
 </style>
 </head>
 <body>
 
 <header>
   <div class="brand">
-    <img src="/assets/logo-ink.png" alt="">
-    Janma Kundali
+    <img src="/assets/janma-icon.png" alt="">
+    <div>
+      <div class="brand-name">Janma Kundali</div>
+      <div class="brand-by">by Катя Дас</div>
+    </div>
   </div>
   <button class="menu-btn">☰</button>
 </header>
@@ -321,21 +387,34 @@
     </div>
 
     <div class="tab-content" id="tab-dasha">
-      <div class="placeholder-note">Раздел «Даши» — в разработке, скоро появится здесь.</div>
+      <div id="dasha-current" class="info-card" style="display:block;"></div>
+      <div id="dasha-list"></div>
     </div>
 
     <div class="tab-content" id="tab-transits">
-      <div class="placeholder-note">Раздел «Транзиты» — в разработке, скоро появится здесь.</div>
+      <div class="planet-list" id="transits-list"></div>
     </div>
   </div>
 
 </main>
 
 <div class="bottom-nav">
-  <button class="nav-item active"><span class="icon">🏠</span>Главная</button>
-  <button class="nav-item"><span class="icon">📅</span>Панчанга</button>
-  <button class="nav-item"><span class="icon">📁</span>Архив</button>
-  <button class="nav-item"><span class="icon">👤</span>Профиль</button>
+  <button class="nav-item active" data-nav="home">
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9a1 1 0 0 0 1 1H9a1 1 0 0 0 1-1v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1h2.5a1 1 0 0 0 1-1v-9"/></svg>
+    Главная
+  </button>
+  <button class="nav-item" data-nav="panchanga">
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5.5" width="16" height="15" rx="1.5"/><path d="M8 3.5v4M16 3.5v4M4 10h16"/><circle cx="12" cy="15" r="2.6"/></svg>
+    Панчанга
+  </button>
+  <button class="nav-item" data-nav="archive">
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="7" width="17" height="13" rx="1.3"/><path d="M3.5 7 6 4h12l2.5 3"/><path d="M10 11.3h4"/></svg>
+    Архив
+  </button>
+  <button class="nav-item" data-nav="profile">
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.3" r="3.3"/><path d="M5 20c0-3.5 3.1-6.3 7-6.3s7 2.8 7 6.3"/></svg>
+    Профиль
+  </button>
 </div>
 
 <script>
@@ -474,6 +553,17 @@
     });
   });
 
+  document.querySelectorAll('.nav-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      // Разделы «Панчанга», «Архив», «Профиль» — в разработке, появятся здесь позже.
+      if (btn.dataset.nav !== 'home' && window.Telegram && window.Telegram.WebApp) {
+        Telegram.WebApp.showAlert('Этот раздел скоро появится здесь.');
+      }
+    });
+  });
+
   document.getElementById('build-btn').addEventListener('click', async () => {
     const errorEl = document.getElementById('error-msg');
     errorEl.style.display = 'none';
@@ -509,12 +599,78 @@
       renderChartSVG(chart);
       renderPlanetList(chart);
 
+      const birthDateUTC = new Date(Date.UTC(year, month-1, day, hour, minute, 0) - geo.utcOffset*3600000).toISOString();
+
+      const dashaRes = await fetch('/api/dasha', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ chart, birthDateUTC })
+      });
+      const { mahadashas, chain } = await dashaRes.json();
+      renderDasha(mahadashas, chain);
+
+      const transitsRes = await fetch('/api/transits', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ chart })
+      });
+      const { transits } = await transitsRes.json();
+      renderTransits(transits, chart);
+
       document.getElementById('results').style.display = 'block';
     } catch (e) {
       errorEl.textContent = 'Ошибка: ' + e.message;
       errorEl.style.display = 'block';
     }
   });
+
+  function fmtDate(iso) {
+    const d = new Date(iso);
+    return String(d.getUTCDate()).padStart(2,'0') + '.' + String(d.getUTCMonth()+1).padStart(2,'0') + '.' + d.getUTCFullYear();
+  }
+
+  function renderDasha(mahadashas, chain) {
+    const cur = document.getElementById('dasha-current');
+    if (chain) {
+      cur.innerHTML = `
+        <div style="width:100%">
+          <div class="name" style="margin-bottom:8px;">Текущий период</div>
+          <div class="current-period-row"><span class="label">Махадаша</span><span class="value">${chain.mahadasha.lord} (${fmtDate(chain.mahadasha.start)} – ${fmtDate(chain.mahadasha.end)})</span></div>
+          ${chain.antardasha ? `<div class="current-period-row"><span class="label">Антардаша</span><span class="value">${chain.antardasha.lord} (${fmtDate(chain.antardasha.start)} – ${fmtDate(chain.antardasha.end)})</span></div>` : ''}
+          ${chain.pratyantardasha ? `<div class="current-period-row"><span class="label">Пратьянтардаша</span><span class="value">${chain.pratyantardasha.lord} (${fmtDate(chain.pratyantardasha.start)} – ${fmtDate(chain.pratyantardasha.end)})</span></div>` : ''}
+        </div>`;
+    }
+
+    const list = document.getElementById('dasha-list');
+    list.innerHTML = '<div class="dasha-accordion" style="margin-bottom:0;border-radius:16px 16px 0 0;"></div>';
+    list.innerHTML = mahadashas.map(md => {
+      const isCurMD = chain && md.lord === chain.mahadasha.lord && md.start === chain.mahadasha.start;
+      const antars = (md.antardashas||[]).map(ad => {
+        const isCurAD = chain && chain.antardasha && ad.lord === chain.antardasha.lord && ad.start === chain.antardasha.start;
+        const pratys = (ad.pratyantardashas||[]).map(pd => {
+          const isCurPD = chain && chain.pratyantardasha && pd.lord === chain.pratyantardasha.lord && pd.start === chain.pratyantardasha.start;
+          return `<div class="praty-row ${isCurPD?'current':''}"><span>${pd.lord}</span><span>${fmtDate(pd.start)} – ${fmtDate(pd.end)}</span></div>`;
+        }).join('');
+        return `<details class="antar-row ${isCurAD?'current':''}"><summary>${ad.lord} · ${fmtDate(ad.start)} – ${fmtDate(ad.end)}</summary>${pratys}</details>`;
+      }).join('');
+      return `<details class="dasha-accordion ${isCurMD?'current':''}" style="margin-bottom:10px;">
+        <summary>${md.lord} <span class="dates">${fmtDate(md.start)} – ${fmtDate(md.end)}</span></summary>
+        <div class="inner">${antars}</div>
+      </details>`;
+    }).join('');
+  }
+
+  function renderTransits(transits, natalChart) {
+    const order = ['Солнце','Луна','Меркурий','Венера','Марс','Юпитер','Сатурн','Раху','Кету'];
+    const container = document.getElementById('transits-list');
+    container.innerHTML = order.map(name => {
+      const t = transits.planets[name];
+      return `<div class="planet-row">
+        <div class="sym">${PLANET_SYMBOLS[name]}</div>
+        <div class="pname">${name}</div>
+        <div class="pdeg">${dms(t.sign.degInSign)}</div>
+        <div class="psign">${t.sign.index+1}. ${t.sign.name} · дом ${t.transitHouse}</div>
+      </div>`;
+    }).join('');
+  }
 </script>
 </body>
 </html>
