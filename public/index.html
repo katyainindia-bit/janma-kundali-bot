@@ -1101,6 +1101,7 @@
   });
 
   // ---------- Кнопка 🔖 на главной — сохранить текущую карту в архив ----------
+  let currentChartMeta = null; // {name, params, placeLabel} — для кнопки "Сохранить в архив"
   function updateBookmarkBtnState() {
     document.getElementById('bookmark-btn').style.opacity = currentChartMeta ? '1' : '0.4';
   }
@@ -1146,7 +1147,6 @@
   // Общая функция: получает расчёт карты по параметрам и полностью
   // заполняет секцию результатов (карта/планеты/даши/транзиты).
   // Используется и формой построения карты, и открытием карты из архива.
-  let currentChartMeta = null; // {name, params, placeLabel} — для кнопки "Сохранить в архив"
   async function displayChartResults({ name, day, month, year, hour, minute, lat, lon, utcOffset, placeLabel }) {
     const chartRes = await fetch('/api/chart', {
       method:'POST', headers:{'Content-Type':'application/json'},
