@@ -434,9 +434,9 @@
         </div>
         <div class="scale-tabs">
           <button class="scale-btn" data-scale="100y">100 лет</button>
-          <button class="scale-btn" data-scale="10y">10 лет</button>
           <button class="scale-btn" data-scale="1y">1 год</button>
           <button class="scale-btn active" data-scale="1m">1 месяц</button>
+          <button class="scale-btn" data-scale="1d">1 день</button>
         </div>
         <input type="range" id="t-slider" min="-876600" max="876600" step="1" value="0" style="width:100%;accent-color:#C8A26B;">
         <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--taupe);margin-top:2px;">
@@ -638,20 +638,23 @@
         svg.appendChild(dt);
       });
 
-      // Слой транзитов — компактно ниже натальных планет, приглушённым цветом
+      // Слой транзитов — компактно рядом с натальными планетами, приглушённым цветом.
+      // Всегда один столбец: у метки формат "символ + градус", он длиннее
+      // одного натального символа, и при двух колонках текст наезжал друг
+      // на друга. В столбик — надёжно при любом числе планет в доме.
+      // Растим блок В СТОРОНУ ЦЕНТРА карты, а не всегда вниз: в нижней
+      // половине карты рост вниз быстро упирался в край холста —
+      // особенно в маленьких угловых домах без натальных планет.
       if (transitsData) {
         const tHere = transitsByHouse[h] || [];
         if (tHere.length > 0) {
-          const tCols = tHere.length>2?2:1;
-          const tFs = 10;
-          const tColGap = tFs*3.2, tRowGap = tFs*2.1;
-          const tGridW = (tCols-1)*tColGap;
-          const tStartX = cx - tGridW/2;
-          const tStartY = startY + gridH + fs*1.2 + 14;
+          const dir = cy <= C ? 1 : -1;
+          const tFs = tHere.length > 3 ? 9 : 10;
+          const tRowGap = tFs*2.3;
+          const tStartY = cy + dir*(gridH/2 + fs*1.2 + 14);
           tHere.forEach((item,i)=>{
-            const col=i%tCols, row=Math.floor(i/tCols);
-            const px=tStartX+col*tColGap, py=tStartY+row*tRowGap;
-            const tt = el('text', {x:px,y:py,'text-anchor':'middle','font-family':'Inter, sans-serif','font-size':tFs,'font-weight':600,fill:'#6b8299'});
+            const py = tStartY + dir*i*tRowGap;
+            const tt = el('text', {x:cx,y:py,'text-anchor':'middle','font-family':'Inter, sans-serif','font-size':tFs,'font-weight':600,fill:'#6b8299'});
             tt.textContent = PLANET_SYMBOLS[item.name] + ' ' + dms(item.t.sign.degInSign);
             svg.appendChild(tt);
           });
@@ -854,10 +857,10 @@
   // Чем меньше масштаб — тем чувствительнее бегунок (тот же ход пальцем
   // соответствует меньшему промежутку времени).
   const SCALES = {
-    '100y': { hoursHalfRange: 876600, label: '100 лет' },
-    '10y':  { hoursHalfRange: 87660,  label: '10 лет'  },
-    '1y':   { hoursHalfRange: 8766,   label: '1 год'   },
-    '1m':   { hoursHalfRange: 366,    label: '1 месяц' },
+    '100y': { hoursHalfRange: 876600, label: '100 лет', step: 1 },
+    '1y':   { hoursHalfRange: 8766,   label: '1 год',   step: 1 },
+    '1m':   { hoursHalfRange: 366,    label: '1 месяц', step: 1 },
+    '1d':   { hoursHalfRange: 12,     label: '1 день',  step: 1/60 }, // шаг в 1 минуту
   };
   let currentScale = '1m';
   let sliderCenter = new Date(); // точка, вокруг которой сейчас "зумит" бегунок
@@ -868,6 +871,7 @@
     const slider = document.getElementById('t-slider');
     slider.min = -half;
     slider.max = half;
+    slider.step = SCALES[scaleKey].step || 1;
     slider.value = 0;
     if (!keepCenter) sliderCenter = new Date();
     document.getElementById('t-range-min').textContent = '−' + SCALES[scaleKey].label;

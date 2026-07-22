@@ -507,19 +507,19 @@ function renderNorthIndianWithTransitsPNG(natalChart, transitsResult, opts = {})
 
     const transitsHere = transitsByHouse[h] || [];
     if (transitsHere.length > 0) {
-      const tCount = transitsHere.length;
-      const tCols = tCount > 2 ? 2 : 1;
-      const tFontSize = 10;
-      const tColGap = tFontSize * 3.2;
-      const tRowGap = tFontSize * 2.1;
-      const tGridW = (tCols - 1) * tColGap;
-      const tStartX = cx - tGridW / 2;
-      const tStartY = startY + gridH + fontSize * 1.15 + 16;
+      // Всегда один столбец — см. пояснение в public/index.html: метка
+      // "символ + градус" длиннее натального символа, две колонки наезжали.
+      // Растим блок транзитов В СТОРОНУ ЦЕНТРА карты, а не всегда вниз:
+      // в нижней половине карты рост вниз быстро упирался в край холста
+      // (особенно в маленьких угловых домах без натальных планет).
+      const dir = cy <= C ? 1 : -1;
+      const tFontSize = transitsHere.length > 3 ? 9 : 10;
+      const tRowGap = tFontSize * 2.3;
+      const tStartY = cy + dir * (gridH / 2 + fontSize * 1.15 + 16);
 
       transitsHere.forEach((item, i) => {
-        const col = i % tCols, row = Math.floor(i / tCols);
-        const px = tStartX + col * tColGap, py = tStartY + row * tRowGap;
-        text(ctx, `${PLANET_SYMBOLS[item.name]} ${dmsFromDeg(item.t.sign.degInSign)}`, px, py, { font: '600 10px JKSans', color: TRANSIT_COLOR, align: 'center' });
+        const py = tStartY + dir * i * tRowGap;
+        text(ctx, `${PLANET_SYMBOLS[item.name]} ${dmsFromDeg(item.t.sign.degInSign)}`, cx, py, { font: `600 ${tFontSize}px JKSans`, color: TRANSIT_COLOR, align: 'center' });
       });
     }
   }
