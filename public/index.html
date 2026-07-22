@@ -212,12 +212,20 @@
     border: 1px solid var(--line); margin-top: 7px; background: var(--card-light);
   }
 
-  /* ---------- Варги: две карты рядом для сравнения ---------- */
-  .varga-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .varga-compare .chart-wrap { margin-bottom: 0; }
+  /* ---------- Варги: один полноразмерный chart за раз ---------- */
   .varga-chart-label {
-    text-align: center; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em;
-    color: var(--taupe); font-weight: 600; margin-bottom: 6px;
+    text-align: center; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--taupe); font-weight: 600; margin-bottom: 8px;
+  }
+  .field select {
+    width: 100%;
+    padding: 11px 13px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--bg);
+    font-family: 'Inter', sans-serif;
+    font-size: 15px;
+    color: var(--ink);
   }
 
   /* ---------- Вкладки ---------- */
@@ -534,24 +542,44 @@
     </div>
 
     <div class="tab-content" id="tab-vargas">
-      <div class="scale-tabs">
+      <div class="scale-tabs" id="varga-type-tabs">
         <button class="scale-btn active" data-varga="d9">Навамша (D9)</button>
         <button class="scale-btn" data-varga="d10">Дашамша (D10)</button>
+        <button class="scale-btn" data-varga="lagna">От Лагны</button>
       </div>
-      <div class="chip-row" style="margin:12px 0;">
-        <button class="chip" data-vref="asc">Асцендент</button>
-        <button class="chip active" data-vref="moon">Луна</button>
-        <button class="chip" data-vref="sun">Солнце</button>
-        <button class="chip" data-vref="10th">10 дом</button>
-      </div>
-      <div class="varga-compare">
-        <div>
-          <div class="varga-chart-label">Стандартная (от асц.)</div>
-          <div class="chart-wrap"><svg class="chart-svg" id="varga-svg-left" viewBox="0 0 400 400"></svg></div>
+
+      <div id="lagna-ref-controls" style="display:none;margin:12px 0;">
+        <div class="chip-row" id="lagna-ref-chips">
+          <button class="chip active" data-lref="asc">Асцендент</button>
+          <button class="chip" data-lref="moon">Луна</button>
+          <button class="chip" data-lref="sun">Солнце</button>
         </div>
-        <div>
-          <div class="varga-chart-label" id="varga-right-label">От Луны</div>
-          <div class="chart-wrap"><svg class="chart-svg" id="varga-svg-right" viewBox="0 0 400 400"></svg></div>
+        <div class="field" style="margin-top:10px;margin-bottom:0;">
+          <label for="lagna-house-select">Или любой дом от асцендента</label>
+          <select id="lagna-house-select">
+            <option value="">—</option>
+            <option value="2">2-й дом</option>
+            <option value="3">3-й дом</option>
+            <option value="4">4-й дом</option>
+            <option value="5">5-й дом</option>
+            <option value="6">6-й дом</option>
+            <option value="7">7-й дом</option>
+            <option value="8">8-й дом</option>
+            <option value="9">9-й дом</option>
+            <option value="10">10-й дом</option>
+            <option value="11">11-й дом</option>
+            <option value="12">12-й дом</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="varga-chart-label" id="varga-single-label">Навамша (D9)</div>
+      <div class="chart-wrap">
+        <svg class="chart-svg" id="varga-svg" viewBox="0 0 400 400"></svg>
+        <div class="legend">
+          <span><i class="dot" style="background:#4f7a52"></i>экзальтация</span>
+          <span><i class="dot" style="background:#4a6d8c"></i>своя обитель</span>
+          <span><i class="dot" style="background:#b23b2e"></i>падение</span>
         </div>
       </div>
       <div class="error-msg" id="varga-error-msg"></div>
@@ -857,7 +885,7 @@
       document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
-      if (btn.dataset.tab === 'vargas') renderVargaCompare();
+      if (btn.dataset.tab === 'vargas') renderVargaSingle();
     });
   });
 
@@ -1508,84 +1536,104 @@
   });
 
   // ============================================================
-  // Варги (дробные карты): Навамша (D9) и Дашамша (D10) —
-  // обычная карта (от собственного асцендента варги) рядом с картой
-  // от альтернативного ориентира (Луна/Солнце/10 дом) для сравнения.
+  // Варги: Навамша (D9) и Дашамша (D10) — каждая отдельным
+  // полноразмерным чартом, без подмены ориентира (это самостоятельные
+  // дробные карты, их "асцендент" — их собственный).
+  // Третий режим «От Лагны» — это ВСЕГДА основная карта (D1): те же
+  // планеты, что и на вкладке «Карта», просто дома пересчитаны от
+  // выбранного ориентира (Луна = Чандра-лагна, Солнце = Сурья-лагна,
+  // либо любой дом от асцендента) — сравнение идёт с лагной D1,
+  // а не внутри самой варги.
   // ============================================================
   let vargaCache = { d9: null, d10: null, forChart: null };
   let currentVargaType = 'd9';
-  let currentVargaRef = 'moon';
-  const VARGA_REF_LABELS = { asc: 'Стандартная (от асц.)', moon: 'От Луны', sun: 'От Солнца', '10th': 'От 10 дома' };
+  let currentLagnaRef = { type: 'asc' };
 
-  async function ensureVargaData() {
+  async function ensureVargaData(type) {
     if (!currentChart) return null;
     if (vargaCache.forChart !== currentChart) {
       vargaCache = { d9: null, d10: null, forChart: currentChart };
     }
-    if (currentVargaType === 'd9' && !vargaCache.d9) {
+    if (type === 'd9' && !vargaCache.d9) {
       const res = await fetch('/api/navamsha', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ chart: currentChart }) });
-      const data = await res.json();
-      vargaCache.d9 = data.d9;
+      vargaCache.d9 = (await res.json()).d9;
     }
-    if (currentVargaType === 'd10' && !vargaCache.d10) {
+    if (type === 'd10' && !vargaCache.d10) {
       const res = await fetch('/api/dashamsha', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ chart: currentChart }) });
-      const data = await res.json();
-      vargaCache.d10 = data.d10;
+      vargaCache.d10 = (await res.json()).d10;
     }
-    return currentVargaType === 'd9' ? vargaCache.d9 : vargaCache.d10;
+    return type === 'd9' ? vargaCache.d9 : vargaCache.d10;
   }
 
-  // Определяет знак-ориентир ("от чего считать дома") внутри УЖЕ посчитанной варги
-  function vargaReferenceSignIndex(vargaChart, ref) {
-    if (ref === 'moon') return vargaChart.planets['Луна'].sign.index;
-    if (ref === 'sun') return vargaChart.planets['Солнце'].sign.index;
-    if (ref === '10th') return (vargaChart.ascendant.sign.index + 9) % 12;
-    return vargaChart.ascendant.sign.index; // 'asc'
+  // Ориентир всегда считается от асцендента ОСНОВНОЙ карты (D1) —
+  // Луна/Солнце берутся из D1, "N-й дом" — тоже от D1-асцендента.
+  function lagnaReferenceSignIndex(ref) {
+    if (ref.type === 'moon') return currentChart.planets['Луна'].sign.index;
+    if (ref.type === 'sun') return currentChart.planets['Солнце'].sign.index;
+    if (ref.type === 'house') return (currentChart.ascendant.sign.index + (ref.n - 1)) % 12;
+    return currentChart.ascendant.sign.index; // 'asc'
   }
 
-  async function renderVargaCompare() {
+  function lagnaReferenceLabel(ref) {
+    if (ref.type === 'moon') return 'Чандра-лагна (от Луны)';
+    if (ref.type === 'sun') return 'Сурья-лагна (от Солнца)';
+    if (ref.type === 'house') return `От ${ref.n}-го дома лагны`;
+    return 'Джанма-лагна (обычная карта)';
+  }
+
+  async function renderVargaSingle() {
     const errorEl = document.getElementById('varga-error-msg');
     errorEl.style.display = 'none';
+    document.getElementById('lagna-ref-controls').style.display = currentVargaType === 'lagna' ? 'block' : 'none';
+
     if (!currentChart) {
       errorEl.textContent = 'Сначала постройте натальную карту на главной.';
       errorEl.style.display = 'block';
       return;
     }
+
+    if (currentVargaType === 'lagna') {
+      const refIdx = lagnaReferenceSignIndex(currentLagnaRef);
+      renderChartSVG({ ascendant: { sign: { index: refIdx } }, planets: currentChart.planets }, 'varga-svg');
+      document.getElementById('varga-single-label').textContent = lagnaReferenceLabel(currentLagnaRef);
+      return;
+    }
+
     let vargaChart;
     try {
-      vargaChart = await ensureVargaData();
+      vargaChart = await ensureVargaData(currentVargaType);
     } catch (e) {
       errorEl.textContent = 'Не удалось посчитать варгу: ' + e.message;
       errorEl.style.display = 'block';
       return;
     }
     if (!vargaChart) return;
-
-    // Левая карта — всегда стандартная, от собственного асцендента этой варги
-    renderChartSVG({ ascendant: vargaChart.ascendant, planets: vargaChart.planets }, 'varga-svg-left');
-
-    // Правая — те же планеты, но "асцендент" подменён на выбранный ориентир —
-    // renderChartSVG сам пересчитает, в каком доме относительно него окажется каждая планета
-    const refIdx = vargaReferenceSignIndex(vargaChart, currentVargaRef);
-    renderChartSVG({ ascendant: { sign: { index: refIdx } }, planets: vargaChart.planets }, 'varga-svg-right');
-
-    document.getElementById('varga-right-label').textContent = VARGA_REF_LABELS[currentVargaRef];
+    renderChartSVG({ ascendant: vargaChart.ascendant, planets: vargaChart.planets }, 'varga-svg');
+    document.getElementById('varga-single-label').textContent = currentVargaType === 'd9' ? 'Навамша (D9)' : 'Дашамша (D10)';
   }
 
-  document.querySelectorAll('[data-varga]').forEach(btn => {
+  document.querySelectorAll('#varga-type-tabs [data-varga]').forEach(btn => {
     btn.addEventListener('click', () => {
       currentVargaType = btn.dataset.varga;
-      document.querySelectorAll('[data-varga]').forEach(b => b.classList.toggle('active', b === btn));
-      renderVargaCompare();
+      document.querySelectorAll('#varga-type-tabs [data-varga]').forEach(b => b.classList.toggle('active', b === btn));
+      renderVargaSingle();
     });
   });
 
-  document.querySelectorAll('[data-vref]').forEach(btn => {
+  document.querySelectorAll('#lagna-ref-chips [data-lref]').forEach(btn => {
     btn.addEventListener('click', () => {
-      currentVargaRef = btn.dataset.vref;
-      document.querySelectorAll('[data-vref]').forEach(b => b.classList.toggle('active', b === btn));
-      renderVargaCompare();
+      currentLagnaRef = { type: btn.dataset.lref };
+      document.querySelectorAll('#lagna-ref-chips [data-lref]').forEach(b => b.classList.toggle('active', b === btn));
+      document.getElementById('lagna-house-select').value = '';
+      renderVargaSingle();
     });
+  });
+
+  document.getElementById('lagna-house-select').addEventListener('change', (e) => {
+    if (!e.target.value) return;
+    currentLagnaRef = { type: 'house', n: Number(e.target.value) };
+    document.querySelectorAll('#lagna-ref-chips [data-lref]').forEach(b => b.classList.remove('active'));
+    renderVargaSingle();
   });
 </script>
 </body>
