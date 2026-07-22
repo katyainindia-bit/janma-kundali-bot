@@ -3,7 +3,7 @@
 // восход/закат и деление дня на 8 частей (Раху-калам, Ямаганда, Гулика-калам).
 // ============================================================
 
-const { jdFromDate, sunLongitude, moonLongitude } = require('./engine.js');
+const { jdFromDate, sunLongitude, moonLongitude, lahiriAyanamsha } = require('./engine.js');
 
 const D2R = Math.PI / 180;
 const R2D = 180 / Math.PI;
@@ -69,6 +69,75 @@ function minutesToLocalHHMM(minutesUTC, utcOffsetHours) {
   const h = Math.floor(localMin / 60);
   const m = Math.round(localMin % 60);
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+// --- Julian Day (UT) -> локальная дата/время (алгоритм Мееуса) ---
+// Нужно, чтобы показывать точный момент перехода титхи/йоги/караны/накшатры —
+// он может выпасть на другой календарный день, чем запрошенная дата.
+function jdToLocalDateTimeStr(jd, utcOffsetHours) {
+  let localJd = jd + utcOffsetHours / 24;
+  localJd = Math.round(localJd * 1440) / 1440; // округляем до минуты для аккуратного отображения
+  const jdShifted = localJd + 0.5;
+  const Z = Math.floor(jdShifted);
+  const F = jdShifted - Z;
+  let A;
+  if (Z < 2299161) A = Z;
+  else {
+    const alpha = Math.floor((Z - 1867216.25) / 36524.25);
+    A = Z + 1 + alpha - Math.floor(alpha / 4);
+  }
+  const B = A + 1524;
+  const C = Math.floor((B - 122.1) / 365.25);
+  const D = Math.floor(365.25 * C);
+  const E = Math.floor((B - D) / 30.6001);
+  const dayFloat = B - D - Math.floor(30.6001 * E) + F;
+  const month = E < 14 ? E - 1 : E - 13;
+  const year = month > 2 ? C - 4716 : C - 4715;
+  const dayInt = Math.floor(dayFloat);
+  const dayFrac = dayFloat - dayInt;
+  const totalMin = Math.round(dayFrac * 1440);
+  const hh = Math.floor(totalMin / 60), mm = totalMin % 60;
+  return `${String(dayInt).padStart(2, '0')}.${String(month).padStart(2, '0')}.${year} ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+}
+
+// --- Поиск момента пересечения границы (переход титхи/йоги/караны/накшатры) ---
+// angleFn(jd) — угол (0-360°), монотонно растущий на протяжении 1-2 суток
+// (для Луны попятного движения по долготе не бывает, так что это безопасно).
+// spanDeg — на сколько градусов растянут один "шаг" (12° титхи, 360/27 накшатры и т.д.)
+// direction: +1 — искать следующий переход вперёд по времени, -1 — начало текущего шага (назад).
+// Возвращает JD момента перехода, либо null, если не нашли в разумных пределах.
+function findBoundaryJD(jdNow, angleFn, spanDeg, direction) {
+  const nowVal = pmod(angleFn(jdNow), 360);
+  const idxNow = Math.floor(nowVal / spanDeg);
+  const targetRaw = direction > 0 ? (idxNow + 1) * spanDeg : idxNow * spanDeg;
+
+  function contVal(jd) {
+    let v = pmod(angleFn(jd), 360);
+    if (direction > 0) { while (v < nowVal - 1e-9) v += 360; }
+    else { while (v > nowVal + 1e-9) v -= 360; }
+    return v;
+  }
+
+  let step = direction > 0 ? 0.02 : -0.02; // ~29 минут — начальный шаг поиска границы
+  let b = jdNow;
+  let found = false;
+  for (let iter = 0; iter < 12; iter++) {
+    b = jdNow + step;
+    const vb = contVal(b);
+    const crossed = direction > 0 ? vb >= targetRaw : vb <= targetRaw;
+    if (crossed) { found = true; break; }
+    step *= 2;
+  }
+  if (!found) return null;
+
+  let a = jdNow;
+  for (let i = 0; i < 40; i++) {
+    const mid = (a + b) / 2;
+    const vm = contVal(mid);
+    const crossed = direction > 0 ? vm >= targetRaw : vm <= targetRaw;
+    if (crossed) b = mid; else a = mid;
+  }
+  return b;
 }
 
 // --- Титхи (30 названий) ---
@@ -144,16 +213,22 @@ function segmentToTimeRange(segmentNum, sunriseUTC, sunsetUTC, utcOffset) {
 }
 
 /**
- * Полный расчёт панчанги на заданную календарную дату (местную) и место.
+ * Полный расчёт панчанги на заданные календарную дату, ТОЧНОЕ время и место.
+ * Титхи, йога, карана и накшатра дня считаются на этот точный момент (а не
+ * на полдень условно) — они могут смениться в течение суток, и утром/вечером
+ * одного календарного дня показатели могут отличаться.
  * @param {number} year, month, day - календарная дата (местная)
+ * @param {number} hour, minute - местное время (по умолчанию 12:00, если не указано)
  * @param {number} lat, lon - координаты места
  * @param {number} utcOffset - часовой пояс места (часы от UTC)
  */
-function computePanchanga(year, month, day, lat, lon, utcOffset) {
-  // Момент "полудня" этой даты в UTC — используется для дневных величин (титхи, накшатра, йога, карана)
-  const noonUTCms = Date.UTC(year, month - 1, day, 12, 0, 0) - utcOffset * 3600 * 1000;
-  const noonDate = new Date(noonUTCms);
-  const jd = jdFromDate(year, month, day, 12, 0, 0, utcOffset);
+function computePanchanga(year, month, day, hour, minute, lat, lon, utcOffset) {
+  if (hour === undefined || hour === null) hour = 12;
+  if (minute === undefined || minute === null) minute = 0;
+
+  // Момент запроса — теперь точный (дата+время), а не всегда полдень
+  const jd = jdFromDate(year, month, day, hour, minute, 0, utcOffset);
+  const noonDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0) - utcOffset * 3600 * 1000);
 
   const sunLon = sunLongitude(jd);
   const moonLon = moonLongitude(jd);
@@ -164,9 +239,6 @@ function computePanchanga(year, month, day, lat, lon, utcOffset) {
   const vara = computeVara(new Date(Date.UTC(year, month - 1, day)));
 
   const nakSpan = 360 / 27;
-  const moonNakIdx = Math.floor(moonLon / nakSpan); // тропическая, без аянамши — для панчанги традиционно тоже сидерическая накшатра Луны
-  // Для накшатры дня традиционно используют сидерическую позицию Луны (как и в натальной карте)
-  const { lahiriAyanamsha } = require('./engine.js');
   const ayanamsha = lahiriAyanamsha(jd);
   const moonSidereal = pmod(moonLon - ayanamsha, 360);
   const moonNakSiderealIdx = Math.floor(moonSidereal / nakSpan);
@@ -178,11 +250,36 @@ function computePanchanga(year, month, day, lat, lon, utcOffset) {
   ];
   const nakshatraOfDay = NAKSHATRAS[moonNakSiderealIdx];
 
+  // --- Точные моменты перехода: когда начался текущий титхи/йога/карана/накшатра
+  // и когда наступит следующий. Угловые функции для поиска границы: ---
+  const elongFn = (j) => pmod(moonLongitude(j) - sunLongitude(j), 360); // для титхи и караны
+  const yogaSumFn = (j) => pmod(sunLongitude(j) + moonLongitude(j), 360);
+  const nakFn = (j) => pmod(moonLongitude(j) - lahiriAyanamsha(j), 360);
+
+  function withTransitions(obj, angleFn, spanDeg) {
+    const startJD = findBoundaryJD(jd, angleFn, spanDeg, -1);
+    const endJD = findBoundaryJD(jd, angleFn, spanDeg, 1);
+    return {
+      ...obj,
+      startsAt: startJD !== null ? jdToLocalDateTimeStr(startJD, utcOffset) : null,
+      endsAt: endJD !== null ? jdToLocalDateTimeStr(endJD, utcOffset) : null,
+    };
+  }
+
+  const tithiFull = withTransitions(tithi, elongFn, 12);
+  const yogaFull = withTransitions(yoga, yogaSumFn, 360 / 27);
+  const karanaFull = withTransitions(karana, elongFn, 6);
+  const nakshatraFull = withTransitions({ name: nakshatraOfDay, number: moonNakSiderealIdx + 1 }, nakFn, nakSpan);
+
+  const timeLabel = `${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}`;
+
   const sunTimes = sunriseSunsetMinutesUTC(noonDate, lat, lon);
   if (sunTimes.polarNight || sunTimes.polarDay) {
     return {
       date: `${String(day).padStart(2,'0')}.${String(month).padStart(2,'0')}.${year}`,
-      vara, tithi, yoga, karana, nakshatraOfDay, nakshatraOfDayIdx: moonNakSiderealIdx,
+      time: timeLabel,
+      vara, tithi: tithiFull, yoga: yogaFull, karana: karanaFull,
+      nakshatraOfDay: nakshatraFull.name, nakshatraOfDayIdx: moonNakSiderealIdx, nakshatra: nakshatraFull,
       sunError: sunTimes.polarNight ? 'Полярная ночь — восход не наступает' : 'Полярный день — заход не наступает',
     };
   }
@@ -197,7 +294,9 @@ function computePanchanga(year, month, day, lat, lon, utcOffset) {
 
   return {
     date: `${String(day).padStart(2,'0')}.${String(month).padStart(2,'0')}.${year}`,
-    vara, tithi, yoga, karana, nakshatraOfDay, nakshatraOfDayIdx: moonNakSiderealIdx,
+    time: timeLabel,
+    vara, tithi: tithiFull, yoga: yogaFull, karana: karanaFull,
+    nakshatraOfDay: nakshatraFull.name, nakshatraOfDayIdx: moonNakSiderealIdx, nakshatra: nakshatraFull,
     sunrise: sunriseLocal, sunset: sunsetLocal,
     rahuKalam, yamaganda, gulikaKalam,
   };

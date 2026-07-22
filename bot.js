@@ -443,7 +443,7 @@ const panchangaWizard = new Scenes.WizardScene(
     }
 
     try {
-      const p = computePanchanga(pd.year, pd.month, pd.day, lat, lon, tz);
+      const p = computePanchanga(pd.year, pd.month, pd.day, 12, 0, lat, lon, tz);
 
       if (p.sunError) {
         await ctx.reply(`${p.date}\n\n${p.sunError}`);

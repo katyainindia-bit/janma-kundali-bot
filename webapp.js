@@ -134,8 +134,8 @@ function startWebApp() {
 
   app.post('/api/panchanga', (req, res) => {
     try {
-      const { day, month, year, lat, lon, utcOffset } = req.body;
-      const p = computePanchanga(year, month, day, lat, lon, utcOffset);
+      const { day, month, year, hour, minute, lat, lon, utcOffset } = req.body;
+      const p = computePanchanga(year, month, day, hour, minute, lat, lon, utcOffset);
       res.json({ panchanga: p });
     } catch (e) {
       console.error(e);

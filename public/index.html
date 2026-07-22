@@ -317,7 +317,8 @@
     font-size: 13px;
   }
   .current-period-row .label { color: var(--taupe); }
-  .current-period-row .value { font-weight: 600; }
+  .current-period-row .value { font-weight: 600; text-align: right; }
+  .current-period-row .value .sub { display: block; font-size: 11px; font-weight: 400; color: var(--taupe); margin-top: 2px; }
 
   /* ---------- Аккордеон Даш ---------- */
   .dasha-accordion { background: var(--card-light); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
@@ -532,6 +533,10 @@
     <div class="field">
       <label for="p-date">Дата</label>
       <input type="date" id="p-date">
+    </div>
+    <div class="field">
+      <label for="p-time">Точное время</label>
+      <input type="text" id="p-time" value="12:00" placeholder="12:00">
     </div>
     <div class="field">
       <label for="p-city">Место</label>
@@ -1418,8 +1423,12 @@
     const errorEl = document.getElementById('p-error-msg');
     errorEl.style.display = 'none';
     const dateVal = document.getElementById('p-date').value;
+    const timeVal = document.getElementById('p-time').value.trim();
     const city = document.getElementById('p-city').value.trim();
     if (!dateVal) { errorEl.textContent = 'Укажите дату'; errorEl.style.display='block'; return; }
+    const timeMatch = timeVal.match(/^(\d{1,2}):(\d{2})$/);
+    if (!timeMatch) { errorEl.textContent = 'Введите время в формате ЧЧ:ММ'; errorEl.style.display='block'; return; }
+    const hour = parseInt(timeMatch[1]), minute = parseInt(timeMatch[2]);
     const [year, month, day] = dateVal.split('-').map(Number);
 
     try {
@@ -1432,7 +1441,7 @@
 
       const pRes = await fetch('/api/panchanga', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ day, month, year, lat: geo.lat, lon: geo.lon, utcOffset: geo.utcOffset })
+        body: JSON.stringify({ day, month, year, hour, minute, lat: geo.lat, lon: geo.lon, utcOffset: geo.utcOffset })
       });
       const { panchanga: p } = await pRes.json();
 
@@ -1443,12 +1452,14 @@
         return;
       }
 
-      document.getElementById('p-res-title').textContent = `${p.date} · ${geo.city}`;
+      const sub = (text) => text ? `<span class="sub">до ${text}</span>` : '';
+
+      document.getElementById('p-res-title').textContent = `${p.date}, ${p.time} · ${geo.city}`;
       document.getElementById('p-vara').textContent = p.vara;
-      document.getElementById('p-tithi').textContent = `${p.tithi.name} (№${p.tithi.number}, ${p.tithi.paksha})`;
-      document.getElementById('p-nakshatra').textContent = p.nakshatraOfDay;
-      document.getElementById('p-yoga').textContent = p.yoga.name;
-      document.getElementById('p-karana').textContent = p.karana.name;
+      document.getElementById('p-tithi').innerHTML = `${p.tithi.name} (№${p.tithi.number}, ${p.tithi.paksha})${sub(p.tithi.endsAt)}`;
+      document.getElementById('p-nakshatra').innerHTML = `${p.nakshatraOfDay}${sub(p.nakshatra.endsAt)}`;
+      document.getElementById('p-yoga').innerHTML = `${p.yoga.name}${sub(p.yoga.endsAt)}`;
+      document.getElementById('p-karana').innerHTML = `${p.karana.name}${sub(p.karana.endsAt)}`;
       document.getElementById('p-sunrise').textContent = p.sunrise;
       document.getElementById('p-sunset').textContent = p.sunset;
       document.getElementById('p-rahu').textContent = `${p.rahuKalam.start}–${p.rahuKalam.end}`;
