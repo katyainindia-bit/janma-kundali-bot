@@ -177,6 +177,29 @@
     color: var(--ink);
     font-weight: 600;
   }
+  .scale-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .scale-btn {
+    flex: 1;
+    border: 1px solid var(--line);
+    background: none;
+    padding: 6px 4px;
+    border-radius: 8px;
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--taupe);
+    cursor: pointer;
+  }
+  .scale-btn.active {
+    background: var(--gold);
+    border-color: var(--gold);
+    color: #fff;
+    font-weight: 600;
+  }
 
   .tab-content { display: none; }
   .tab-content.active { display: block; }
@@ -409,9 +432,15 @@
           <label style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--taupe);">Момент транзита</label>
           <span id="t-slider-label" style="font-family:'Playfair Display',serif;font-size:15px;font-weight:600;">—</span>
         </div>
+        <div class="scale-tabs">
+          <button class="scale-btn" data-scale="100y">100 лет</button>
+          <button class="scale-btn" data-scale="10y">10 лет</button>
+          <button class="scale-btn" data-scale="1y">1 год</button>
+          <button class="scale-btn active" data-scale="1m">1 месяц</button>
+        </div>
         <input type="range" id="t-slider" min="-876600" max="876600" step="1" value="0" style="width:100%;accent-color:#C8A26B;">
         <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--taupe);margin-top:2px;">
-          <span>−100 лет</span><span>сегодня</span><span>+100 лет</span>
+          <span id="t-range-min">−100 лет</span><span>центр</span><span id="t-range-max">+100 лет</span>
         </div>
         <div class="row2" style="margin-top:12px;align-items:end;">
           <div class="field" style="margin-bottom:0;">
@@ -726,8 +755,7 @@
 
       const today = new Date();
       document.getElementById('t-date').value = today.toISOString().slice(0,10);
-      document.getElementById('t-slider').value = 0;
-      renderTransitsAt(dateFromSliderValue(0));
+      applyScale(currentScale, false);
 
       document.getElementById('results').style.display = 'block';
     } catch (e) {
@@ -822,10 +850,45 @@
     return { planets };
   }
 
-  const SLIDER_EPOCH = new Date(); // "сегодня" в момент открытия приложения — точка отсчёта бегунка
+  // Масштабы бегунка: сколько часов влево/вправо от центра он охватывает.
+  // Чем меньше масштаб — тем чувствительнее бегунок (тот же ход пальцем
+  // соответствует меньшему промежутку времени).
+  const SCALES = {
+    '100y': { hoursHalfRange: 876600, label: '100 лет' },
+    '10y':  { hoursHalfRange: 87660,  label: '10 лет'  },
+    '1y':   { hoursHalfRange: 8766,   label: '1 год'   },
+    '1m':   { hoursHalfRange: 366,    label: '1 месяц' },
+  };
+  let currentScale = '1m';
+  let sliderCenter = new Date(); // точка, вокруг которой сейчас "зумит" бегунок
+
+  function applyScale(scaleKey, keepCenter) {
+    currentScale = scaleKey;
+    const half = SCALES[scaleKey].hoursHalfRange;
+    const slider = document.getElementById('t-slider');
+    slider.min = -half;
+    slider.max = half;
+    slider.value = 0;
+    if (!keepCenter) sliderCenter = new Date();
+    document.getElementById('t-range-min').textContent = '−' + SCALES[scaleKey].label;
+    document.getElementById('t-range-max').textContent = '+' + SCALES[scaleKey].label;
+    document.querySelectorAll('.scale-btn').forEach(b => b.classList.toggle('active', b.dataset.scale === scaleKey));
+    renderTransitsAt(sliderCenter);
+  }
+
+  document.querySelectorAll('.scale-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      // Зумируемся вокруг той даты, что сейчас показана на бегунке,
+      // а не сбрасываемся на "сегодня" — так удобнее уточнять момент.
+      const slider = document.getElementById('t-slider');
+      const shownDate = dateFromSliderValue(Number(slider.value));
+      sliderCenter = shownDate;
+      applyScale(btn.dataset.scale, true);
+    });
+  });
 
   function dateFromSliderValue(hoursOffset) {
-    return new Date(SLIDER_EPOCH.getTime() + hoursOffset * 3600000);
+    return new Date(sliderCenter.getTime() + hoursOffset * 3600000);
   }
 
   function renderTransitsAt(atDate) {
@@ -845,10 +908,13 @@
     const dateVal = document.getElementById('t-date').value;
     if (!dateVal) return;
     const target = new Date(dateVal + 'T12:00:00Z');
-    const hoursOffset = Math.round((target.getTime() - SLIDER_EPOCH.getTime()) / 3600000);
-    const clamped = Math.max(-876600, Math.min(876600, hoursOffset));
-    document.getElementById('t-slider').value = clamped;
-    renderTransitsAt(dateFromSliderValue(clamped));
+    // Прыжок на дату всегда пере-центрирует бегунок на эту дату,
+    // сохраняя текущий выбранный масштаб (чтобы можно было сразу
+    // покрутить вокруг нужного дня/года).
+    sliderCenter = target;
+    const slider = document.getElementById('t-slider');
+    slider.value = 0;
+    renderTransitsAt(sliderCenter);
   });
 
   // Дата по умолчанию — сегодня
