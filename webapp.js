@@ -5,6 +5,7 @@
 
 const express = require('express');
 const path = require('path');
+const crypto = require('crypto');
 
 const { calculateChart } = require('./engine.js');
 const { computeVimshottariDasha, findCurrentDashaChain } = require('./dasha.js');
@@ -13,6 +14,48 @@ const { computePanchanga } = require('./panchanga.js');
 const { calculateNavamsha } = require('./navamsha.js');
 const { resolveCity } = require('./ru-timezone.js');
 const { resolveWorldCity } = require('./world-geocoding.js');
+const db = require('./database.js');
+
+const BOT_TOKEN = process.env.BOT_TOKEN;
+
+// ------------------------------------------------------------
+// Проверка Telegram.WebApp.initData — доказывает, что запрос
+// действительно пришёл из Telegram и что telegram_id в нём не подделан.
+// Алгоритм из официальной документации Telegram Mini Apps.
+// Возвращает объект пользователя {id, username, first_name} или null.
+// ------------------------------------------------------------
+function verifyInitData(initData) {
+  if (!initData || !BOT_TOKEN) return null;
+  try {
+    const params = new URLSearchParams(initData);
+    const hash = params.get('hash');
+    if (!hash) return null;
+    params.delete('hash');
+    const pairs = [];
+    for (const [k, v] of params.entries()) pairs.push(`${k}=${v}`);
+    pairs.sort();
+    const dataCheckString = pairs.join('\n');
+    const secretKey = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
+    const computedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+    if (computedHash !== hash) return null;
+    const userJson = params.get('user');
+    if (!userJson) return null;
+    return JSON.parse(userJson);
+  } catch (e) {
+    console.error('initData verification error:', e);
+    return null;
+  }
+}
+
+// Мидлвара: проверяет initData из тела запроса, кладёт telegram-пользователя
+// в req.tgUser. Если проверка не прошла — отвечает 401.
+function requireTelegramUser(req, res, next) {
+  const user = verifyInitData(req.body.initData);
+  if (!user) return res.status(401).json({ error: 'Не удалось проверить пользователя Telegram' });
+  req.tgUser = user;
+  db.upsertUser({ from: user });
+  next();
+}
 
 function startWebApp() {
   const app = express();
@@ -94,6 +137,135 @@ function startWebApp() {
       const { day, month, year, lat, lon, utcOffset } = req.body;
       const p = computePanchanga(year, month, day, lat, lon, utcOffset);
       res.json({ panchanga: p });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ---------- Архив: сохранённые карты, папки, избранное, заметки ----------
+
+  app.post('/api/archive/list', requireTelegramUser, (req, res) => {
+    try {
+      const charts = db.listCharts(req.tgUser.id);
+      res.json({ charts });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/archive/save', requireTelegramUser, (req, res) => {
+    try {
+      const { label, params, placeLabel, folder } = req.body;
+      if (!label || !label.trim()) return res.status(400).json({ error: 'Нужно название карты' });
+      const chartId = db.saveChart(req.tgUser.id, label.trim(), params, placeLabel, folder);
+      res.json({ id: chartId });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/archive/rename', requireTelegramUser, (req, res) => {
+    try {
+      const { chartId, label } = req.body;
+      if (!label || !label.trim()) return res.status(400).json({ error: 'Нужно название карты' });
+      const row = db.getChart(req.tgUser.id, chartId);
+      if (!row) return res.status(404).json({ error: 'Карта не найдена' });
+      db.renameChart(req.tgUser.id, chartId, label.trim());
+      res.json({ ok: true });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/archive/folder', requireTelegramUser, (req, res) => {
+    try {
+      const { chartId, folder } = req.body;
+      const row = db.getChart(req.tgUser.id, chartId);
+      if (!row) return res.status(404).json({ error: 'Карта не найдена' });
+      db.setFolder(req.tgUser.id, chartId, folder);
+      res.json({ ok: true });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/archive/favorite', requireTelegramUser, (req, res) => {
+    try {
+      const { chartId } = req.body;
+      const newState = db.toggleFavorite(req.tgUser.id, chartId);
+      if (newState === null) return res.status(404).json({ error: 'Карта не найдена' });
+      res.json({ isFavorite: newState });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/archive/delete', requireTelegramUser, (req, res) => {
+    try {
+      const { chartId } = req.body;
+      const row = db.getChart(req.tgUser.id, chartId);
+      if (!row) return res.status(404).json({ error: 'Карта не найдена' });
+      db.deleteChart(req.tgUser.id, chartId);
+      res.json({ ok: true });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/archive/notes/list', requireTelegramUser, (req, res) => {
+    try {
+      const { chartId } = req.body;
+      const row = db.getChart(req.tgUser.id, chartId);
+      if (!row) return res.status(404).json({ error: 'Карта не найдена' });
+      res.json({ notes: db.listNotes(chartId) });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/archive/notes/add', requireTelegramUser, (req, res) => {
+    try {
+      const { chartId, note } = req.body;
+      if (!note || !note.trim()) return res.status(400).json({ error: 'Пустая заметка' });
+      const row = db.getChart(req.tgUser.id, chartId);
+      if (!row) return res.status(404).json({ error: 'Карта не найдена' });
+      const noteId = db.addNote(chartId, note.trim());
+      res.json({ id: noteId });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/archive/notes/update', requireTelegramUser, (req, res) => {
+    try {
+      const { chartId, noteId, note } = req.body;
+      if (!note || !note.trim()) return res.status(400).json({ error: 'Пустая заметка' });
+      const row = db.getChart(req.tgUser.id, chartId);
+      if (!row) return res.status(404).json({ error: 'Карта не найдена' });
+      db.updateNote(noteId, note.trim());
+      res.json({ ok: true });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/archive/notes/delete', requireTelegramUser, (req, res) => {
+    try {
+      const { chartId, noteId } = req.body;
+      const row = db.getChart(req.tgUser.id, chartId);
+      if (!row) return res.status(404).json({ error: 'Карта не найдена' });
+      db.deleteNote(noteId);
+      res.json({ ok: true });
     } catch (e) {
       console.error(e);
       res.status(500).json({ error: e.message });

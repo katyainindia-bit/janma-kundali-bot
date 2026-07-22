@@ -39,6 +39,7 @@ db.exec(`
     utc_offset REAL NOT NULL,
     place_label TEXT,
     is_favorite INTEGER NOT NULL DEFAULT 0,
+    folder TEXT,
     created_at TEXT NOT NULL,
     FOREIGN KEY (telegram_id) REFERENCES users(telegram_id)
   );
@@ -55,6 +56,13 @@ db.exec(`
 // На случай, если база уже существовала до добавления избранного (миграция «на лету»)
 try {
   db.exec('ALTER TABLE charts ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0');
+} catch (e) {
+  // столбец уже есть — игнорируем
+}
+
+// То же самое для папок (миграция «на лету» для уже существующих баз)
+try {
+  db.exec('ALTER TABLE charts ADD COLUMN folder TEXT');
 } catch (e) {
   // столбец уже есть — игнорируем
 }
@@ -83,14 +91,14 @@ function getUserCount() {
 }
 
 // --- Архив карт ---
-function saveChart(telegramId, label, params, placeLabel) {
+function saveChart(telegramId, label, params, placeLabel, folder) {
   const now = new Date().toISOString();
   const info = db.prepare(`
-    INSERT INTO charts (telegram_id, label, day, month, year, hour, minute, lat, lon, utc_offset, place_label, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO charts (telegram_id, label, day, month, year, hour, minute, lat, lon, utc_offset, place_label, folder, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     telegramId, label, params.day, params.month, params.year, params.hour, params.minute,
-    params.lat, params.lon, params.utcOffset, placeLabel || null, now
+    params.lat, params.lon, params.utcOffset, placeLabel || null, folder || null, now
   );
   return info.lastInsertRowid;
 }
@@ -120,6 +128,14 @@ function updateChart(telegramId, chartId, params, placeLabel) {
   );
 }
 
+function renameChart(telegramId, chartId, label) {
+  return db.prepare('UPDATE charts SET label = ? WHERE telegram_id = ? AND id = ?').run(label, telegramId, chartId);
+}
+
+function setFolder(telegramId, chartId, folder) {
+  return db.prepare('UPDATE charts SET folder = ? WHERE telegram_id = ? AND id = ?').run(folder || null, telegramId, chartId);
+}
+
 function toggleFavorite(telegramId, chartId) {
   const row = getChart(telegramId, chartId);
   if (!row) return null;
@@ -139,12 +155,16 @@ function listNotes(chartId) {
   return db.prepare('SELECT * FROM chart_notes WHERE chart_id = ? ORDER BY created_at ASC').all(chartId);
 }
 
+function updateNote(noteId, noteText) {
+  return db.prepare('UPDATE chart_notes SET note = ? WHERE id = ?').run(noteText, noteId);
+}
+
 function deleteNote(noteId) {
   return db.prepare('DELETE FROM chart_notes WHERE id = ?').run(noteId);
 }
 
 module.exports = {
   upsertUser, getAllUserIds, getUserCount,
-  saveChart, listCharts, getChart, deleteChart, updateChart, toggleFavorite,
-  addNote, listNotes, deleteNote,
+  saveChart, listCharts, getChart, deleteChart, updateChart, renameChart, setFolder, toggleFavorite,
+  addNote, listNotes, updateNote, deleteNote,
 };

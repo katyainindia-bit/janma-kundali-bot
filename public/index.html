@@ -151,6 +151,67 @@
     cursor: pointer;
   }
 
+  /* ---------- Архив ---------- */
+  .chip-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip {
+    border: 1px solid var(--line);
+    background: var(--bg);
+    padding: 6px 13px;
+    border-radius: 999px;
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--taupe);
+    cursor: pointer;
+  }
+  .chip.active { background: var(--gold); border-color: var(--gold); color: #fff; font-weight: 600; }
+
+  .archive-card {
+    background: var(--card-light);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+  }
+  .archive-card .ac-info { flex: 1; min-width: 0; }
+  .archive-card .ac-name { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 16px; margin-bottom: 3px; }
+  .archive-card .ac-meta { font-size: 12px; color: var(--taupe); }
+  .archive-card .ac-folder {
+    display: inline-block; margin-top: 5px; font-size: 10px; text-transform: uppercase;
+    letter-spacing: 0.04em; color: var(--gold); background: #FBF3DF; padding: 2px 8px; border-radius: 6px;
+  }
+  .archive-card .ac-star {
+    font-size: 19px; color: var(--gold); background: none; border: none; padding: 6px; cursor: pointer; flex-shrink: 0;
+  }
+
+  .btn-secondary {
+    width: 100%; background: none; border: 1px solid var(--line); color: var(--ink);
+    padding: 12px; border-radius: 12px; font-family: 'Inter', sans-serif; font-weight: 600;
+    font-size: 14px; cursor: pointer; margin-bottom: 14px;
+  }
+  .btn-danger {
+    width: 100%; background: none; border: 1px solid #b23b2e; color: #b23b2e;
+    padding: 13px; border-radius: 12px; font-family: 'Inter', sans-serif; font-weight: 600;
+    font-size: 14px; cursor: pointer;
+  }
+
+  .note-item { background: var(--card); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
+  .note-item .note-text { font-size: 13px; white-space: pre-wrap; }
+  .note-item .note-date { font-size: 10px; color: var(--taupe); margin-top: 5px; }
+  .note-item .note-actions { display: flex; gap: 14px; margin-top: 7px; }
+  .note-item .note-actions button {
+    background: none; border: none; color: var(--taupe); font-size: 11px; cursor: pointer; padding: 0;
+    text-decoration: underline; font-family: 'Inter', sans-serif;
+  }
+  .note-edit-area {
+    width: 100%; font-family: inherit; font-size: 13px; padding: 8px; border-radius: 8px;
+    border: 1px solid var(--line); margin-top: 7px; background: var(--card-light);
+  }
+
   /* ---------- Вкладки ---------- */
   .tabs {
     display: flex;
@@ -499,6 +560,56 @@
   </div>
 </div>
 
+<div id="page-archive" style="display:none;">
+
+  <div id="archive-list-view">
+    <div class="form-card" style="padding:16px;">
+      <h2 style="margin-bottom:12px;">Архив карт</h2>
+      <div class="chip-row" id="archive-filter-chips"></div>
+    </div>
+    <div id="archive-empty" class="info-card" style="display:none;">Архив пуст — постройте карту на главной и нажмите 🔖, чтобы сохранить.</div>
+    <div id="archive-cards"></div>
+  </div>
+
+  <div id="archive-detail-view" style="display:none;">
+    <button class="btn-secondary" id="archive-back-btn">← Назад к архиву</button>
+
+    <div class="form-card" style="padding:16px;">
+      <div class="field">
+        <label for="ad-label">Название</label>
+        <input type="text" id="ad-label" placeholder="Например: имя человека">
+      </div>
+      <div class="field">
+        <label>Папка</label>
+        <div class="chip-row" id="ad-folder-chips"></div>
+        <input type="text" id="ad-folder-custom" placeholder="Своя папка…" style="margin-top:9px;">
+      </div>
+      <div style="display:flex; gap:8px; align-items:stretch;">
+        <button class="btn-primary" id="ad-save-btn" style="flex:1;margin-top:0;">Сохранить изменения</button>
+        <button class="ac-star" id="ad-fav-btn" style="font-size:26px;">☆</button>
+      </div>
+      <div class="error-msg" id="ad-error"></div>
+    </div>
+
+    <div class="info-card" style="display:block;">
+      <div class="current-period-row"><span class="label">Дата и время</span><span class="value" id="ad-birthdate">—</span></div>
+      <div class="current-period-row"><span class="label">Место</span><span class="value" id="ad-place">—</span></div>
+    </div>
+
+    <button class="btn-primary" id="ad-open-btn">Открыть карту на главной</button>
+
+    <div class="form-card" style="padding:16px;margin-top:14px;">
+      <h2 style="font-size:15px;margin-bottom:12px;">Заметки</h2>
+      <div id="ad-notes-list"></div>
+      <textarea id="ad-note-new" class="note-edit-area" placeholder="Новая заметка…" rows="2" style="margin-top:4px;"></textarea>
+      <button class="btn-primary" id="ad-note-add-btn" style="margin-top:10px;">Добавить заметку</button>
+    </div>
+
+    <button class="btn-danger" id="ad-delete-btn" style="margin-top:14px;">🗑 Удалить карту</button>
+  </div>
+
+</div>
+
 </main>
 
 <div class="bottom-nav">
@@ -705,11 +816,370 @@
         const el = document.getElementById('page-' + p);
         if (el) el.style.display = (p === nav) ? 'block' : 'none';
       });
-      if ((nav === 'archive' || nav === 'profile') && window.Telegram && window.Telegram.WebApp) {
+      if (nav === 'archive') {
+        showArchiveListView();
+        loadArchive();
+      }
+      if (nav === 'profile' && window.Telegram && window.Telegram.WebApp) {
         Telegram.WebApp.showAlert('Этот раздел скоро появится здесь.');
       }
     });
   });
+
+  // ============================================================
+  // Архив: сохранённые карты, папки, избранное, заметки
+  // ============================================================
+
+  function getInitData() {
+    return (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || '';
+  }
+
+  async function archiveApi(endpoint, body) {
+    const res = await fetch('/api/archive/' + endpoint, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ initData: getInitData(), ...body })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Ошибка сервера');
+    return data;
+  }
+
+  const FOLDER_PRESETS = ['Семья', 'Клиенты', 'Друзья'];
+  let archiveCharts = [];
+  let archiveFilter = 'all'; // 'all' | 'fav' | имя папки
+  let archiveDetailId = null;
+  let adSelectedFolder = null;
+
+  function fmtChartDate(row) {
+    return `${String(row.day).padStart(2,'0')}.${String(row.month).padStart(2,'0')}.${row.year} · ${String(row.hour).padStart(2,'0')}:${String(row.minute).padStart(2,'0')}`;
+  }
+
+  async function loadArchive() {
+    const cardsEl = document.getElementById('archive-cards');
+    const emptyEl = document.getElementById('archive-empty');
+    try {
+      const { charts } = await archiveApi('list', {});
+      archiveCharts = charts;
+      renderArchiveChips();
+      renderArchiveCards();
+    } catch (e) {
+      cardsEl.innerHTML = '';
+      emptyEl.style.display = 'block';
+      emptyEl.textContent = 'Не получилось загрузить архив: ' + e.message +
+        (getInitData() ? '' : ' (открой мини-приложение через Telegram, чтобы архив работал)');
+    }
+  }
+
+  function renderArchiveChips() {
+    const folders = [...new Set(archiveCharts.map(c => c.folder).filter(Boolean))];
+    const chips = [
+      { key: 'all', label: 'Все' },
+      { key: 'fav', label: '⭐ Избранное' },
+      ...folders.map(f => ({ key: f, label: f })),
+    ];
+    const el = document.getElementById('archive-filter-chips');
+    el.innerHTML = chips.map(c =>
+      `<button class="chip ${archiveFilter===c.key?'active':''}" data-key="${c.key.replace(/"/g,'&quot;')}">${c.label}</button>`
+    ).join('');
+    el.querySelectorAll('.chip').forEach(btn => {
+      btn.addEventListener('click', () => { archiveFilter = btn.dataset.key; renderArchiveChips(); renderArchiveCards(); });
+    });
+  }
+
+  function renderArchiveCards() {
+    const cardsEl = document.getElementById('archive-cards');
+    const emptyEl = document.getElementById('archive-empty');
+    let list = archiveCharts;
+    if (archiveFilter === 'fav') list = list.filter(c => c.is_favorite);
+    else if (archiveFilter !== 'all') list = list.filter(c => c.folder === archiveFilter);
+
+    if (archiveCharts.length === 0) {
+      emptyEl.style.display = 'block';
+      emptyEl.textContent = 'Архив пуст — постройте карту на главной и нажмите 🔖, чтобы сохранить.';
+      cardsEl.innerHTML = '';
+      return;
+    }
+    if (list.length === 0) {
+      emptyEl.style.display = 'block';
+      emptyEl.textContent = 'В этом фильтре пока пусто.';
+      cardsEl.innerHTML = '';
+      return;
+    }
+    emptyEl.style.display = 'none';
+    cardsEl.innerHTML = list.map(row => `
+      <div class="archive-card" data-id="${row.id}">
+        <div class="ac-info">
+          <div class="ac-name">${escapeHtml(row.label)}</div>
+          <div class="ac-meta">${fmtChartDate(row)}${row.place_label ? ' · ' + escapeHtml(row.place_label) : ''}</div>
+          ${row.folder ? `<div class="ac-folder">${escapeHtml(row.folder)}</div>` : ''}
+        </div>
+        <button class="ac-star" data-fav-id="${row.id}">${row.is_favorite ? '⭐' : '☆'}</button>
+      </div>
+    `).join('');
+    cardsEl.querySelectorAll('.ac-star').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const id = Number(btn.dataset.favId);
+        try {
+          const { isFavorite } = await archiveApi('favorite', { chartId: id });
+          const row = archiveCharts.find(c => c.id === id);
+          if (row) row.is_favorite = isFavorite ? 1 : 0;
+          renderArchiveChips();
+          renderArchiveCards();
+        } catch (e) { /* тихо игнорируем — не критично */ }
+      });
+    });
+    cardsEl.querySelectorAll('.archive-card').forEach(card => {
+      card.addEventListener('click', () => openArchiveDetail(Number(card.dataset.id)));
+    });
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function showArchiveListView() {
+    document.getElementById('archive-list-view').style.display = 'block';
+    document.getElementById('archive-detail-view').style.display = 'none';
+  }
+
+  function renderAdFolderChips(currentFolder) {
+    adSelectedFolder = FOLDER_PRESETS.includes(currentFolder) ? currentFolder : null;
+    const el = document.getElementById('ad-folder-chips');
+    el.innerHTML = FOLDER_PRESETS.map(f =>
+      `<button class="chip ${adSelectedFolder===f?'active':''}" data-folder="${f}">${f}</button>`
+    ).join('');
+    el.querySelectorAll('.chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        adSelectedFolder = (adSelectedFolder === btn.dataset.folder) ? null : btn.dataset.folder;
+        document.getElementById('ad-folder-custom').value = '';
+        renderAdFolderChips(adSelectedFolder);
+      });
+    });
+    document.getElementById('ad-folder-custom').value = (!FOLDER_PRESETS.includes(currentFolder) && currentFolder) ? currentFolder : '';
+  }
+
+  async function openArchiveDetail(chartId) {
+    const row = archiveCharts.find(c => c.id === chartId);
+    if (!row) return;
+    archiveDetailId = chartId;
+    document.getElementById('archive-list-view').style.display = 'none';
+    document.getElementById('archive-detail-view').style.display = 'block';
+    document.getElementById('ad-error').style.display = 'none';
+    document.getElementById('ad-label').value = row.label;
+    document.getElementById('ad-birthdate').textContent = fmtChartDate(row);
+    document.getElementById('ad-place').textContent = row.place_label || '—';
+    document.getElementById('ad-fav-btn').textContent = row.is_favorite ? '⭐' : '☆';
+    renderAdFolderChips(row.folder);
+    await loadAdNotes(chartId);
+  }
+
+  async function loadAdNotes(chartId) {
+    const listEl = document.getElementById('ad-notes-list');
+    listEl.innerHTML = 'Загрузка…';
+    try {
+      const { notes } = await archiveApi('notes/list', { chartId });
+      if (notes.length === 0) { listEl.innerHTML = '<div style="font-size:13px;color:var(--taupe);">Заметок пока нет.</div>'; return; }
+      listEl.innerHTML = notes.map(n => `
+        <div class="note-item" data-note-id="${n.id}">
+          <div class="note-text">${escapeHtml(n.note)}</div>
+          <div class="note-date">${n.created_at.slice(0,10).split('-').reverse().join('.')}</div>
+          <div class="note-actions">
+            <button data-edit="${n.id}">Изменить</button>
+            <button data-del="${n.id}">Удалить</button>
+          </div>
+        </div>
+      `).join('');
+      listEl.querySelectorAll('[data-edit]').forEach(btn => {
+        btn.addEventListener('click', () => startEditNote(chartId, Number(btn.dataset.edit)));
+      });
+      listEl.querySelectorAll('[data-del]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          try { await archiveApi('notes/delete', { chartId, noteId: Number(btn.dataset.del) }); await loadAdNotes(chartId); }
+          catch (e) { alert('Не удалось удалить заметку: ' + e.message); }
+        });
+      });
+    } catch (e) {
+      listEl.innerHTML = '<div style="font-size:13px;color:#a8654a;">Не удалось загрузить заметки.</div>';
+    }
+  }
+
+  function startEditNote(chartId, noteId) {
+    const item = document.querySelector(`.note-item[data-note-id="${noteId}"]`);
+    if (!item) return;
+    const textEl = item.querySelector('.note-text');
+    const original = textEl.textContent;
+    item.innerHTML = `
+      <textarea class="note-edit-area" rows="2">${escapeHtml(original)}</textarea>
+      <div class="note-actions">
+        <button data-save-edit>Сохранить</button>
+        <button data-cancel-edit>Отмена</button>
+      </div>
+    `;
+    item.querySelector('[data-cancel-edit]').addEventListener('click', () => loadAdNotes(chartId));
+    item.querySelector('[data-save-edit]').addEventListener('click', async () => {
+      const newText = item.querySelector('textarea').value.trim();
+      if (!newText) return;
+      try { await archiveApi('notes/update', { chartId, noteId, note: newText }); await loadAdNotes(chartId); }
+      catch (e) { alert('Не удалось сохранить заметку: ' + e.message); }
+    });
+  }
+
+  document.getElementById('archive-back-btn').addEventListener('click', () => { showArchiveListView(); loadArchive(); });
+
+  document.getElementById('ad-save-btn').addEventListener('click', async () => {
+    const errorEl = document.getElementById('ad-error');
+    errorEl.style.display = 'none';
+    const label = document.getElementById('ad-label').value.trim();
+    if (!label) { errorEl.textContent = 'Введите название'; errorEl.style.display = 'block'; return; }
+    const customFolder = document.getElementById('ad-folder-custom').value.trim();
+    const folder = customFolder || adSelectedFolder || null;
+    try {
+      await archiveApi('rename', { chartId: archiveDetailId, label });
+      await archiveApi('folder', { chartId: archiveDetailId, folder });
+      const row = archiveCharts.find(c => c.id === archiveDetailId);
+      if (row) { row.label = label; row.folder = folder; }
+      if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+        window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+      }
+    } catch (e) {
+      errorEl.textContent = 'Не удалось сохранить: ' + e.message;
+      errorEl.style.display = 'block';
+    }
+  });
+
+  document.getElementById('ad-fav-btn').addEventListener('click', async () => {
+    try {
+      const { isFavorite } = await archiveApi('favorite', { chartId: archiveDetailId });
+      document.getElementById('ad-fav-btn').textContent = isFavorite ? '⭐' : '☆';
+      const row = archiveCharts.find(c => c.id === archiveDetailId);
+      if (row) row.is_favorite = isFavorite ? 1 : 0;
+    } catch (e) { /* не критично */ }
+  });
+
+  document.getElementById('ad-note-add-btn').addEventListener('click', async () => {
+    const ta = document.getElementById('ad-note-new');
+    const text = ta.value.trim();
+    if (!text) return;
+    try {
+      await archiveApi('notes/add', { chartId: archiveDetailId, note: text });
+      ta.value = '';
+      await loadAdNotes(archiveDetailId);
+    } catch (e) { alert('Не удалось добавить заметку: ' + e.message); }
+  });
+
+  document.getElementById('ad-open-btn').addEventListener('click', async () => {
+    const row = archiveCharts.find(c => c.id === archiveDetailId);
+    if (!row) return;
+    try {
+      await displayChartResults({
+        name: row.label, day: row.day, month: row.month, year: row.year,
+        hour: row.hour, minute: row.minute, lat: row.lat, lon: row.lon,
+        utcOffset: row.utc_offset, placeLabel: row.place_label,
+      });
+      document.querySelector('.nav-item[data-nav="home"]').click();
+      document.querySelector('.tab-btn[data-tab="chart"]').click();
+    } catch (e) {
+      alert('Не удалось открыть карту: ' + e.message);
+    }
+  });
+
+  document.getElementById('ad-delete-btn').addEventListener('click', async () => {
+    const row = archiveCharts.find(c => c.id === archiveDetailId);
+    if (!row) return;
+    const confirmDelete = window.Telegram && window.Telegram.WebApp
+      ? await new Promise(resolve => window.Telegram.WebApp.showConfirm(`Удалить «${row.label}» из архива? Это необратимо.`, resolve))
+      : window.confirm(`Удалить «${row.label}» из архива? Это необратимо.`);
+    if (!confirmDelete) return;
+    try {
+      await archiveApi('delete', { chartId: archiveDetailId });
+      showArchiveListView();
+      await loadArchive();
+    } catch (e) {
+      alert('Не удалось удалить карту: ' + e.message);
+    }
+  });
+
+  // ---------- Кнопка 🔖 на главной — сохранить текущую карту в архив ----------
+  function updateBookmarkBtnState() {
+    document.getElementById('bookmark-btn').style.opacity = currentChartMeta ? '1' : '0.4';
+  }
+  updateBookmarkBtnState();
+
+  document.getElementById('bookmark-btn').addEventListener('click', async () => {
+    if (!currentChartMeta) return;
+    const defaultLabel = currentChartMeta.name;
+    let label;
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showPopup) {
+      // Telegram Mini Apps не имеют prompt() — используем простой fallback через window.prompt,
+      // он у Telegram WebView обычно работает; если недоступен, используем имя по умолчанию.
+      label = window.prompt('Название карты в архиве:', defaultLabel) || defaultLabel;
+    } else {
+      label = window.prompt('Название карты в архиве:', defaultLabel) || defaultLabel;
+    }
+    try {
+      await archiveApi('save', {
+        label,
+        params: currentChartMeta.params,
+        placeLabel: currentChartMeta.placeLabel,
+        folder: null,
+      });
+      if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+        window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+      }
+      if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showAlert) {
+        window.Telegram.WebApp.showAlert('Сохранено в архив как «' + label + '». Папку и заметки можно добавить в разделе 📁 Архив.');
+      } else {
+        alert('Сохранено в архив как «' + label + '».');
+      }
+    } catch (e) {
+      const msg = getInitData() ? e.message : 'Сохранение в архив работает только внутри Telegram.';
+      if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showAlert) {
+        window.Telegram.WebApp.showAlert('Не удалось сохранить: ' + msg);
+      } else {
+        alert('Не удалось сохранить: ' + msg);
+      }
+    }
+  });
+
+
+  // Общая функция: получает расчёт карты по параметрам и полностью
+  // заполняет секцию результатов (карта/планеты/даши/транзиты).
+  // Используется и формой построения карты, и открытием карты из архива.
+  let currentChartMeta = null; // {name, params, placeLabel} — для кнопки "Сохранить в архив"
+  async function displayChartResults({ name, day, month, year, hour, minute, lat, lon, utcOffset, placeLabel }) {
+    const chartRes = await fetch('/api/chart', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ day, month, year, hour, minute, lat, lon, utcOffset })
+    });
+    const { chart } = await chartRes.json();
+
+    const timeStr = String(hour).padStart(2,'0') + ':' + String(minute).padStart(2,'0');
+    document.getElementById('res-name').textContent = name;
+    document.getElementById('res-meta').textContent =
+      `${String(day).padStart(2,'0')}.${String(month).padStart(2,'0')}.${year} · ${timeStr}` + (placeLabel ? ` · ${placeLabel}` : '');
+
+    renderChartSVG(chart, 'chart-svg');
+    renderPlanetList(chart);
+    currentChart = chart;
+    currentChartMeta = { name, params: { day, month, year, hour, minute, lat, lon, utcOffset }, placeLabel };
+    updateBookmarkBtnState();
+
+    const birthDateUTC = new Date(Date.UTC(year, month-1, day, hour, minute, 0) - utcOffset*3600000).toISOString();
+
+    const dashaRes = await fetch('/api/dasha', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ chart, birthDateUTC })
+    });
+    const { mahadashas, chain } = await dashaRes.json();
+    renderDasha(mahadashas, chain);
+
+    const today = new Date();
+    document.getElementById('t-date').value = today.toISOString().slice(0,10);
+    applyScale(currentScale, false);
+
+    document.getElementById('results').style.display = 'block';
+  }
 
   document.getElementById('build-btn').addEventListener('click', async () => {
     const errorEl = document.getElementById('error-msg');
@@ -733,34 +1203,8 @@
       const geo = await geoRes.json();
       if (geo.error) { errorEl.textContent = geo.error; errorEl.style.display='block'; return; }
 
-      const chartRes = await fetch('/api/chart', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ day, month, year, hour, minute, lat: geo.lat, lon: geo.lon, utcOffset: geo.utcOffset })
-      });
-      const { chart } = await chartRes.json();
-
-      document.getElementById('res-name').textContent = name;
-      document.getElementById('res-meta').textContent =
-        `${String(day).padStart(2,'0')}.${String(month).padStart(2,'0')}.${year} · ${timeStr} · ${geo.city}`;
-
-      renderChartSVG(chart, 'chart-svg');
-      renderPlanetList(chart);
-      currentChart = chart;
-
-      const birthDateUTC = new Date(Date.UTC(year, month-1, day, hour, minute, 0) - geo.utcOffset*3600000).toISOString();
-
-      const dashaRes = await fetch('/api/dasha', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ chart, birthDateUTC })
-      });
-      const { mahadashas, chain } = await dashaRes.json();
-      renderDasha(mahadashas, chain);
-
-      const today = new Date();
-      document.getElementById('t-date').value = today.toISOString().slice(0,10);
-      applyScale(currentScale, false);
-
-      document.getElementById('results').style.display = 'block';
+      currentChartMeta = null; // сброс на время построения — заполнится в displayChartResults
+      await displayChartResults({ name, day, month, year, hour, minute, lat: geo.lat, lon: geo.lon, utcOffset: geo.utcOffset, placeLabel: geo.city });
     } catch (e) {
       errorEl.textContent = 'Ошибка: ' + e.message;
       errorEl.style.display = 'block';
