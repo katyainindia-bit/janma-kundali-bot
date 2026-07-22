@@ -460,7 +460,7 @@
       <button class="bookmark" id="bookmark-btn">🔖</button>
     </div>
 
-    <div class="tabs">
+    <div class="tabs" id="home-tabs">
       <button class="tab-btn active" data-tab="chart">Карта</button>
       <button class="tab-btn" data-tab="planets">Планеты</button>
       <button class="tab-btn" data-tab="dasha">Даши</button>
@@ -574,38 +574,54 @@
   <div id="archive-detail-view" style="display:none;">
     <button class="btn-secondary" id="archive-back-btn">← Назад к архиву</button>
 
-    <div class="form-card" style="padding:16px;">
-      <div class="field">
-        <label for="ad-label">Название</label>
-        <input type="text" id="ad-label" placeholder="Например: имя человека">
+    <div class="info-card">
+      <div>
+        <div class="name" id="ad-name-title">—</div>
+        <div class="meta" id="ad-meta-line">—</div>
       </div>
-      <div class="field">
-        <label>Папка</label>
-        <div class="chip-row" id="ad-folder-chips"></div>
-        <input type="text" id="ad-folder-custom" placeholder="Своя папка…" style="margin-top:9px;">
-      </div>
-      <div style="display:flex; gap:8px; align-items:stretch;">
-        <button class="btn-primary" id="ad-save-btn" style="flex:1;margin-top:0;">Сохранить изменения</button>
-        <button class="ac-star" id="ad-fav-btn" style="font-size:26px;">☆</button>
-      </div>
-      <div class="error-msg" id="ad-error"></div>
+      <button class="bookmark" id="ad-fav-btn">☆</button>
     </div>
 
-    <div class="info-card" style="display:block;">
-      <div class="current-period-row"><span class="label">Дата и время</span><span class="value" id="ad-birthdate">—</span></div>
-      <div class="current-period-row"><span class="label">Место</span><span class="value" id="ad-place">—</span></div>
+    <div class="chart-wrap">
+      <svg class="chart-svg" id="archive-chart-svg" viewBox="0 0 400 400"></svg>
+      <div class="legend">
+        <span><i class="dot" style="background:#4f7a52"></i>экзальтация</span>
+        <span><i class="dot" style="background:#4a6d8c"></i>своя обитель</span>
+        <span><i class="dot" style="background:#b23b2e"></i>падение</span>
+      </div>
     </div>
 
-    <button class="btn-primary" id="ad-open-btn">Открыть карту на главной</button>
-
-    <div class="form-card" style="padding:16px;margin-top:14px;">
-      <h2 style="font-size:15px;margin-bottom:12px;">Заметки</h2>
-      <div id="ad-notes-list"></div>
-      <textarea id="ad-note-new" class="note-edit-area" placeholder="Новая заметка…" rows="2" style="margin-top:4px;"></textarea>
-      <button class="btn-primary" id="ad-note-add-btn" style="margin-top:10px;">Добавить заметку</button>
+    <div class="tabs">
+      <button class="tab-btn" data-ad-tab="edit">✏️ Редактировать</button>
+      <button class="tab-btn" data-ad-tab="notes">📝 Заметки</button>
     </div>
 
-    <button class="btn-danger" id="ad-delete-btn" style="margin-top:14px;">🗑 Удалить карту</button>
+    <div class="tab-content" id="ad-panel-edit">
+      <div class="form-card" style="padding:16px;">
+        <div class="field">
+          <label for="ad-label">Название</label>
+          <input type="text" id="ad-label" placeholder="Например: имя человека">
+        </div>
+        <div class="field">
+          <label>Папка</label>
+          <div class="chip-row" id="ad-folder-chips"></div>
+          <input type="text" id="ad-folder-custom" placeholder="Своя папка…" style="margin-top:9px;">
+        </div>
+        <button class="btn-primary" id="ad-save-btn">Сохранить изменения</button>
+        <div class="error-msg" id="ad-error"></div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="ad-panel-notes">
+      <div class="form-card" style="padding:16px;">
+        <div id="ad-notes-list"></div>
+        <textarea id="ad-note-new" class="note-edit-area" placeholder="Новая заметка…" rows="2" style="margin-top:4px;"></textarea>
+        <button class="btn-primary" id="ad-note-add-btn" style="margin-top:10px;">Добавить заметку</button>
+      </div>
+    </div>
+
+    <button class="btn-secondary" id="ad-open-btn">Открыть на главной — даши, транзиты, планеты</button>
+    <button class="btn-danger" id="ad-delete-btn">🗑 Удалить карту</button>
   </div>
 
 </div>
@@ -797,9 +813,9 @@
     container.innerHTML = html;
   }
 
-  document.querySelectorAll('.tab-btn').forEach(btn => {
+  document.querySelectorAll('#home-tabs .tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+      document.querySelectorAll('#home-tabs .tab-btn').forEach(b=>b.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
@@ -959,6 +975,21 @@
     document.getElementById('ad-folder-custom').value = (!FOLDER_PRESETS.includes(currentFolder) && currentFolder) ? currentFolder : '';
   }
 
+  // Переключатель "✏️ Редактировать" / "📝 Заметки" под картой в архиве —
+  // работает как аккордеон: открыта максимум одна панель.
+  function showAdPanel(which) {
+    document.querySelectorAll('.tab-btn[data-ad-tab]').forEach(b => b.classList.toggle('active', b.dataset.adTab === which));
+    document.getElementById('ad-panel-edit').classList.toggle('active', which === 'edit');
+    document.getElementById('ad-panel-notes').classList.toggle('active', which === 'notes');
+  }
+  document.querySelectorAll('.tab-btn[data-ad-tab]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      // Повторный клик по уже открытой вкладке — сворачивает её.
+      const isOpen = btn.classList.contains('active');
+      showAdPanel(isOpen ? null : btn.dataset.adTab);
+    });
+  });
+
   async function openArchiveDetail(chartId) {
     const row = archiveCharts.find(c => c.id === chartId);
     if (!row) return;
@@ -966,11 +997,26 @@
     document.getElementById('archive-list-view').style.display = 'none';
     document.getElementById('archive-detail-view').style.display = 'block';
     document.getElementById('ad-error').style.display = 'none';
+    document.getElementById('ad-name-title').textContent = row.label;
+    document.getElementById('ad-meta-line').textContent = fmtChartDate(row) + (row.place_label ? ' · ' + row.place_label : '');
     document.getElementById('ad-label').value = row.label;
-    document.getElementById('ad-birthdate').textContent = fmtChartDate(row);
-    document.getElementById('ad-place').textContent = row.place_label || '—';
     document.getElementById('ad-fav-btn').textContent = row.is_favorite ? '⭐' : '☆';
     renderAdFolderChips(row.folder);
+    showAdPanel(null); // при открытии карточки — сразу видна только карта, без развёрнутых панелей
+
+    const svg = document.getElementById('archive-chart-svg');
+    svg.innerHTML = '';
+    try {
+      const res = await fetch('/api/chart', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ day: row.day, month: row.month, year: row.year, hour: row.hour, minute: row.minute, lat: row.lat, lon: row.lon, utcOffset: row.utc_offset })
+      });
+      const { chart } = await res.json();
+      renderChartSVG(chart, 'archive-chart-svg');
+    } catch (e) {
+      // тихо игнорируем — карта просто не отрисуется, остальная карточка всё равно рабочая
+    }
+
     await loadAdNotes(chartId);
   }
 
