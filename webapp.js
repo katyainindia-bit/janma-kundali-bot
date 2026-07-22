@@ -12,6 +12,7 @@ const { computeVimshottariDasha, findCurrentDashaChain } = require('./dasha.js')
 const { computeCurrentTransits } = require('./transits.js');
 const { computePanchanga } = require('./panchanga.js');
 const { calculateNavamsha } = require('./navamsha.js');
+const { calculateDashamsha } = require('./dashamsha.js');
 const { resolveCity } = require('./ru-timezone.js');
 const { resolveWorldCity } = require('./world-geocoding.js');
 const db = require('./database.js');
@@ -126,6 +127,17 @@ function startWebApp() {
       const { chart } = req.body;
       const d9 = calculateNavamsha(chart);
       res.json({ d9 });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/dashamsha', (req, res) => {
+    try {
+      const { chart } = req.body;
+      const d10 = calculateDashamsha(chart);
+      res.json({ d10 });
     } catch (e) {
       console.error(e);
       res.status(500).json({ error: e.message });

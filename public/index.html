@@ -212,6 +212,14 @@
     border: 1px solid var(--line); margin-top: 7px; background: var(--card-light);
   }
 
+  /* ---------- Варги: две карты рядом для сравнения ---------- */
+  .varga-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .varga-compare .chart-wrap { margin-bottom: 0; }
+  .varga-chart-label {
+    text-align: center; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--taupe); font-weight: 600; margin-bottom: 6px;
+  }
+
   /* ---------- Вкладки ---------- */
   .tabs {
     display: flex;
@@ -466,6 +474,7 @@
       <button class="tab-btn" data-tab="planets">Планеты</button>
       <button class="tab-btn" data-tab="dasha">Даши</button>
       <button class="tab-btn" data-tab="transits">Транзиты</button>
+      <button class="tab-btn" data-tab="vargas">Варги</button>
     </div>
 
     <div class="tab-content active" id="tab-chart">
@@ -494,7 +503,7 @@
           <label style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--taupe);">Момент транзита</label>
           <span id="t-slider-label" style="font-family:'Playfair Display',serif;font-size:15px;font-weight:600;">—</span>
         </div>
-        <div class="scale-tabs">
+        <div class="scale-tabs" id="transit-scale-tabs">
           <button class="scale-btn" data-scale="100y">100 лет</button>
           <button class="scale-btn" data-scale="1y">1 год</button>
           <button class="scale-btn active" data-scale="1m">1 месяц</button>
@@ -522,6 +531,30 @@
         </div>
       </div>
       <div id="transits-table"></div>
+    </div>
+
+    <div class="tab-content" id="tab-vargas">
+      <div class="scale-tabs">
+        <button class="scale-btn active" data-varga="d9">Навамша (D9)</button>
+        <button class="scale-btn" data-varga="d10">Дашамша (D10)</button>
+      </div>
+      <div class="chip-row" style="margin:12px 0;">
+        <button class="chip" data-vref="asc">Асцендент</button>
+        <button class="chip active" data-vref="moon">Луна</button>
+        <button class="chip" data-vref="sun">Солнце</button>
+        <button class="chip" data-vref="10th">10 дом</button>
+      </div>
+      <div class="varga-compare">
+        <div>
+          <div class="varga-chart-label">Стандартная (от асц.)</div>
+          <div class="chart-wrap"><svg class="chart-svg" id="varga-svg-left" viewBox="0 0 400 400"></svg></div>
+        </div>
+        <div>
+          <div class="varga-chart-label" id="varga-right-label">От Луны</div>
+          <div class="chart-wrap"><svg class="chart-svg" id="varga-svg-right" viewBox="0 0 400 400"></svg></div>
+        </div>
+      </div>
+      <div class="error-msg" id="varga-error-msg"></div>
     </div>
   </div>
 
@@ -824,6 +857,7 @@
       document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+      if (btn.dataset.tab === 'vargas') renderVargaCompare();
     });
   });
 
@@ -1371,11 +1405,11 @@
     if (!keepCenter) sliderCenter = new Date();
     document.getElementById('t-range-min').textContent = '−' + SCALES[scaleKey].label;
     document.getElementById('t-range-max').textContent = '+' + SCALES[scaleKey].label;
-    document.querySelectorAll('.scale-btn').forEach(b => b.classList.toggle('active', b.dataset.scale === scaleKey));
+    document.querySelectorAll('#transit-scale-tabs .scale-btn').forEach(b => b.classList.toggle('active', b.dataset.scale === scaleKey));
     renderTransitsAt(sliderCenter);
   }
 
-  document.querySelectorAll('.scale-btn').forEach(btn => {
+  document.querySelectorAll('#transit-scale-tabs .scale-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       // Зумируемся вокруг той даты, что сейчас показана на бегунке,
       // а не сбрасываемся на "сегодня" — так удобнее уточнять момент.
@@ -1471,6 +1505,87 @@
       errorEl.textContent = 'Ошибка: ' + e.message;
       errorEl.style.display = 'block';
     }
+  });
+
+  // ============================================================
+  // Варги (дробные карты): Навамша (D9) и Дашамша (D10) —
+  // обычная карта (от собственного асцендента варги) рядом с картой
+  // от альтернативного ориентира (Луна/Солнце/10 дом) для сравнения.
+  // ============================================================
+  let vargaCache = { d9: null, d10: null, forChart: null };
+  let currentVargaType = 'd9';
+  let currentVargaRef = 'moon';
+  const VARGA_REF_LABELS = { asc: 'Стандартная (от асц.)', moon: 'От Луны', sun: 'От Солнца', '10th': 'От 10 дома' };
+
+  async function ensureVargaData() {
+    if (!currentChart) return null;
+    if (vargaCache.forChart !== currentChart) {
+      vargaCache = { d9: null, d10: null, forChart: currentChart };
+    }
+    if (currentVargaType === 'd9' && !vargaCache.d9) {
+      const res = await fetch('/api/navamsha', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ chart: currentChart }) });
+      const data = await res.json();
+      vargaCache.d9 = data.d9;
+    }
+    if (currentVargaType === 'd10' && !vargaCache.d10) {
+      const res = await fetch('/api/dashamsha', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ chart: currentChart }) });
+      const data = await res.json();
+      vargaCache.d10 = data.d10;
+    }
+    return currentVargaType === 'd9' ? vargaCache.d9 : vargaCache.d10;
+  }
+
+  // Определяет знак-ориентир ("от чего считать дома") внутри УЖЕ посчитанной варги
+  function vargaReferenceSignIndex(vargaChart, ref) {
+    if (ref === 'moon') return vargaChart.planets['Луна'].sign.index;
+    if (ref === 'sun') return vargaChart.planets['Солнце'].sign.index;
+    if (ref === '10th') return (vargaChart.ascendant.sign.index + 9) % 12;
+    return vargaChart.ascendant.sign.index; // 'asc'
+  }
+
+  async function renderVargaCompare() {
+    const errorEl = document.getElementById('varga-error-msg');
+    errorEl.style.display = 'none';
+    if (!currentChart) {
+      errorEl.textContent = 'Сначала постройте натальную карту на главной.';
+      errorEl.style.display = 'block';
+      return;
+    }
+    let vargaChart;
+    try {
+      vargaChart = await ensureVargaData();
+    } catch (e) {
+      errorEl.textContent = 'Не удалось посчитать варгу: ' + e.message;
+      errorEl.style.display = 'block';
+      return;
+    }
+    if (!vargaChart) return;
+
+    // Левая карта — всегда стандартная, от собственного асцендента этой варги
+    renderChartSVG({ ascendant: vargaChart.ascendant, planets: vargaChart.planets }, 'varga-svg-left');
+
+    // Правая — те же планеты, но "асцендент" подменён на выбранный ориентир —
+    // renderChartSVG сам пересчитает, в каком доме относительно него окажется каждая планета
+    const refIdx = vargaReferenceSignIndex(vargaChart, currentVargaRef);
+    renderChartSVG({ ascendant: { sign: { index: refIdx } }, planets: vargaChart.planets }, 'varga-svg-right');
+
+    document.getElementById('varga-right-label').textContent = VARGA_REF_LABELS[currentVargaRef];
+  }
+
+  document.querySelectorAll('[data-varga]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentVargaType = btn.dataset.varga;
+      document.querySelectorAll('[data-varga]').forEach(b => b.classList.toggle('active', b === btn));
+      renderVargaCompare();
+    });
+  });
+
+  document.querySelectorAll('[data-vref]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentVargaRef = btn.dataset.vref;
+      document.querySelectorAll('[data-vref]').forEach(b => b.classList.toggle('active', b === btn));
+      renderVargaCompare();
+    });
   });
 </script>
 </body>
