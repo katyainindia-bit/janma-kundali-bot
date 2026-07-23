@@ -908,6 +908,21 @@ bot.command('whoami', async (ctx) => {
   await ctx.reply(`Ваш Telegram ID: ${ctx.from.id}`);
 });
 
+bot.command('mystatus', async (ctx) => {
+  const row = db.getUser(ctx.from.id);
+  if (!row) {
+    await ctx.reply('Вас нет в базе — мини-приложение ещё ни разу не открывалось от вашего аккаунта (нужен хотя бы один запрос из него).');
+    return;
+  }
+  const premium = db.isPremium(ctx.from.id);
+  await ctx.reply(
+    `Telegram ID: ${ctx.from.id}\n` +
+    `Тариф в базе: ${row.tier}\n` +
+    `premium_until: ${row.premium_until || '— (бессрочно, если тариф premium)'}\n` +
+    `Итог — Premium активен: ${premium ? 'ДА' : 'НЕТ'}`
+  );
+});
+
 bot.launch();
 console.log('Бот запущен.');
 const { SWISSEPH_AVAILABLE } = require('./engine.js');
