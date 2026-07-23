@@ -409,6 +409,9 @@
     border-bottom: 1px solid var(--line);
   }
   .praty-row.current { color: var(--gold); font-weight: 600; }
+  .note-marker { cursor: pointer; font-size: 11px; }
+  .praty-row.has-note, .current-period-row.has-note { background: #FBF3DF; border-radius: 8px; padding-left: 8px; }
+  .antar-row.has-note > summary, .dasha-accordion.has-note > summary { background: #FBF3DF; }
   .praty-row:last-child { border-bottom: none; }
 
   /* ---------- Нижняя навигация ---------- */
@@ -501,7 +504,6 @@
     <div class="tabs" id="home-tabs">
       <button class="tab-btn" data-tab="today">Сегодня</button>
       <button class="tab-btn active" data-tab="chart">Карта</button>
-      <button class="tab-btn" data-tab="planets">Планеты</button>
       <button class="tab-btn" data-tab="dasha">Даши</button>
       <button class="tab-btn" data-tab="transits">Транзиты</button>
       <button class="tab-btn" data-tab="vargas">Варги</button>
@@ -548,12 +550,15 @@
         </div>
       </div>
 
+      <div class="planet-list" id="planet-list"></div>
+      <div id="planet-detail" class="form-card" style="padding:16px;display:none;"></div>
+
       <div class="form-card" id="lagna-scrub-card" style="padding:16px;">
         <div class="varga-chart-label" style="margin-bottom:6px;">Диапазон действия Лагны</div>
         <div style="text-align:center;font-family:'Playfair Display',serif;font-weight:600;font-size:15px;" id="lagna-range-label">—</div>
-        <input type="range" id="lagna-slider" min="-180" max="180" step="1" value="0" style="width:100%;accent-color:#C8A26B;margin-top:10px;">
+        <input type="range" id="lagna-slider" min="-720" max="720" step="1" value="0" style="width:100%;accent-color:#C8A26B;margin-top:10px;">
         <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--taupe);">
-          <span>−3ч</span><span id="lagna-current-time" style="font-weight:600;color:var(--ink);">—</span><span>+3ч</span>
+          <span>−12ч</span><span id="lagna-current-time" style="font-weight:600;color:var(--ink);">—</span><span>+12ч</span>
         </div>
         <button class="btn-secondary" id="lagna-reset-btn" style="margin-top:12px;margin-bottom:0;">Сбросить на время рождения</button>
       </div>
@@ -569,11 +574,6 @@
         <button class="btn-primary" id="export-run-btn" style="margin-bottom:0;">Скачать PDF</button>
         <div class="error-msg" id="export-error-msg"></div>
       </div>
-    </div>
-
-    <div class="tab-content" id="tab-planets">
-      <div class="planet-list" id="planet-list"></div>
-      <div id="planet-detail" class="form-card" style="padding:16px;display:none;"></div>
     </div>
 
     <div class="tab-content" id="tab-dasha">
@@ -1003,10 +1003,10 @@
     const detail = document.getElementById('planet-detail');
     detail.style.display = 'block';
     detail.innerHTML = `
-      <div class="name" style="margin-bottom:4px;">${planetName} в ${SIGN_NAMES_D1[signIndex]}${isRetrograde ? ' ℞' : ''}</div>
+      <div class="name" style="margin-bottom:4px;">${planetName} в ${SIGN_NAMES_D1[signIndex]}</div>
       <div style="font-size:12px;color:var(--gold);font-weight:600;margin-bottom:10px;text-transform:uppercase;letter-spacing:.03em;">${DIGNITY_LABELS_D1[status]}${isRetrograde ? ' · Ретроградна' : ''}</div>
       <p style="font-size:13px;line-height:1.5;margin-bottom:10px;">${DIGNITY_TEXTS_D1[status]}</p>
-      ${isRetrograde ? '<p style="font-size:13px;line-height:1.5;color:#a8654a;margin-bottom:10px;">℞ Ретроградность: планета движется по знаку в обратном направлении относительно Земли — её темы разворачиваются внутрь, требуют пересмотра или возвращения к уже пройденному, вместо прямого внешнего движения вперёд.</p>' : ''}
+      ${isRetrograde ? '<p style="font-size:13px;line-height:1.5;color:#a8654a;margin-bottom:10px;">Ретроградность: планета движется по знаку в обратном направлении относительно Земли — её темы разворачиваются внутрь, требуют пересмотра или возвращения к уже пройденному, вместо прямого внешнего движения вперёд.</p>' : ''}
       <p style="font-size:13px;line-height:1.5;color:var(--taupe);margin-bottom:14px;">${PLANET_SIGNIFICATIONS_D1[planetName]}</p>
       <button class="btn-secondary" id="planet-premium-teaser" style="margin-bottom:0;">✨ Узнать, что это значит именно для вашей карты</button>
     `;
@@ -1029,6 +1029,13 @@
       }
     });
   }
+  // Ретроградность показываем чёрточкой НАД символом планеты (как в
+  // классических распечатках), а не буквой — комбинирующий диакритик
+  // U+0305 (overline) над каждым символом даёт непрерывную линию сверху.
+  function retroText(symbol, isRetro) {
+    return isRetro ? symbol.split('').map(c => c + '\u0305').join('') : symbol;
+  }
+
   function dignityColor(name, signIdx) {
     if (EXALTATION[name] === signIdx) return '#4f7a52';
     if (DEBILITATION[name] === signIdx) return '#b23b2e';
@@ -1109,6 +1116,9 @@
         const ascT = el('text', {x:cx,y:cy-32,'text-anchor':'middle','font-family':'Inter, sans-serif','font-size':11,fill:'#FBF8F3','font-weight':700});
         ascT.textContent = 'ASC';
         svg.appendChild(ascT);
+        const ascDegT = el('text', {x:cx,y:cy-18,'text-anchor':'middle','font-family':'Inter, sans-serif','font-size':9,fill:'#7A6B5A'});
+        ascDegT.textContent = dms(chart.ascendant.sign.degInSign);
+        svg.appendChild(ascDegT);
       }
 
       const planetsHere = signPlanets[signIdx] || [];
@@ -1125,7 +1135,7 @@
         const px=startX+col*colGap, py=startY+row*rowGap;
         const color = dignityColor(item.name, item.p.sign.index);
         const t = el('text', {x:px,y:py,'text-anchor':'middle','dominant-baseline':'central','font-family':'Inter, sans-serif','font-size':fs,'font-weight':700,fill:color});
-        t.textContent = PLANET_SYMBOLS[item.name] + (item.p.retrograde ? '℞' : '');
+        t.textContent = retroText(PLANET_SYMBOLS[item.name], item.p.retrograde);
         svg.appendChild(t);
         const dt = el('text', {x:px,y:py+fs*1.2,'text-anchor':'middle','font-family':'Inter, sans-serif','font-size':9,fill:'#7A6B5A'});
         dt.textContent = dms(item.p.sign.degInSign);
@@ -1171,7 +1181,7 @@
       const p = chart.planets[name];
       const color = dignityColor(name, p.sign.index);
       return `<div class="planet-row" data-planet="${name}" data-signidx="${p.sign.index}" data-retro="${p.retrograde ? '1' : '0'}">
-        <div class="sym" style="color:${color}">${PLANET_SYMBOLS[name]}${p.retrograde ? '<span style="color:#a8654a;font-size:11px;vertical-align:super;">℞</span>' : ''}</div>
+        <div class="sym" style="color:${color}">${retroText(PLANET_SYMBOLS[name], p.retrograde)}</div>
         <div class="pname">${name}</div>
         <div class="pdeg">${dms(p.sign.degInSign)}</div>
         <div class="psign">${p.sign.index+1}. ${p.sign.name}<br><span style="font-size:11px;">${p.nakshatra.name} (пада ${p.nakshatra.pada})</span></div>
@@ -1527,6 +1537,7 @@
         utcOffset: row.utc_offset, placeLabel: row.place_label,
       });
       currentArchiveChartId = row.id;
+      await refreshPeriodNotes();
       document.querySelector('.nav-item[data-nav="home"]').click();
       document.querySelector('.tab-btn[data-tab="chart"]').click();
     } catch (e) {
@@ -1627,6 +1638,7 @@
     });
     const { mahadashas, chain } = await dashaRes.json();
     renderDasha(mahadashas, chain);
+    refreshPeriodNotes();
 
     const today = new Date();
     document.getElementById('t-date').value = today.toISOString().slice(0,10);
@@ -1670,7 +1682,20 @@
     return String(d.getUTCDate()).padStart(2,'0') + '.' + String(d.getUTCMonth()+1).padStart(2,'0') + '.' + d.getUTCFullYear();
   }
 
+  let lastMahadashas = null, lastChain = null;
+  let periodNotesMap = {}; // period_start (ISO) -> [{id, note, created_at}, ...]
+
+  function noteMarker(startISO) {
+    if (!periodNotesMap[startISO]) return '';
+    return ` <span class="note-marker" data-period-start="${startISO}" title="Есть заметка">📌</span>`;
+  }
+  function hasNoteClass(startISO) {
+    return periodNotesMap[startISO] ? 'has-note' : '';
+  }
+
   function renderDasha(mahadashas, chain) {
+    lastMahadashas = mahadashas;
+    lastChain = chain;
     const cur = document.getElementById('dasha-current');
     if (chain) {
       const finestLords = chain.pratyantardasha
@@ -1680,9 +1705,9 @@
       cur.innerHTML = `
         <div style="width:100%">
           <div class="name" style="margin-bottom:8px;">Текущий период</div>
-          <div class="current-period-row"><span class="label">Махадаша</span><span class="value">${chain.mahadasha.lord} (${fmtDate(chain.mahadasha.start)} – ${fmtDate(chain.mahadasha.end)})</span></div>
-          ${chain.antardasha ? `<div class="current-period-row"><span class="label">Антардаша</span><span class="value">${chain.antardasha.lord} (${fmtDate(chain.antardasha.start)} – ${fmtDate(chain.antardasha.end)})</span></div>` : ''}
-          ${chain.pratyantardasha ? `<div class="current-period-row"><span class="label">Пратьянтардаша</span><span class="value">${chain.pratyantardasha.lord} (${fmtDate(chain.pratyantardasha.start)} – ${fmtDate(chain.pratyantardasha.end)})</span></div>` : ''}
+          <div class="current-period-row ${hasNoteClass(chain.mahadasha.start)}"><span class="label">Махадаша</span><span class="value">${chain.mahadasha.lord} (${fmtDate(chain.mahadasha.start)} – ${fmtDate(chain.mahadasha.end)})${noteMarker(chain.mahadasha.start)}</span></div>
+          ${chain.antardasha ? `<div class="current-period-row ${hasNoteClass(chain.antardasha.start)}"><span class="label">Антардаша</span><span class="value">${chain.antardasha.lord} (${fmtDate(chain.antardasha.start)} – ${fmtDate(chain.antardasha.end)})${noteMarker(chain.antardasha.start)}</span></div>` : ''}
+          ${chain.pratyantardasha ? `<div class="current-period-row ${hasNoteClass(chain.pratyantardasha.start)}"><span class="label">Пратьянтардаша</span><span class="value">${chain.pratyantardasha.lord} (${fmtDate(chain.pratyantardasha.start)} – ${fmtDate(chain.pratyantardasha.end)})${noteMarker(chain.pratyantardasha.start)}</span></div>` : ''}
           <button class="btn-secondary" data-event-btn data-lords='${JSON.stringify(finestLords)}' data-start="${finestPeriod.start}" data-end="${finestPeriod.end}" style="margin-top:10px;margin-bottom:0;">📝 Добавить событие в этот период</button>
         </div>`;
     }
@@ -1696,19 +1721,53 @@
         const pratys = (ad.pratyantardashas||[]).map(pd => {
           const isCurPD = chain && chain.pratyantardasha && pd.lord === chain.pratyantardasha.lord && pd.start === chain.pratyantardasha.start;
           const lords = JSON.stringify([md.lord, ad.lord, pd.lord]);
-          return `<div class="praty-row ${isCurPD?'current':''}">
-            <span>${pd.lord}</span><span>${fmtDate(pd.start)} – ${fmtDate(pd.end)}</span>
+          return `<div class="praty-row ${isCurPD?'current':''} ${hasNoteClass(pd.start)}">
+            <span>${pd.lord}${noteMarker(pd.start)}</span><span>${fmtDate(pd.start)} – ${fmtDate(pd.end)}</span>
             <button data-event-btn data-lords='${lords}' data-start="${pd.start}" data-end="${pd.end}" style="background:none;border:none;color:var(--gold);font-size:13px;cursor:pointer;padding:0 0 0 8px;">📝</button>
           </div>`;
         }).join('');
-        return `<details class="antar-row ${isCurAD?'current':''}"><summary>${ad.lord} · ${fmtDate(ad.start)} – ${fmtDate(ad.end)}</summary>${pratys}</details>`;
+        return `<details class="antar-row ${isCurAD?'current':''} ${hasNoteClass(ad.start)}"><summary>${ad.lord}${noteMarker(ad.start)} · ${fmtDate(ad.start)} – ${fmtDate(ad.end)}</summary>${pratys}</details>`;
       }).join('');
-      return `<details class="dasha-accordion ${isCurMD?'current':''}" style="margin-bottom:10px;">
-        <summary>${md.lord} <span class="dates">${fmtDate(md.start)} – ${fmtDate(md.end)}</span></summary>
+      return `<details class="dasha-accordion ${isCurMD?'current':''} ${hasNoteClass(md.start)}" style="margin-bottom:10px;">
+        <summary>${md.lord}${noteMarker(md.start)} <span class="dates">${fmtDate(md.start)} – ${fmtDate(md.end)}</span></summary>
         <div class="inner">${antars}</div>
       </details>`;
     }).join('');
   }
+
+  async function refreshPeriodNotes() {
+    if (!currentArchiveChartId) { periodNotesMap = {}; }
+    else {
+      try {
+        const { notes } = await archiveApi('notes/list', { chartId: currentArchiveChartId });
+        const map = {};
+        notes.forEach(n => {
+          if (n.period_start) (map[n.period_start] = map[n.period_start] || []).push(n);
+        });
+        periodNotesMap = map;
+      } catch (e) {
+        periodNotesMap = {};
+      }
+    }
+    if (lastMahadashas) renderDasha(lastMahadashas, lastChain);
+  }
+
+  function showPeriodNotePopup(startISO) {
+    const notes = periodNotesMap[startISO] || [];
+    if (notes.length === 0) return;
+    const text = notes.map(n => n.note).join('\n\n———\n\n');
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showAlert) window.Telegram.WebApp.showAlert(text);
+    else alert(text);
+  }
+
+  document.getElementById('dasha-current').addEventListener('click', (e) => {
+    const marker = e.target.closest('.note-marker');
+    if (marker) { e.preventDefault(); e.stopPropagation(); showPeriodNotePopup(marker.dataset.periodStart); }
+  });
+  document.getElementById('dasha-list').addEventListener('click', (e) => {
+    const marker = e.target.closest('.note-marker');
+    if (marker) { e.preventDefault(); e.stopPropagation(); showPeriodNotePopup(marker.dataset.periodStart); }
+  });
 
   function renderTransits(transits, natalChart) {
     const order = ['Солнце','Луна','Меркурий','Венера','Марс','Юпитер','Сатурн','Раху','Кету'];
@@ -2436,19 +2495,15 @@
           }
         })
       });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Ошибка');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Ошибка');
+
+      const fullUrl = window.location.origin + data.downloadUrl;
+      if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.openLink) {
+        window.Telegram.WebApp.openLink(fullUrl);
+      } else {
+        window.open(fullUrl, '_blank');
       }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${currentChartMeta.name || 'chart'}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
     } catch (e) {
       errorEl.textContent = 'Не удалось собрать PDF: ' + e.message;
       errorEl.style.display = 'block';
@@ -2582,7 +2637,9 @@
   // заполненную периодом и натальным положением задействованных планет
   // (лордов маха-/антар-/пратьянтардаши), сохраняет в заметки архива.
   // ============================================================
+  let currentEventPeriodStart = null;
   function openEventComposer(lords, startISO, endISO) {
+    currentEventPeriodStart = startISO;
     const panel = document.getElementById('event-composer');
     const startStr = fmtDate(startISO), endStr = fmtDate(endISO);
     const levelWord = lords.length === 3 ? 'Пратьянтардаша' : lords.length === 2 ? 'Антардаша' : 'Махадаша';
@@ -2635,8 +2692,9 @@
         const { id } = await archiveApi('save', { label: currentChartMeta.name, params: currentChartMeta.params, placeLabel: currentChartMeta.placeLabel });
         currentArchiveChartId = id;
       }
-      await archiveApi('notes/add', { chartId: currentArchiveChartId, note: noteText });
+      await archiveApi('notes/add', { chartId: currentArchiveChartId, note: noteText, periodStart: currentEventPeriodStart });
       document.getElementById('event-composer').style.display = 'none';
+      await refreshPeriodNotes();
       const msg = 'Заметка сохранена в архиве.';
       if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showAlert) window.Telegram.WebApp.showAlert(msg);
       else alert(msg);

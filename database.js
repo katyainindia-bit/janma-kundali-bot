@@ -53,6 +53,7 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     chart_id INTEGER NOT NULL,
     note TEXT NOT NULL,
+    period_start TEXT,
     created_at TEXT NOT NULL,
     FOREIGN KEY (chart_id) REFERENCES charts(id)
   );
@@ -95,6 +96,11 @@ try {
 }
 try {
   db.exec('ALTER TABLE users ADD COLUMN notify_state TEXT');
+} catch (e) {
+  // столбец уже есть — игнорируем
+}
+try {
+  db.exec('ALTER TABLE chart_notes ADD COLUMN period_start TEXT');
 } catch (e) {
   // столбец уже есть — игнорируем
 }
@@ -245,9 +251,9 @@ function toggleFavorite(telegramId, chartId) {
 }
 
 // --- Заметки к карте ---
-function addNote(chartId, noteText) {
+function addNote(chartId, noteText, periodStart) {
   const now = new Date().toISOString();
-  const info = db.prepare('INSERT INTO chart_notes (chart_id, note, created_at) VALUES (?, ?, ?)').run(chartId, noteText, now);
+  const info = db.prepare('INSERT INTO chart_notes (chart_id, note, period_start, created_at) VALUES (?, ?, ?, ?)').run(chartId, noteText, periodStart || null, now);
   return info.lastInsertRowid;
 }
 

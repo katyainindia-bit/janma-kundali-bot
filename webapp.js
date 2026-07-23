@@ -289,11 +289,11 @@ function startWebApp() {
 
   app.post('/api/archive/notes/add', requireTelegramUser, requirePremium, (req, res) => {
     try {
-      const { chartId, note } = req.body;
+      const { chartId, note, periodStart } = req.body;
       if (!note || !note.trim()) return res.status(400).json({ error: 'Пустая заметка' });
       const row = db.getChart(req.tgUser.id, chartId);
       if (!row) return res.status(404).json({ error: 'Карта не найдена' });
-      const noteId = db.addNote(chartId, note.trim());
+      const noteId = db.addNote(chartId, note.trim(), periodStart);
       res.json({ id: noteId });
     } catch (e) {
       console.error(e);
@@ -392,6 +392,18 @@ function startWebApp() {
 
   // ---------- «Дни»: персональный календарь и поиск дат под цель (Premium) ----------
   // ---------- Экспорт карты в PDF (выбор разделов) ----------
+  // Временное хранилище готовых PDF: отдаём НАСТоящую ссылку с сервера,
+  // а не blob: URL — в вебвью Telegram на телефоне blob-ссылки часто не
+  // открываются ("не найдено приложение для открытия"). Ссылка живёт
+  // недолго и одноразовая по смыслу использования.
+  const pdfExportCache = new Map(); // token -> { buffer, expiresAt }
+  setInterval(() => {
+    const now = Date.now();
+    for (const [token, entry] of pdfExportCache.entries()) {
+      if (entry.expiresAt < now) pdfExportCache.delete(token);
+    }
+  }, 5 * 60 * 1000);
+
   app.post('/api/export-pdf', requireTelegramUser, (req, res) => {
     try {
       const { name, dateStr, timeStr, placeLabel, chart, birthDateUTC, sections } = req.body;
@@ -417,9 +429,9 @@ function startWebApp() {
         sections: { chart: !!(sections && sections.chart), vargas: allowedVargas, transits: !!(sections && sections.transits), periods: !!(sections && sections.periods) },
         transitsResult, dashaData,
       }).then(buf => {
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', 'attachment; filename="chart-export.pdf"');
-        res.send(buf);
+        const token = crypto.randomBytes(16).toString('hex');
+        pdfExportCache.set(token, { buffer: buf, expiresAt: Date.now() + 10 * 60 * 1000 });
+        res.json({ downloadUrl: `/export-download/${token}` });
       }).catch(e => {
         console.error(e);
         res.status(500).json({ error: e.message });
@@ -428,6 +440,14 @@ function startWebApp() {
       console.error(e);
       res.status(500).json({ error: e.message });
     }
+  });
+
+  app.get('/export-download/:token', (req, res) => {
+    const entry = pdfExportCache.get(req.params.token);
+    if (!entry) return res.status(404).send('Ссылка устарела — соберите PDF заново.');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline; filename="chart-export.pdf"');
+    res.send(entry.buffer);
   });
 
   app.post('/api/goals', (req, res) => {
