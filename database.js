@@ -139,8 +139,9 @@ function isPremium(telegramId) {
 
 // untilISO = null => бессрочно; иначе ISO-дата окончания
 function setTier(telegramId, tier, untilISO) {
-  return db.prepare('UPDATE users SET tier = ?, premium_until = ? WHERE telegram_id = ?')
+  const info = db.prepare('UPDATE users SET tier = ?, premium_until = ? WHERE telegram_id = ?')
     .run(tier, untilISO || null, telegramId);
+  return info.changes > 0; // false = пользователь с таким telegram_id ещё не встречался боту
 }
 
 // --- Уведомления ---

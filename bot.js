@@ -869,7 +869,11 @@ bot.command('setpremium', async (ctx) => {
     return;
   }
   if (arg === 'off') {
-    db.setTier(targetId, 'free', null);
+    const found = db.setTier(targetId, 'free', null);
+    if (!found) {
+      await ctx.reply(`⚠️ Пользователь ${targetId} не найден в базе — этот ID ещё ни разу не открывал бота или мини-приложение. Ничего не изменено.`);
+      return;
+    }
     await ctx.reply(`Пользователю ${targetId} снят Premium (тариф: free).`);
     return;
   }
@@ -879,7 +883,11 @@ bot.command('setpremium', async (ctx) => {
     return;
   }
   const untilISO = days === 0 ? null : new Date(Date.now() + days * 86400000).toISOString();
-  db.setTier(targetId, 'premium', untilISO);
+  const found = db.setTier(targetId, 'premium', untilISO);
+  if (!found) {
+    await ctx.reply(`⚠️ Пользователь ${targetId} не найден в базе — этот ID ещё ни разу не открывал бота или мини-приложение (нужно хотя бы раз нажать /start или зайти в приложение). Premium НЕ выдан, ничего не изменено.`);
+    return;
+  }
   await ctx.reply(days === 0
     ? `Пользователю ${targetId} выдан Premium бессрочно.`
     : `Пользователю ${targetId} выдан Premium до ${untilISO.slice(0, 10)}.`);
