@@ -70,19 +70,89 @@ function toXYZ(p) {
   ];
 }
 
-function geocentricLon(planetKey, jd) {
+// ------------------------------------------------------------
+// Swiss Ephemeris — если библиотека доступна (собралась при установке
+// npm-пакета), используем её как основной источник расчёта: это
+// признанный профессиональный стандарт в астрологии (используется
+// большинством серьёзных программ). Работаем в режиме "Moshier" —
+// он встроен в саму библиотеку и не требует скачивания отдельных
+// файлов эфемерид (.se1), при этом даёт точность на уровне угловой
+// секунды на многие века вокруг нашей эпохи.
+// Если по какой-то причине нативный модуль не собрался на сервере —
+// автоматически используем собственный движок (VSOP87D + Мееус) ниже,
+// без падения приложения.
+// ------------------------------------------------------------
+let swe = null;
+try {
+  swe = require('swisseph');
+} catch (e) {
+  swe = null;
+}
+const SWISSEPH_AVAILABLE = !!swe;
+const SWE_PLANET = {
+  mercury: 2, venus: 3, mars: 4, jupiter: 5, saturn: 6, // соответствуют SE_MERCURY..SE_SATURN
+};
+
+function geocentricLonFallback(planetKey, jd) {
   const earthPos = vsopPosition(VSOP_DATA.earth, jd);
   const planetPos = vsopPosition(VSOP_DATA[planetKey], jd);
   const [xe, ye] = toXYZ(earthPos);
   const [xp, yp] = toXYZ(planetPos);
   const x = xp - xe, y = yp - ye;
-  return pmod(Math.atan2(y, x) * R2D, 360);
+  const geometric = pmod(Math.atan2(y, x) * R2D, 360);
+  return pmod(geometric + nutationInLongitudeDeg(jd), 360);
+}
+
+function geocentricLon(planetKey, jd) {
+  if (SWISSEPH_AVAILABLE) {
+    const flag = swe.SEFLG_MOSEPH | swe.SEFLG_SPEED;
+    return pmod(swe.swe_calc_ut(jd, SWE_PLANET[planetKey], flag).longitude, 360);
+  }
+  return geocentricLonFallback(planetKey, jd);
+}
+
+// --- Нутация по долготе (Δψ) — низкоточная серия Мееуса, гл. 22 ---
+// Точность ~0.5 угл. секунды — намного точнее, чем нужно для любых
+// делений зодиака (даже Шастиамша D60, где один сегмент — 30 угл. минут).
+// ВАЖНО: без неё сидерические долготы систематически отличаются от
+// Swiss Ephemeris и большинства профессиональных программ на 1-17",
+// потому что аянамша здесь откалибрована именно под "истинное" (nutated)
+// положение эклиптики, а не под "среднее".
+function nutationInLongitudeDeg(jd) {
+  const T = J2000Century(jd);
+  const omega = (125.04452 - 1934.136261 * T) * D2R;
+  const Lsun = (280.4665 + 36000.7698 * T) * D2R;
+  const Lmoon = (218.3165 + 481267.8813 * T) * D2R;
+  const dPsiArcsec =
+    -17.20 * Math.sin(omega)
+    - 1.32 * Math.sin(2 * Lsun)
+    - 0.23 * Math.sin(2 * Lmoon)
+    + 0.21 * Math.sin(2 * omega);
+  return dPsiArcsec / 3600;
+}
+
+// --- Аберрация (для Солнца) — классическая постоянная ~20.4898"/R ---
+// Смещает видимое положение Солнца назад по долготе из-за конечной
+// скорости света и движения Земли. Для Луны и планет аберрация на
+// порядок(и) меньше/сложнее (нужен полный расчёт времени запаздывания
+// света) и в рамках точности, нужной для варг, пренебрежимо мала.
+function solarAberrationDeg(distanceAU) {
+  return -20.4898 / distanceAU / 3600;
 }
 
 // Sun: geocentric = Earth heliocentric longitude + 180 (VSOP87D convention)
-function sunLongitude(jd) {
+function sunLongitudeFallback(jd) {
   const earthPos = vsopPosition(VSOP_DATA.earth, jd);
-  return pmod((earthPos.lon * R2D) + 180, 360);
+  const geometric = pmod((earthPos.lon * R2D) + 180, 360);
+  return pmod(geometric + nutationInLongitudeDeg(jd) + solarAberrationDeg(earthPos.range), 360);
+}
+
+function sunLongitude(jd) {
+  if (SWISSEPH_AVAILABLE) {
+    const flag = swe.SEFLG_MOSEPH | swe.SEFLG_SPEED;
+    return pmod(swe.swe_calc_ut(jd, swe.SE_SUN, flag).longitude, 360);
+  }
+  return sunLongitudeFallback(jd);
 }
 
 // --- Moon position (Meeus ELP2000 truncated theory, ch. 47) ---
@@ -121,7 +191,7 @@ const MOON_TB = [
   [4,0,1,-1,132],[1,0,-1,-1,-119],[4,-1,0,-1,115],[2,-2,0,1,107]
 ];
 
-function moonLongitude(jd) {
+function moonLongitudeFallback(jd) {
   const T = J2000Century(jd);
   const Lp = horner(T, 218.3164477, 481267.88123421, -0.0015786, 1/538841, -1/65194000) * D2R;
   const D = horner(T, 297.8501921, 445267.1114034, -0.0018819, 1/545868, -1/113065000) * D2R;
@@ -146,26 +216,60 @@ function moonLongitude(jd) {
   }
 
   const lon = Lp * R2D + sumL / 1000000;
-  return pmod(lon, 360);
+  return pmod(lon + nutationInLongitudeDeg(jd), 360);
+}
+
+function moonLongitude(jd) {
+  if (SWISSEPH_AVAILABLE) {
+    const flag = swe.SEFLG_MOSEPH | swe.SEFLG_SPEED;
+    return pmod(swe.swe_calc_ut(jd, swe.SE_MOON, flag).longitude, 360);
+  }
+  return moonLongitudeFallback(jd);
 }
 
 // --- Mean lunar node (Rahu) ---
-function rahuLongitude(jd) {
+function rahuLongitudeFallback(jd) {
   const T = J2000Century(jd);
   const omega = horner(T, 125.0445479, -1934.1362891, 0.0020754, 1/467441, -1/60616000);
-  return pmod(omega, 360);
+  return pmod(omega + nutationInLongitudeDeg(jd), 360);
+}
+
+function rahuLongitude(jd) {
+  if (SWISSEPH_AVAILABLE) {
+    // SE_MEAN_NODE — средний узел, тот же, что традиционно используется в джйотиш
+    return pmod(swe.swe_calc_ut(jd, swe.SE_MEAN_NODE, swe.SEFLG_MOSEPH).longitude, 360);
+  }
+  return rahuLongitudeFallback(jd);
 }
 
 // --- Lahiri ayanamsha (calibrated to Swiss Ephemeris reference, base 23°51'12" @ J2000.0) ---
-function lahiriAyanamsha(jd) {
+function lahiriAyanamshaFallback(jd) {
   const T = J2000Century(jd);
   const baseJ2000 = 23 + 51/60 + 12/3600;
   const pA = 5029.0966 * T + 1.11113 * T * T - 0.000006 * T * T * T; // arcsec
   return baseJ2000 + pA / 3600;
 }
 
+function lahiriAyanamsha(jd) {
+  if (SWISSEPH_AVAILABLE) {
+    swe.swe_set_sid_mode(swe.SE_SIDM_LAHIRI, 0, 0);
+    return swe.swe_get_ayanamsa_ut(jd);
+  }
+  return lahiriAyanamshaFallback(jd);
+}
+
+function ramanAyanamshaFallback(jd) {
+  return lahiriAyanamshaFallback(jd) - 0.885;
+}
+
 function ramanAyanamsha(jd) {
-  return lahiriAyanamsha(jd) - 0.885;
+  if (SWISSEPH_AVAILABLE) {
+    // У Swiss Ephemeris есть своя, отдельная от Лахири, формула Раман —
+    // это точнее старого приближения "Лахири минус константа".
+    swe.swe_set_sid_mode(swe.SE_SIDM_RAMAN, 0, 0);
+    return swe.swe_get_ayanamsa_ut(jd);
+  }
+  return ramanAyanamshaFallback(jd);
 }
 
 // --- Sidereal time & Ascendant ---
@@ -175,16 +279,32 @@ function gmstDegrees(jd) {
   return pmod(gmst, 360);
 }
 
-function ascendantTropical(jd, latDeg, lonDeg) {
+function ascendantTropicalFallback(jd, latDeg, lonDeg) {
   const gmst = gmstDegrees(jd);
-  const lst = pmod(gmst + lonDeg, 360);
-  const lstRad = lst * D2R;
-  const latRad = latDeg * D2R;
   const T = J2000Century(jd);
   const eps = (23.4392911 - 0.0130042*T - 0.00000016*T*T + 0.000000504*T*T*T) * D2R;
+  // Уравнение равноденствий: переводит среднее звёздное время (GMST) в
+  // истинное (GAST) — так асцендент остаётся в той же системе координат
+  // "истинного экватора и равноденствия даты", что и планеты выше (после
+  // добавления нутации), а не рассинхронизируется с ними на несколько секунд дуги.
+  const eqOfEquinoxesDeg = nutationInLongitudeDeg(jd) * Math.cos(eps);
+  const lst = pmod(gmst + eqOfEquinoxesDeg + lonDeg, 360);
+  const lstRad = lst * D2R;
+  const latRad = latDeg * D2R;
   const y = Math.cos(lstRad);
   const x = -(Math.sin(eps) * Math.tan(latRad) + Math.cos(eps) * Math.sin(lstRad));
   return pmod(Math.atan2(y, x) * R2D, 360);
+}
+
+function ascendantTropical(jd, latDeg, lonDeg) {
+  if (SWISSEPH_AVAILABLE) {
+    // Система домов для расчёта не имеет значения — нам нужен только сам
+    // асцендент (1-й дом), а не остальные куспиды; дальше дома строятся
+    // по Whole Sign от знака асцендента, как и раньше.
+    const res = swe.swe_houses_ex(jd, swe.SEFLG_MOSEPH, latDeg, lonDeg, 'P');
+    return pmod(res.ascendant, 360);
+  }
+  return ascendantTropicalFallback(jd, latDeg, lonDeg);
 }
 
 // --- Nakshatras ---
@@ -216,7 +336,7 @@ function signOf(siderealLon) {
 }
 
 // --- Main chart calculation ---
-function calculateChart(params) {
+function calculateChartFallback(params) {
   const { year, month, day, hour, minute, second, utcOffset, lat, lon, ayanamshaType } = params;
   const jd = jdFromDate(year, month, day, hour, minute, second, utcOffset);
 
@@ -272,6 +392,71 @@ function calculateChart(params) {
   };
 }
 
+// Основной путь через Swiss Ephemeris: считаем сидерические позиции ЦЕЛИКОМ
+// через её собственный флаг SEFLG_SIDEREAL (и swe_houses_ex для асцендента),
+// а не вручную "тропическая минус аянамша". Это важно: в самой Swiss Ephemeris
+// прямой сидерический расчёт и наша ручная разница иногда отличаются на
+// несколько угловых секунд (нюанс в том, к какой системе координат — средней
+// или истинной — привязана аянамша). Используя её же флаг, мы гарантированно
+// получаем ТЕ ЖЕ числа, что и любая другая профессиональная программа на
+// Swiss Ephemeris, без собственной интерпретации этой тонкости.
+function calculateChartSwisseph(params) {
+  const { year, month, day, hour, minute, second, utcOffset, lat, lon, ayanamshaType } = params;
+  const jd = jdFromDate(year, month, day, hour, minute, second, utcOffset);
+
+  const sidMode = ayanamshaType === 'raman' ? swe.SE_SIDM_RAMAN : swe.SE_SIDM_LAHIRI;
+  swe.swe_set_sid_mode(sidMode, 0, 0);
+  const ayanamsha = swe.swe_get_ayanamsa_ut(jd);
+
+  const flag = swe.SEFLG_MOSEPH | swe.SEFLG_SIDEREAL | swe.SEFLG_SPEED;
+  const bodyCodes = {
+    Солнце: swe.SE_SUN, Луна: swe.SE_MOON, Меркурий: swe.SE_MERCURY, Венера: swe.SE_VENUS,
+    Марс: swe.SE_MARS, Юпитер: swe.SE_JUPITER, Сатурн: swe.SE_SATURN,
+  };
+  const siderealLons = {};
+  for (const [name, code] of Object.entries(bodyCodes)) {
+    siderealLons[name] = pmod(swe.swe_calc_ut(jd, code, flag).longitude, 360);
+  }
+  const rahuSid = pmod(swe.swe_calc_ut(jd, swe.SE_MEAN_NODE, swe.SEFLG_MOSEPH | swe.SEFLG_SIDEREAL).longitude, 360);
+  siderealLons['Раху'] = rahuSid;
+  siderealLons['Кету'] = pmod(rahuSid + 180, 360);
+
+  const housesRes = swe.swe_houses_ex(jd, swe.SEFLG_MOSEPH | swe.SEFLG_SIDEREAL, lat, lon, 'P');
+  const ascSidereal = pmod(housesRes.ascendant, 360);
+
+  const planets = {};
+  for (const [name, sidLon] of Object.entries(siderealLons)) {
+    const sign = signOf(sidLon);
+    const nak = nakshatraOf(sidLon);
+    planets[name] = { siderealLon: sidLon, sign, nakshatra: nak };
+  }
+
+  const ascSign = signOf(ascSidereal);
+  const ascNak = nakshatraOf(ascSidereal);
+
+  const houses = [];
+  for (let h = 1; h <= 12; h++) {
+    const signIdx = (ascSign.index + h - 1) % 12;
+    houses.push({ house: h, sign: SIGNS[signIdx], signIndex: signIdx });
+  }
+  for (const [name, p] of Object.entries(planets)) {
+    p.house = (p.sign.index - ascSign.index + 12) % 12 + 1;
+  }
+
+  return {
+    jd,
+    ayanamsha,
+    ascendant: { siderealLon: ascSidereal, sign: ascSign, nakshatra: ascNak },
+    planets,
+    houses,
+  };
+}
+
+function calculateChart(params) {
+  if (SWISSEPH_AVAILABLE) return calculateChartSwisseph(params);
+  return calculateChartFallback(params);
+}
+
 if (typeof window !== 'undefined') {
   window.JyotishEngine = {
     calculateChart, jdFromDate, lahiriAyanamsha, ramanAyanamsha,
@@ -281,6 +466,6 @@ if (typeof window !== 'undefined') {
 if (typeof module !== 'undefined') {
   module.exports = {
     calculateChart, jdFromDate, lahiriAyanamsha, ramanAyanamsha,
-    sunLongitude, moonLongitude,
+    sunLongitude, moonLongitude, SWISSEPH_AVAILABLE,
   };
 }

@@ -21,6 +21,11 @@ db.exec(`
     telegram_id INTEGER PRIMARY KEY,
     username TEXT,
     first_name TEXT,
+    tier TEXT NOT NULL DEFAULT 'free',
+    premium_until TEXT,
+    notify_enabled INTEGER NOT NULL DEFAULT 0,
+    primary_chart_id INTEGER,
+    notify_state TEXT,
     first_seen TEXT NOT NULL,
     last_seen TEXT NOT NULL
   );
@@ -67,6 +72,33 @@ try {
   // столбец уже есть — игнорируем
 }
 
+// Тариф пользователя (миграция «на лету» для уже существующих баз)
+try {
+  db.exec("ALTER TABLE users ADD COLUMN tier TEXT NOT NULL DEFAULT 'free'");
+} catch (e) {
+  // столбец уже есть — игнорируем
+}
+try {
+  db.exec('ALTER TABLE users ADD COLUMN premium_until TEXT');
+} catch (e) {
+  // столбец уже есть — игнорируем
+}
+try {
+  db.exec('ALTER TABLE users ADD COLUMN notify_enabled INTEGER NOT NULL DEFAULT 0');
+} catch (e) {
+  // столбец уже есть — игнорируем
+}
+try {
+  db.exec('ALTER TABLE users ADD COLUMN primary_chart_id INTEGER');
+} catch (e) {
+  // столбец уже есть — игнорируем
+}
+try {
+  db.exec('ALTER TABLE users ADD COLUMN notify_state TEXT');
+} catch (e) {
+  // столбец уже есть — игнорируем
+}
+
 // --- Пользователи ---
 function upsertUser(ctx) {
   const from = ctx.from;
@@ -90,6 +122,69 @@ function getUserCount() {
   return db.prepare('SELECT COUNT(*) as c FROM users').get().c;
 }
 
+// --- Тариф ---
+function getUser(telegramId) {
+  return db.prepare('SELECT * FROM users WHERE telegram_id = ?').get(telegramId);
+}
+
+// Возвращает true, если у пользователя сейчас активен Premium
+// (учитывает срок действия — просроченная подписка снова считается free).
+function isPremium(telegramId) {
+  const row = getUser(telegramId);
+  if (!row) return false;
+  if (row.tier !== 'premium') return false;
+  if (!row.premium_until) return true; // бессрочный Premium (например, выдан вручную без срока)
+  return new Date(row.premium_until).getTime() > Date.now();
+}
+
+// untilISO = null => бессрочно; иначе ISO-дата окончания
+function setTier(telegramId, tier, untilISO) {
+  return db.prepare('UPDATE users SET tier = ?, premium_until = ? WHERE telegram_id = ?')
+    .run(tier, untilISO || null, telegramId);
+}
+
+// --- Уведомления ---
+function setNotifyEnabled(telegramId, enabled) {
+  return db.prepare('UPDATE users SET notify_enabled = ? WHERE telegram_id = ?').run(enabled ? 1 : 0, telegramId);
+}
+
+function setPrimaryChart(telegramId, chartId) {
+  return db.prepare('UPDATE users SET primary_chart_id = ? WHERE telegram_id = ?').run(chartId, telegramId);
+}
+
+// Возвращает список пользователей, которым в принципе можно слать уведомления:
+// активный Premium + включён тумблер + есть выбранная (или единственная) карта.
+function listNotifiableUsers() {
+  const rows = db.prepare(`
+    SELECT u.telegram_id, u.primary_chart_id, u.notify_state
+    FROM users u
+    WHERE u.notify_enabled = 1
+  `).all();
+  const result = [];
+  for (const row of rows) {
+    if (!isPremium(row.telegram_id)) continue;
+    let chartId = row.primary_chart_id;
+    if (!chartId) {
+      // если явно не выбрана — берём карту, если она у пользователя ровно одна
+      const charts = listCharts(row.telegram_id);
+      if (charts.length === 1) chartId = charts[0].id;
+    }
+    if (!chartId) continue;
+    const chart = getChart(row.telegram_id, chartId);
+    if (!chart) continue;
+    result.push({
+      telegramId: row.telegram_id,
+      chart,
+      notifyState: row.notify_state ? JSON.parse(row.notify_state) : {},
+    });
+  }
+  return result;
+}
+
+function saveNotifyState(telegramId, state) {
+  return db.prepare('UPDATE users SET notify_state = ? WHERE telegram_id = ?').run(JSON.stringify(state), telegramId);
+}
+
 // --- Архив карт ---
 function saveChart(telegramId, label, params, placeLabel, folder) {
   const now = new Date().toISOString();
@@ -107,6 +202,10 @@ function listCharts(telegramId) {
   return db.prepare(
     'SELECT * FROM charts WHERE telegram_id = ? ORDER BY is_favorite DESC, created_at DESC'
   ).all(telegramId);
+}
+
+function countCharts(telegramId) {
+  return db.prepare('SELECT COUNT(*) as c FROM charts WHERE telegram_id = ?').get(telegramId).c;
 }
 
 function getChart(telegramId, chartId) {
@@ -165,6 +264,8 @@ function deleteNote(noteId) {
 
 module.exports = {
   upsertUser, getAllUserIds, getUserCount,
-  saveChart, listCharts, getChart, deleteChart, updateChart, renameChart, setFolder, toggleFavorite,
+  getUser, isPremium, setTier,
+  setNotifyEnabled, setPrimaryChart, listNotifiableUsers, saveNotifyState,
+  saveChart, listCharts, countCharts, getChart, deleteChart, updateChart, renameChart, setFolder, toggleFavorite,
   addNote, listNotes, updateNote, deleteNote,
 };

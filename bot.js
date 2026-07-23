@@ -853,6 +853,43 @@ bot.command('broadcast', async (ctx) => {
   await ctx.reply(`Готово: доставлено ${sent}, не удалось ${failed}.`);
 });
 
+bot.command('setpremium', async (ctx) => {
+  if (!ADMIN_ID || ctx.from.id !== ADMIN_ID) {
+    return; // тихо игнорируем для всех, кроме администратора
+  }
+  // Использование: /setpremium <telegram_id> <дней|off>
+  // Например: /setpremium 123456789 30   — выдать Premium на 30 дней
+  //           /setpremium 123456789 off  — снять Premium (вернуть на free)
+  //           /setpremium 123456789 0    — выдать Premium бессрочно
+  const parts = ctx.message.text.trim().split(/\s+/).slice(1);
+  const targetId = Number(parts[0]);
+  const arg = (parts[1] || '').toLowerCase();
+  if (!targetId || !arg) {
+    await ctx.reply('Использование: /setpremium <telegram_id> <дней|off|0>\nПример: /setpremium 123456789 30');
+    return;
+  }
+  if (arg === 'off') {
+    db.setTier(targetId, 'free', null);
+    await ctx.reply(`Пользователю ${targetId} снят Premium (тариф: free).`);
+    return;
+  }
+  const days = Number(arg);
+  if (Number.isNaN(days) || days < 0) {
+    await ctx.reply('Количество дней должно быть числом (0 — бессрочно).');
+    return;
+  }
+  const untilISO = days === 0 ? null : new Date(Date.now() + days * 86400000).toISOString();
+  db.setTier(targetId, 'premium', untilISO);
+  await ctx.reply(days === 0
+    ? `Пользователю ${targetId} выдан Premium бессрочно.`
+    : `Пользователю ${targetId} выдан Premium до ${untilISO.slice(0, 10)}.`);
+  try {
+    await bot.telegram.sendMessage(targetId, '✨ Вам открыт доступ к Premium — все дробные карты, безлимитный архив, заметки и избранное уже доступны в приложении.');
+  } catch (e) {
+    // пользователь мог не запускать бота напрямую — не критично
+  }
+});
+
 bot.command('help', async (ctx) => {
   await ctx.reply(
     'Доступные команды:\n' +
@@ -873,10 +910,20 @@ bot.command('whoami', async (ctx) => {
 
 bot.launch();
 console.log('Бот запущен.');
+const { SWISSEPH_AVAILABLE } = require('./engine.js');
+console.log(SWISSEPH_AVAILABLE
+  ? '✅ Расчёты идут через Swiss Ephemeris (нативный модуль собрался успешно).'
+  : '⚠️ Swiss Ephemeris недоступен — используется резервный движок (VSOP87D + Мееус). Проверьте установку зависимостей (npm install) и логи сборки нативных модулей.');
 
 // Запускаем сервер мини-приложения в том же процессе (один сервис на Railway)
 const { startWebApp } = require('./webapp.js');
 startWebApp();
+
+// Ежедневная проверка уведомлений (Premium): смена подпериода даши,
+// заметный день по тара-бале, новый значимый транзит.
+const { startNotificationScheduler } = require('./notifications.js');
+startNotificationScheduler(bot);
+console.log('Планировщик уведомлений запущен.');
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));

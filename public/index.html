@@ -241,10 +241,10 @@
     flex: 1;
     border: none;
     background: none;
-    padding: 10px 4px;
+    padding: 10px 2px;
     border-radius: 9px;
     font-family: 'Inter', sans-serif;
-    font-size: 13px;
+    font-size: 11.5px;
     font-weight: 500;
     color: var(--taupe);
     cursor: pointer;
@@ -478,11 +478,43 @@
     </div>
 
     <div class="tabs" id="home-tabs">
+      <button class="tab-btn" data-tab="today">Сегодня</button>
       <button class="tab-btn active" data-tab="chart">Карта</button>
       <button class="tab-btn" data-tab="planets">Планеты</button>
       <button class="tab-btn" data-tab="dasha">Даши</button>
       <button class="tab-btn" data-tab="transits">Транзиты</button>
       <button class="tab-btn" data-tab="vargas">Варги</button>
+    </div>
+
+    <div class="tab-content" id="tab-today">
+      <div id="today-locked" class="form-card" style="padding:20px;text-align:center;display:none;">
+        <div style="font-size:32px;margin-bottom:8px;">🔒</div>
+        <h2 style="margin-bottom:8px;">Доступно в Premium</h2>
+        <p style="font-size:13px;color:var(--taupe);margin-bottom:16px;line-height:1.5;">
+          Активный период даши, важные транзиты дня и качество дня — собранные специально под вашу карту, в одном месте.
+        </p>
+        <button class="btn-primary" id="today-upgrade-btn">Оформить Premium</button>
+      </div>
+      <div id="today-content" style="display:none;">
+        <div class="info-card" style="display:block;">
+          <div class="name" style="margin-bottom:6px;">Сейчас действует</div>
+          <div class="current-period-row"><span class="label">Махадаша</span><span class="value" id="today-maha">—</span></div>
+          <div class="current-period-row"><span class="label">Антардаша</span><span class="value" id="today-antar">—</span></div>
+          <div class="current-period-row"><span class="label">Пратьянтардаша</span><span class="value" id="today-pratyantar">—</span></div>
+        </div>
+        <div class="info-card" style="display:block;">
+          <div class="name" style="margin-bottom:6px;">Качество дня</div>
+          <div class="current-period-row"><span class="label">Тара-бала</span><span class="value" id="today-tara">—</span></div>
+          <div class="current-period-row"><span class="label">Титхи</span><span class="value" id="today-tithi">—</span></div>
+          <div class="current-period-row"><span class="label">Накшатра дня</span><span class="value" id="today-nak">—</span></div>
+          <div class="current-period-row"><span class="label">Транзитная Луна</span><span class="value" id="today-moon-house">—</span></div>
+        </div>
+        <div class="form-card" style="padding:16px;">
+          <h2 style="font-size:15px;margin-bottom:10px;">Заметные транзиты сегодня</h2>
+          <div id="today-notable"></div>
+        </div>
+      </div>
+      <div class="error-msg" id="today-error-msg"></div>
     </div>
 
     <div class="tab-content active" id="tab-chart">
@@ -542,10 +574,30 @@
     </div>
 
     <div class="tab-content" id="tab-vargas">
-      <div class="scale-tabs" id="varga-type-tabs">
-        <button class="scale-btn active" data-varga="d9">Навамша (D9)</button>
-        <button class="scale-btn" data-varga="d10">Дашамша (D10)</button>
-        <button class="scale-btn" data-varga="lagna">От Лагны</button>
+      <div class="field" style="margin-bottom:12px;">
+        <label for="varga-select">Дробная карта</label>
+        <select id="varga-select">
+          <optgroup label="Бесплатно">
+            <option value="d9">Навамша (D9)</option>
+            <option value="d10">Дашамша (D10)</option>
+            <option value="lagna">От Лагны</option>
+          </optgroup>
+          <optgroup label="Premium">
+            <option value="d2">🔒 Хора (D2) — богатство</option>
+            <option value="d3">🔒 Дрекана (D3) — братья/сёстры</option>
+            <option value="d4">🔒 Чатуртхамша (D4) — недвижимость</option>
+            <option value="d7">🔒 Саптамша (D7) — дети</option>
+            <option value="d12">🔒 Двадашамша (D12) — родители</option>
+            <option value="d16">🔒 Шодашамша (D16) — транспорт, счастье</option>
+            <option value="d20">🔒 Вимшамша (D20) — духовный путь</option>
+            <option value="d24">🔒 Чатурвимшамша (D24) — образование</option>
+            <option value="d27">🔒 Бхамша (D27) — сила/слабость</option>
+            <option value="d30">🔒 Тримшамша (D30) — трудности</option>
+            <option value="d40">🔒 Хаведамша (D40) — род</option>
+            <option value="d45">🔒 Акшаведамша (D45) — характер</option>
+            <option value="d60">🔒 Шаштиамша (D60) — карма</option>
+          </optgroup>
+        </select>
       </div>
 
       <div id="lagna-ref-controls" style="display:none;margin:12px 0;">
@@ -573,13 +625,24 @@
         </div>
       </div>
 
-      <div class="varga-chart-label" id="varga-single-label">Навамша (D9)</div>
-      <div class="chart-wrap">
-        <svg class="chart-svg" id="varga-svg" viewBox="0 0 400 400"></svg>
-        <div class="legend">
-          <span><i class="dot" style="background:#4f7a52"></i>экзальтация</span>
-          <span><i class="dot" style="background:#4a6d8c"></i>своя обитель</span>
-          <span><i class="dot" style="background:#b23b2e"></i>падение</span>
+      <div id="varga-locked" class="form-card" style="padding:20px;text-align:center;display:none;">
+        <div style="font-size:32px;margin-bottom:8px;">🔒</div>
+        <h2 style="margin-bottom:8px;">Доступно в Premium</h2>
+        <p style="font-size:13px;color:var(--taupe);margin-bottom:16px;line-height:1.5;">
+          Все дробные карты, кроме Навамши и Дашамши, открываются в Premium.
+        </p>
+        <button class="btn-primary" id="varga-upgrade-btn">Оформить Premium</button>
+      </div>
+
+      <div id="varga-chart-wrap">
+        <div class="varga-chart-label" id="varga-single-label">Навамша (D9)</div>
+        <div class="chart-wrap">
+          <svg class="chart-svg" id="varga-svg" viewBox="0 0 400 400"></svg>
+          <div class="legend">
+            <span><i class="dot" style="background:#4f7a52"></i>экзальтация</span>
+            <span><i class="dot" style="background:#4a6d8c"></i>своя обитель</span>
+            <span><i class="dot" style="background:#b23b2e"></i>падение</span>
+          </div>
         </div>
       </div>
       <div class="error-msg" id="varga-error-msg"></div>
@@ -674,6 +737,7 @@
           <input type="text" id="ad-folder-custom" placeholder="Своя папка…" style="margin-top:9px;">
         </div>
         <button class="btn-primary" id="ad-save-btn">Сохранить изменения</button>
+        <button class="btn-secondary" id="ad-primary-btn" style="margin-top:10px;margin-bottom:0;">☆ Сделать основной для уведомлений</button>
         <div class="error-msg" id="ad-error"></div>
       </div>
     </div>
@@ -690,6 +754,43 @@
     <button class="btn-danger" id="ad-delete-btn">🗑 Удалить карту</button>
   </div>
 
+</div>
+
+<div id="page-profile" style="display:none;">
+  <div class="info-card" style="display:block;">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <div>
+        <div class="name" id="profile-name">—</div>
+        <div class="meta" id="profile-tier-line">—</div>
+      </div>
+      <button id="profile-menu-btn" style="background:none;border:none;font-size:22px;color:var(--taupe);cursor:pointer;padding:4px 8px;">⋮</button>
+    </div>
+  </div>
+
+  <div class="form-card" id="profile-upgrade-card" style="padding:16px;display:none;">
+    <h2 style="margin-bottom:8px;">Premium</h2>
+    <p style="font-size:13px;color:var(--taupe);margin-bottom:14px;line-height:1.5;">
+      Все дробные карты (D2–D60), безлимитный архив с папками и заметками, персональная навигация по карте и многое другое.
+    </p>
+    <button class="btn-primary" id="profile-upgrade-btn">Оформить Premium</button>
+  </div>
+
+  <div class="form-card" id="profile-menu-card" style="padding:16px;display:none;">
+    <div class="current-period-row">
+      <span class="label">Уведомления</span>
+      <span class="value">
+        <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-weight:600;">
+          <input type="checkbox" id="profile-notify-checkbox" style="width:16px;height:16px;">
+          <span id="profile-notify-label">—</span>
+        </label>
+      </span>
+    </div>
+    <div class="current-period-row" id="profile-notify-chart-row" style="display:none;">
+      <span class="label">Карта для уведомлений</span><span class="value" id="profile-notify-chart-name">—</span>
+    </div>
+    <div class="current-period-row"><span class="label">Язык</span><span class="value">Русский</span></div>
+    <button class="btn-secondary" id="profile-support-btn" style="margin-top:10px;">Написать в поддержку</button>
+  </div>
 </div>
 
 </main>
@@ -886,6 +987,7 @@
       btn.classList.add('active');
       document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
       if (btn.dataset.tab === 'vargas') renderVargaSingle();
+      if (btn.dataset.tab === 'today') renderTodayTab();
     });
   });
 
@@ -903,8 +1005,8 @@
         showArchiveListView();
         loadArchive();
       }
-      if (nav === 'profile' && window.Telegram && window.Telegram.WebApp) {
-        Telegram.WebApp.showAlert('Этот раздел скоро появится здесь.');
+      if (nav === 'profile') {
+        loadProfile();
       }
     });
   });
@@ -1071,6 +1173,8 @@
     renderAdFolderChips(row.folder);
     showAdPanel(null); // при открытии карточки — сразу видна только карта, без развёрнутых панелей
 
+    updateAdPrimaryBtn(chartId);
+
     const svg = document.getElementById('archive-chart-svg');
     svg.innerHTML = '';
     try {
@@ -1168,6 +1272,31 @@
       const row = archiveCharts.find(c => c.id === archiveDetailId);
       if (row) row.is_favorite = isFavorite ? 1 : 0;
     } catch (e) { /* не критично */ }
+  });
+
+  async function updateAdPrimaryBtn(chartId) {
+    const btn = document.getElementById('ad-primary-btn');
+    try {
+      const res = await fetch('/api/tier', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: getInitData() })
+      });
+      const data = await res.json();
+      btn.textContent = (data.primaryChartId === chartId) ? '✓ Основная для уведомлений' : '☆ Сделать основной для уведомлений';
+    } catch (e) {
+      btn.textContent = '☆ Сделать основной для уведомлений';
+    }
+  }
+
+  document.getElementById('ad-primary-btn').addEventListener('click', async () => {
+    try {
+      await archiveApi('set-primary', { chartId: archiveDetailId });
+      await updateAdPrimaryBtn(archiveDetailId);
+    } catch (e) {
+      const msg = 'Не удалось назначить карту: ' + e.message;
+      if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showAlert) window.Telegram.WebApp.showAlert(msg);
+      else alert(msg);
+    }
   });
 
   document.getElementById('ad-note-add-btn').addEventListener('click', async () => {
@@ -1536,33 +1665,44 @@
   });
 
   // ============================================================
-  // Варги: Навамша (D9) и Дашамша (D10) — каждая отдельным
-  // полноразмерным чартом, без подмены ориентира (это самостоятельные
-  // дробные карты, их "асцендент" — их собственный).
-  // Третий режим «От Лагны» — это ВСЕГДА основная карта (D1): те же
+  // Варги: Навамша (D9) и Дашамша (D10) — бесплатно. Остальные
+  // дробные карты (D2...D60) — Premium, через общий /api/varga.
+  // Режим «От Лагны» — это ВСЕГДА основная карта (D1): те же
   // планеты, что и на вкладке «Карта», просто дома пересчитаны от
   // выбранного ориентира (Луна = Чандра-лагна, Солнце = Сурья-лагна,
-  // либо любой дом от асцендента) — сравнение идёт с лагной D1,
-  // а не внутри самой варги.
+  // либо любой дом от асцендента) — сравнение идёт с лагной D1.
   // ============================================================
-  let vargaCache = { d9: null, d10: null, forChart: null };
+  let vargaCache = { forChart: null, data: {} };
   let currentVargaType = 'd9';
   let currentLagnaRef = { type: 'asc' };
 
-  async function ensureVargaData(type) {
+  const VARGA_LABELS = {
+    d9: 'Навамша (D9)', d10: 'Дашамша (D10)',
+    d2: 'Хора (D2)', d3: 'Дрекана (D3)', d4: 'Чатуртхамша (D4)', d7: 'Саптамша (D7)',
+    d12: 'Двадашамша (D12)', d16: 'Шодашамша (D16)', d20: 'Вимшамша (D20)',
+    d24: 'Чатурвимшамша (D24)', d27: 'Бхамша (D27)', d30: 'Тримшамша (D30)',
+    d40: 'Хаведамша (D40)', d45: 'Акшаведамша (D45)', d60: 'Шаштиамша (D60)',
+  };
+
+  async function fetchVarga(key) {
     if (!currentChart) return null;
     if (vargaCache.forChart !== currentChart) {
-      vargaCache = { d9: null, d10: null, forChart: currentChart };
+      vargaCache = { forChart: currentChart, data: {} };
     }
-    if (type === 'd9' && !vargaCache.d9) {
-      const res = await fetch('/api/navamsha', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ chart: currentChart }) });
-      vargaCache.d9 = (await res.json()).d9;
+    if (!vargaCache.data[key]) {
+      const res = await fetch('/api/varga', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: getInitData(), chart: currentChart, key })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const err = new Error(data.error || 'Ошибка');
+        err.premiumRequired = !!data.premiumRequired;
+        throw err;
+      }
+      vargaCache.data[key] = data.varga;
     }
-    if (type === 'd10' && !vargaCache.d10) {
-      const res = await fetch('/api/dashamsha', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ chart: currentChart }) });
-      vargaCache.d10 = (await res.json()).d10;
-    }
-    return type === 'd9' ? vargaCache.d9 : vargaCache.d10;
+    return vargaCache.data[key];
   }
 
   // Ориентир всегда считается от асцендента ОСНОВНОЙ карты (D1) —
@@ -1583,12 +1723,17 @@
 
   async function renderVargaSingle() {
     const errorEl = document.getElementById('varga-error-msg');
+    const lockedEl = document.getElementById('varga-locked');
+    const chartWrapEl = document.getElementById('varga-chart-wrap');
     errorEl.style.display = 'none';
+    lockedEl.style.display = 'none';
+    chartWrapEl.style.display = 'block';
     document.getElementById('lagna-ref-controls').style.display = currentVargaType === 'lagna' ? 'block' : 'none';
 
     if (!currentChart) {
       errorEl.textContent = 'Сначала постройте натальную карту на главной.';
       errorEl.style.display = 'block';
+      chartWrapEl.style.display = 'none';
       return;
     }
 
@@ -1601,26 +1746,31 @@
 
     let vargaChart;
     try {
-      vargaChart = await ensureVargaData(currentVargaType);
+      vargaChart = await fetchVarga(currentVargaType);
     } catch (e) {
+      if (e.premiumRequired) {
+        lockedEl.style.display = 'block';
+        chartWrapEl.style.display = 'none';
+        return;
+      }
       errorEl.textContent = 'Не удалось посчитать варгу: ' + e.message;
       errorEl.style.display = 'block';
+      chartWrapEl.style.display = 'none';
       return;
     }
     if (!vargaChart) return;
     renderChartSVG({ ascendant: vargaChart.ascendant, planets: vargaChart.planets }, 'varga-svg');
-    document.getElementById('varga-single-label').textContent = currentVargaType === 'd9' ? 'Навамша (D9)' : 'Дашамша (D10)';
+    document.getElementById('varga-single-label').textContent = VARGA_LABELS[currentVargaType] || currentVargaType;
   }
 
-  document.querySelectorAll('#varga-type-tabs [data-varga]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      currentVargaType = btn.dataset.varga;
-      document.querySelectorAll('#varga-type-tabs [data-varga]').forEach(b => b.classList.toggle('active', b === btn));
-      renderVargaSingle();
-    });
+  document.getElementById('varga-select').addEventListener('change', (e) => {
+    currentVargaType = e.target.value;
+    renderVargaSingle();
   });
 
-  document.querySelectorAll('#lagna-ref-chips [data-lref]').forEach(btn => {
+  document.getElementById('varga-upgrade-btn').addEventListener('click', showUpgradePrompt);
+
+  document.getElementById('lagna-ref-chips').querySelectorAll('[data-lref]').forEach(btn => {
     btn.addEventListener('click', () => {
       currentLagnaRef = { type: btn.dataset.lref };
       document.querySelectorAll('#lagna-ref-chips [data-lref]').forEach(b => b.classList.toggle('active', b === btn));
@@ -1635,6 +1785,199 @@
     document.querySelectorAll('#lagna-ref-chips [data-lref]').forEach(b => b.classList.remove('active'));
     renderVargaSingle();
   });
+
+  // ============================================================
+  // Профиль: тариф (Free/Premium) и меню «⋮»
+  // ============================================================
+  async function loadProfile() {
+    const tgUser = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) || null;
+    document.getElementById('profile-name').textContent = tgUser
+      ? [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') || (tgUser.username ? '@' + tgUser.username : 'Профиль')
+      : 'Профиль';
+
+    const tierLineEl = document.getElementById('profile-tier-line');
+    const upgradeCard = document.getElementById('profile-upgrade-card');
+    tierLineEl.textContent = 'Загрузка…';
+
+    try {
+      const res = await fetch('/api/tier', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: getInitData() })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Ошибка');
+
+      if (data.isPremium) {
+        tierLineEl.textContent = data.premiumUntil
+          ? `⭐ Premium до ${data.premiumUntil.slice(0,10).split('-').reverse().join('.')}`
+          : '⭐ Premium';
+        upgradeCard.style.display = 'none';
+      } else {
+        tierLineEl.textContent = 'Бесплатный тариф';
+        upgradeCard.style.display = 'block';
+      }
+
+      const notifyCheckbox = document.getElementById('profile-notify-checkbox');
+      const notifyLabel = document.getElementById('profile-notify-label');
+      const chartRow = document.getElementById('profile-notify-chart-row');
+      if (!data.isPremium) {
+        notifyCheckbox.checked = false;
+        notifyCheckbox.disabled = true;
+        notifyLabel.textContent = 'доступно в Premium';
+        chartRow.style.display = 'none';
+      } else {
+        notifyCheckbox.disabled = false;
+        notifyCheckbox.checked = data.notifyEnabled;
+        notifyLabel.textContent = data.notifyEnabled ? 'Вкл' : 'Выкл';
+        if (data.notifyEnabled) {
+          chartRow.style.display = 'flex';
+          document.getElementById('profile-notify-chart-name').textContent = 'Загрузка…';
+          try {
+            const listRes = await archiveApi('list', {});
+            const primary = listRes.charts.find(c => c.id === data.primaryChartId);
+            document.getElementById('profile-notify-chart-name').textContent = primary
+              ? primary.label
+              : (listRes.charts.length === 1 ? listRes.charts[0].label + ' (единственная)' : 'Выберите в Архиве');
+          } catch (e) {
+            document.getElementById('profile-notify-chart-name').textContent = '—';
+          }
+        } else {
+          chartRow.style.display = 'none';
+        }
+      }
+    } catch (e) {
+      tierLineEl.textContent = getInitData() ? 'Не удалось загрузить тариф' : 'Открой через Telegram, чтобы увидеть тариф';
+    }
+  }
+
+  document.getElementById('profile-notify-checkbox').addEventListener('change', async (e) => {
+    const enabled = e.target.checked;
+    try {
+      const res = await fetch('/api/notify/toggle', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: getInitData(), enabled })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Ошибка');
+      document.getElementById('profile-notify-label').textContent = enabled ? 'Вкл' : 'Выкл';
+      await loadProfile();
+    } catch (e) {
+      e.target.checked = !enabled;
+      const msg = 'Не удалось изменить настройку: ' + e.message;
+      if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showAlert) window.Telegram.WebApp.showAlert(msg);
+      else alert(msg);
+    }
+  });
+
+  document.getElementById('profile-menu-btn').addEventListener('click', () => {
+    const card = document.getElementById('profile-menu-card');
+    card.style.display = card.style.display === 'none' ? 'block' : 'none';
+  });
+
+  document.getElementById('profile-upgrade-btn').addEventListener('click', () => {
+    const msg = 'Оплата Premium скоро будет доступна прямо здесь. Пока обратитесь к @katyadass, чтобы оформить доступ.';
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showAlert) {
+      window.Telegram.WebApp.showAlert(msg);
+    } else {
+      alert(msg);
+    }
+  });
+
+  document.getElementById('profile-support-btn').addEventListener('click', () => {
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.openTelegramLink) {
+      window.Telegram.WebApp.openTelegramLink('https://t.me/katyadass');
+    } else {
+      window.open('https://t.me/katyadass', '_blank');
+    }
+  });
+
+  // ============================================================
+  // «Сегодня для меня» (Premium): активная даша + заметные транзиты +
+  // качество дня (тара-бала), собранные вместе под конкретную карту.
+  // ============================================================
+  function showUpgradePrompt() {
+    const msg = 'Оплата Premium скоро будет доступна прямо здесь. Пока обратитесь к @katyadass, чтобы оформить доступ.';
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showAlert) {
+      window.Telegram.WebApp.showAlert(msg);
+    } else {
+      alert(msg);
+    }
+  }
+  document.getElementById('today-upgrade-btn').addEventListener('click', showUpgradePrompt);
+
+  const MOON_HOUSE_HINT = {
+    1:'начало нового цикла', 2:'ресурсы и речь', 3:'усилия и общение', 4:'дом и внутреннее состояние',
+    5:'идеи и творчество', 6:'рутина и трудности', 7:'отношения и партнёрства', 8:'кризисы и трансформация',
+    9:'удача и мировоззрение', 10:'дела и статус', 11:'доходы и связи', 12:'уединение и потери',
+  };
+
+  async function renderTodayTab() {
+    const errorEl = document.getElementById('today-error-msg');
+    const lockedEl = document.getElementById('today-locked');
+    const contentEl = document.getElementById('today-content');
+    errorEl.style.display = 'none';
+    lockedEl.style.display = 'none';
+    contentEl.style.display = 'none';
+
+    if (!currentChart || !currentChartMeta) {
+      errorEl.textContent = 'Сначала постройте натальную карту на главной.';
+      errorEl.style.display = 'block';
+      return;
+    }
+
+    try {
+      const tierRes = await fetch('/api/tier', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: getInitData() })
+      });
+      const tierData = await tierRes.json();
+      if (!tierRes.ok) throw new Error(tierData.error || 'Ошибка проверки тарифа');
+
+      if (!tierData.isPremium) {
+        lockedEl.style.display = 'block';
+        return;
+      }
+
+      const p = currentChartMeta.params;
+      const birthDateUTC = new Date(Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, 0) - p.utcOffset * 3600000).toISOString();
+
+      const res = await fetch('/api/today', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: getInitData(), chart: currentChart, birthDateUTC, lat: p.lat, lon: p.lon, utcOffset: p.utcOffset })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Ошибка');
+
+      const chain = data.chain;
+      document.getElementById('today-maha').textContent = chain && chain.mahadasha ? chain.mahadasha.lord : '—';
+      document.getElementById('today-antar').innerHTML = chain && chain.antardasha
+        ? `${chain.antardasha.lord}<br><span class="sub">до ${fmtDate(chain.antardasha.end)}</span>` : '—';
+      document.getElementById('today-pratyantar').innerHTML = chain && chain.pratyantardasha
+        ? `${chain.pratyantardasha.lord}<br><span class="sub">до ${fmtDate(chain.pratyantardasha.end)}</span>` : '—';
+
+      document.getElementById('today-tara').innerHTML = `${data.taraBala.name} <span class="sub">(${data.taraBala.quality})</span>`;
+      document.getElementById('today-tithi').textContent = `${data.tithi.name} (№${data.tithi.number}, ${data.tithi.paksha})`;
+      document.getElementById('today-nak').textContent = data.nakshatraOfDay;
+      const hint = MOON_HOUSE_HINT[data.moonTransitHouse] || '';
+      document.getElementById('today-moon-house').textContent = `${data.moonTransitHouse}-й дом${hint ? ' — ' + hint : ''}`;
+
+      const notableEl = document.getElementById('today-notable');
+      if (data.notableTransits.length === 0) {
+        notableEl.innerHTML = '<div style="font-size:13px;color:var(--taupe);">Сегодня нет транзитов к чувствительным точкам карты.</div>';
+      } else {
+        notableEl.innerHTML = data.notableTransits.map(nt => `
+          <div class="note-item">
+            <div class="note-text"><b>${escapeHtml(nt.planet)}</b> сейчас в ${nt.house}-м доме — рядом с: ${nt.hits.map(escapeHtml).join(', ')}</div>
+          </div>
+        `).join('');
+      }
+
+      contentEl.style.display = 'block';
+    } catch (e) {
+      errorEl.textContent = 'Не удалось загрузить: ' + e.message;
+      errorEl.style.display = 'block';
+    }
+  }
 </script>
 </body>
 </html>

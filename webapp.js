@@ -10,9 +10,10 @@ const crypto = require('crypto');
 const { calculateChart } = require('./engine.js');
 const { computeVimshottariDasha, findCurrentDashaChain } = require('./dasha.js');
 const { computeCurrentTransits } = require('./transits.js');
-const { computePanchanga } = require('./panchanga.js');
+const { computePanchanga, computeTaraBala } = require('./panchanga.js');
 const { calculateNavamsha } = require('./navamsha.js');
 const { calculateDashamsha } = require('./dashamsha.js');
+const { calculateVarga: calculateOtherVarga, VARGA_DEFS } = require('./divisional-charts.js');
 const { resolveCity } = require('./ru-timezone.js');
 const { resolveWorldCity } = require('./world-geocoding.js');
 const db = require('./database.js');
@@ -55,6 +56,15 @@ function requireTelegramUser(req, res, next) {
   if (!user) return res.status(401).json({ error: 'Не удалось проверить пользователя Telegram' });
   req.tgUser = user;
   db.upsertUser({ from: user });
+  next();
+}
+
+// Мидлвара: пропускает дальше только пользователей с активным Premium.
+// Использовать ПОСЛЕ requireTelegramUser (нужен req.tgUser).
+function requirePremium(req, res, next) {
+  if (!db.isPremium(req.tgUser.id)) {
+    return res.status(403).json({ error: 'Эта функция доступна только в Premium', premiumRequired: true });
+  }
   next();
 }
 
@@ -144,6 +154,29 @@ function startWebApp() {
     }
   });
 
+  // Общий эндпоинт для остальных дробных карт (D2-D60, кроме D9/D10 выше).
+  // D9 и D10 — бесплатные, всё остальное — Premium.
+  const FREE_VARGAS = ['d9', 'd10'];
+  app.post('/api/varga', requireTelegramUser, (req, res) => {
+    try {
+      const { chart, key } = req.body;
+      if (!FREE_VARGAS.includes(key) && !VARGA_DEFS[key]) {
+        return res.status(400).json({ error: 'Неизвестная дробная карта' });
+      }
+      if (!FREE_VARGAS.includes(key) && !db.isPremium(req.tgUser.id)) {
+        return res.status(403).json({ error: 'Эта дробная карта доступна только в Premium', premiumRequired: true });
+      }
+      let varga;
+      if (key === 'd9') varga = calculateNavamsha(chart);
+      else if (key === 'd10') varga = calculateDashamsha(chart);
+      else varga = calculateOtherVarga(chart, key);
+      res.json({ varga });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   app.post('/api/panchanga', (req, res) => {
     try {
       const { day, month, year, hour, minute, lat, lon, utcOffset } = req.body;
@@ -171,7 +204,16 @@ function startWebApp() {
     try {
       const { label, params, placeLabel, folder } = req.body;
       if (!label || !label.trim()) return res.status(400).json({ error: 'Нужно название карты' });
-      const chartId = db.saveChart(req.tgUser.id, label.trim(), params, placeLabel, folder);
+      const FREE_ARCHIVE_LIMIT = 3;
+      if (!db.isPremium(req.tgUser.id) && db.countCharts(req.tgUser.id) >= FREE_ARCHIVE_LIMIT) {
+        return res.status(403).json({
+          error: `В бесплатном архиве можно сохранить не больше ${FREE_ARCHIVE_LIMIT} карт. В Premium — без ограничений.`,
+          premiumRequired: true,
+        });
+      }
+      // Папки — премиум-функция; для free игнорируем переданную папку, чтобы не создавать "теневых" премиум-данных
+      const effectiveFolder = db.isPremium(req.tgUser.id) ? folder : null;
+      const chartId = db.saveChart(req.tgUser.id, label.trim(), params, placeLabel, effectiveFolder);
       res.json({ id: chartId });
     } catch (e) {
       console.error(e);
@@ -193,7 +235,7 @@ function startWebApp() {
     }
   });
 
-  app.post('/api/archive/folder', requireTelegramUser, (req, res) => {
+  app.post('/api/archive/folder', requireTelegramUser, requirePremium, (req, res) => {
     try {
       const { chartId, folder } = req.body;
       const row = db.getChart(req.tgUser.id, chartId);
@@ -206,7 +248,7 @@ function startWebApp() {
     }
   });
 
-  app.post('/api/archive/favorite', requireTelegramUser, (req, res) => {
+  app.post('/api/archive/favorite', requireTelegramUser, requirePremium, (req, res) => {
     try {
       const { chartId } = req.body;
       const newState = db.toggleFavorite(req.tgUser.id, chartId);
@@ -243,7 +285,7 @@ function startWebApp() {
     }
   });
 
-  app.post('/api/archive/notes/add', requireTelegramUser, (req, res) => {
+  app.post('/api/archive/notes/add', requireTelegramUser, requirePremium, (req, res) => {
     try {
       const { chartId, note } = req.body;
       if (!note || !note.trim()) return res.status(400).json({ error: 'Пустая заметка' });
@@ -257,7 +299,7 @@ function startWebApp() {
     }
   });
 
-  app.post('/api/archive/notes/update', requireTelegramUser, (req, res) => {
+  app.post('/api/archive/notes/update', requireTelegramUser, requirePremium, (req, res) => {
     try {
       const { chartId, noteId, note } = req.body;
       if (!note || !note.trim()) return res.status(400).json({ error: 'Пустая заметка' });
@@ -277,6 +319,103 @@ function startWebApp() {
       const row = db.getChart(req.tgUser.id, chartId);
       if (!row) return res.status(404).json({ error: 'Карта не найдена' });
       db.deleteNote(noteId);
+      res.json({ ok: true });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ---------- «Сегодня для меня» (Premium): даши + транзиты + кара дня, собранные вместе ----------
+  app.post('/api/today', requireTelegramUser, requirePremium, (req, res) => {
+    try {
+      const { chart, birthDateUTC, lat, lon, utcOffset } = req.body;
+      const now = new Date();
+
+      // 1. Текущая цепочка даш (маха/антар/пратьянтар)
+      const mahadashas = computeVimshottariDasha(chart, new Date(birthDateUTC));
+      const chain = findCurrentDashaChain(mahadashas, now);
+
+      // 2. Текущие транзиты относительно натальной карты
+      const transits = computeCurrentTransits(chart, now);
+
+      // 3. Тара-бала дня: накшатра дня (Луна сегодня) относительно натальной накшатры Луны
+      const nakSpan = 360 / 27;
+      const natalMoonNakIdx = Math.floor(chart.planets['Луна'].siderealLon / nakSpan);
+      const todayPanchanga = computePanchanga(
+        now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate(), now.getUTCHours(), now.getUTCMinutes(),
+        lat, lon, utcOffset
+      );
+      const taraBala = computeTaraBala(natalMoonNakIdx, todayPanchanga.nakshatraOfDayIdx);
+
+      // 4. Транзитная Луна сегодня — в каком натальном доме
+      const moonTransitHouse = transits.planets['Луна'].transitHouse;
+
+      // 5. "Заметные" транзиты сегодня: транзитная планета в том же знаке (доме от асцендента),
+      // что и натальный Асцендент, натальная Луна, натальное Солнце или лорд текущей антардаши.
+      const sensitivePoints = [
+        { key: 'Асцендент', house: 1 },
+        { key: 'Луна (натал.)', house: chart.planets['Луна'].house },
+        { key: 'Солнце (натал.)', house: chart.planets['Солнце'].house },
+      ];
+      if (chain && chain.antardasha) {
+        const lordName = chain.antardasha.lord;
+        if (chart.planets[lordName]) {
+          sensitivePoints.push({ key: `Лорд антардаши (${lordName})`, house: chart.planets[lordName].house });
+        }
+      }
+      const notableTransits = [];
+      for (const [planetName, t] of Object.entries(transits.planets)) {
+        const hits = sensitivePoints.filter(sp => sp.house === t.transitHouse).map(sp => sp.key);
+        if (hits.length > 0) {
+          notableTransits.push({ planet: planetName, house: t.transitHouse, hits });
+        }
+      }
+
+      res.json({
+        asOf: now.toISOString(),
+        chain,
+        taraBala,
+        nakshatraOfDay: todayPanchanga.nakshatraOfDay,
+        tithi: todayPanchanga.tithi,
+        moonTransitHouse,
+        notableTransits,
+      });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+
+  app.post('/api/tier', requireTelegramUser, (req, res) => {
+    const row = db.getUser(req.tgUser.id);
+    res.json({
+      tier: row.tier,
+      premiumUntil: row.premium_until,
+      isPremium: db.isPremium(req.tgUser.id),
+      notifyEnabled: !!row.notify_enabled,
+      primaryChartId: row.primary_chart_id,
+    });
+  });
+
+  app.post('/api/notify/toggle', requireTelegramUser, requirePremium, (req, res) => {
+    try {
+      const { enabled } = req.body;
+      db.setNotifyEnabled(req.tgUser.id, !!enabled);
+      res.json({ ok: true, enabled: !!enabled });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/archive/set-primary', requireTelegramUser, requirePremium, (req, res) => {
+    try {
+      const { chartId } = req.body;
+      const row = db.getChart(req.tgUser.id, chartId);
+      if (!row) return res.status(404).json({ error: 'Карта не найдена' });
+      db.setPrimaryChart(req.tgUser.id, chartId);
       res.json({ ok: true });
     } catch (e) {
       console.error(e);
