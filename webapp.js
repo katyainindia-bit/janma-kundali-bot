@@ -14,6 +14,7 @@ const { computePanchanga, computeTaraBala } = require('./panchanga.js');
 const { calculateNavamsha } = require('./navamsha.js');
 const { calculateDashamsha } = require('./dashamsha.js');
 const { calculateVarga: calculateOtherVarga, VARGA_DEFS } = require('./divisional-charts.js');
+const { computeCalendarMonth, computeDateSearch, GOALS } = require('./date-tools.js');
 const { resolveCity } = require('./ru-timezone.js');
 const { resolveWorldCity } = require('./world-geocoding.js');
 const db = require('./database.js');
@@ -387,6 +388,36 @@ function startWebApp() {
     }
   });
 
+
+  // ---------- «Дни»: персональный календарь и поиск дат под цель (Premium) ----------
+  app.post('/api/goals', (req, res) => {
+    res.json({ goals: Object.entries(GOALS).map(([key, g]) => ({ key, label: g.label })) });
+  });
+
+  app.post('/api/calendar-month', requireTelegramUser, requirePremium, (req, res) => {
+    try {
+      const { chart, birthDateUTC, year, month, lat, lon, utcOffset } = req.body;
+      const days = computeCalendarMonth(chart, new Date(birthDateUTC), year, month, lat, lon, utcOffset);
+      res.json({ days });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/date-search', requireTelegramUser, requirePremium, (req, res) => {
+    try {
+      const { chart, birthDateUTC, lat, lon, utcOffset, goal, fromDate, toDate } = req.body;
+      const result = computeDateSearch(
+        chart, new Date(birthDateUTC), lat, lon, utcOffset, goal,
+        new Date(fromDate), new Date(toDate)
+      );
+      res.json(result);
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
 
   app.post('/api/tier', requireTelegramUser, (req, res) => {
     const row = db.getUser(req.tgUser.id);

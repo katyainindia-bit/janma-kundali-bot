@@ -228,6 +228,26 @@
     color: var(--ink);
   }
 
+  /* ---------- Дни: календарь ---------- */
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .cal-day {
+    aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+    border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
+    background: var(--card); color: var(--ink); position: relative;
+  }
+  .cal-day.good { background: #E3F0E0; color: #3f6b3a; }
+  .cal-day.bad { background: #F5E3E0; color: #a8654a; }
+  .cal-day .dot-change {
+    position: absolute; top: 3px; right: 3px; width: 5px; height: 5px;
+    border-radius: 50%; background: var(--gold);
+  }
+  .search-window {
+    background: var(--card-light); border: 1px solid var(--line); border-radius: 14px;
+    padding: 12px 16px; margin-bottom: 10px;
+  }
+  .search-window .sw-dates { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 15px; }
+  .search-window .sw-score { font-size: 11px; color: var(--taupe); margin-top: 3px; }
+
   /* ---------- Вкладки ---------- */
   .tabs {
     display: flex;
@@ -689,6 +709,67 @@
   </div>
 </div>
 
+<div id="page-days" style="display:none;">
+
+  <div id="days-locked" class="form-card" style="padding:20px;text-align:center;display:none;">
+    <div style="font-size:32px;margin-bottom:8px;">🔒</div>
+    <h2 style="margin-bottom:8px;">Доступно в Premium</h2>
+    <p style="font-size:13px;color:var(--taupe);margin-bottom:16px;line-height:1.5;">
+      Персональный календарь благоприятных дней и поиск даты под конкретную цель — под вашу карту.
+    </p>
+    <button class="btn-primary" id="days-upgrade-btn">Оформить Premium</button>
+  </div>
+
+  <div id="days-no-chart" class="form-card" style="padding:20px;text-align:center;display:none;">
+    <p style="font-size:13px;color:var(--taupe);">Сначала постройте или откройте натальную карту на главной.</p>
+  </div>
+
+  <div id="days-content" style="display:none;">
+    <div class="tabs" id="days-tabs">
+      <button class="tab-btn active" data-daystab="calendar">Календарь</button>
+      <button class="tab-btn" data-daystab="search">Поиск по цели</button>
+    </div>
+
+    <div class="tab-content active" id="daystab-calendar">
+      <div class="form-card" style="padding:16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <button class="btn-secondary" id="cal-prev-btn" style="width:auto;margin-bottom:0;padding:8px 14px;">←</button>
+          <div class="name" id="cal-month-label" style="margin-bottom:0;">—</div>
+          <button class="btn-secondary" id="cal-next-btn" style="width:auto;margin-bottom:0;padding:8px 14px;">→</button>
+        </div>
+        <div id="cal-grid" class="cal-grid"></div>
+        <div class="chip-row" style="margin-top:14px;">
+          <span class="chip" style="cursor:default;">🟢 благоприятно</span>
+          <span class="chip" style="cursor:default;">🔴 неблагоприятно</span>
+          <span class="chip" style="cursor:default;">◆ смена периода</span>
+        </div>
+      </div>
+      <div id="cal-day-detail" class="form-card" style="padding:16px;display:none;"></div>
+    </div>
+
+    <div class="tab-content" id="daystab-search">
+      <div class="form-card" style="padding:16px;">
+        <div class="field">
+          <label for="search-goal-select">Цель</label>
+          <select id="search-goal-select"></select>
+        </div>
+        <div class="field">
+          <label for="search-from-date">С какой даты искать</label>
+          <input type="date" id="search-from-date">
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label for="search-to-date">По какую дату</label>
+          <input type="date" id="search-to-date">
+        </div>
+        <button class="btn-primary" id="search-run-btn" style="margin-top:14px;">Найти благоприятные окна</button>
+      </div>
+      <div id="search-results"></div>
+    </div>
+  </div>
+
+  <div class="error-msg" id="days-error-msg"></div>
+</div>
+
 <div id="page-archive" style="display:none;">
 
   <div id="archive-list-view">
@@ -803,6 +884,10 @@
   <button class="nav-item" data-nav="panchanga">
     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5.5" width="16" height="15" rx="1.5"/><path d="M8 3.5v4M16 3.5v4M4 10h16"/><circle cx="12" cy="15" r="2.6"/></svg>
     Панчанга
+  </button>
+  <button class="nav-item" data-nav="days">
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5.5" width="16" height="15" rx="1.5"/><path d="M8 3.5v4M16 3.5v4M4 10h16"/><path d="M8 14h2M14 14h2M8 17h2M14 17h2"/></svg>
+    Дни
   </button>
   <button class="nav-item" data-nav="archive">
     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="7" width="17" height="13" rx="1.3"/><path d="M3.5 7 6 4h12l2.5 3"/><path d="M10 11.3h4"/></svg>
@@ -991,7 +1076,7 @@
     });
   });
 
-  const PAGES = ['home', 'panchanga', 'archive', 'profile'];
+  const PAGES = ['home', 'panchanga', 'days', 'archive', 'profile'];
   document.querySelectorAll('.nav-item').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
@@ -1004,6 +1089,9 @@
       if (nav === 'archive') {
         showArchiveListView();
         loadArchive();
+      }
+      if (nav === 'days') {
+        initDaysPage();
       }
       if (nav === 'profile') {
         loadProfile();
@@ -1978,6 +2066,174 @@
       errorEl.style.display = 'block';
     }
   }
+
+  // ============================================================
+  // «Дни» (Premium): персональный календарь + поиск дат под цель.
+  // Оба используют один и тот же расчёт "качества дня" (тара-бала +
+  // текущая цепочка даш) — календарь просто листает месяц, поиск —
+  // сканирует диапазон под конкретную цель.
+  // ============================================================
+  let calYear = new Date().getFullYear();
+  let calMonth = new Date().getMonth() + 1; // 1-12
+
+  async function initDaysPage() {
+    const lockedEl = document.getElementById('days-locked');
+    const noChartEl = document.getElementById('days-no-chart');
+    const contentEl = document.getElementById('days-content');
+    const errorEl = document.getElementById('days-error-msg');
+    lockedEl.style.display = 'none';
+    noChartEl.style.display = 'none';
+    contentEl.style.display = 'none';
+    errorEl.style.display = 'none';
+
+    try {
+      const res = await fetch('/api/tier', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: getInitData() })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Ошибка');
+      if (!data.isPremium) { lockedEl.style.display = 'block'; return; }
+    } catch (e) {
+      errorEl.textContent = 'Не удалось проверить тариф: ' + e.message;
+      errorEl.style.display = 'block';
+      return;
+    }
+
+    if (!currentChart || !currentChartMeta) {
+      noChartEl.style.display = 'block';
+      return;
+    }
+
+    contentEl.style.display = 'block';
+    await renderCalendarMonth();
+    await loadGoalsIntoSelect();
+    const today = new Date();
+    document.getElementById('search-from-date').value = today.toISOString().slice(0, 10);
+    document.getElementById('search-to-date').value = new Date(today.getTime() + 90 * 86400000).toISOString().slice(0, 10);
+  }
+
+  document.getElementById('days-upgrade-btn').addEventListener('click', showUpgradePrompt);
+
+  document.querySelectorAll('#days-tabs .tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#days-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('daystab-calendar').classList.toggle('active', btn.dataset.daystab === 'calendar');
+      document.getElementById('daystab-search').classList.toggle('active', btn.dataset.daystab === 'search');
+    });
+  });
+
+  const MONTH_NAMES = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+
+  async function renderCalendarMonth() {
+    const errorEl = document.getElementById('days-error-msg');
+    errorEl.style.display = 'none';
+    document.getElementById('cal-month-label').textContent = `${MONTH_NAMES[calMonth-1]} ${calYear}`;
+    document.getElementById('cal-day-detail').style.display = 'none';
+    const grid = document.getElementById('cal-grid');
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;font-size:12px;color:var(--taupe);">Загрузка…</div>';
+
+    const p = currentChartMeta.params;
+    const birthDateUTC = new Date(Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, 0) - p.utcOffset * 3600000).toISOString();
+
+    try {
+      const res = await fetch('/api/calendar-month', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: getInitData(), chart: currentChart, birthDateUTC, year: calYear, month: calMonth, lat: p.lat, lon: p.lon, utcOffset: p.utcOffset })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Ошибка');
+
+      const firstDow = (new Date(Date.UTC(calYear, calMonth - 1, 1)).getUTCDay() + 6) % 7; // 0=понедельник
+      let html = '';
+      for (let i = 0; i < firstDow; i++) html += '<div></div>';
+      data.days.forEach(d => {
+        const cls = d.taraQuality.includes('наименее') || d.taraQuality === 'неблагоприятно' ? 'bad'
+          : (d.taraQuality.includes('наиболее') || d.taraQuality === 'благоприятно') ? 'good' : '';
+        html += `<div class="cal-day ${cls}" data-day="${d.day}">${d.day}${d.dashaChange ? '<span class="dot-change"></span>' : ''}</div>`;
+      });
+      grid.innerHTML = html;
+
+      grid.querySelectorAll('.cal-day[data-day]').forEach(cell => {
+        cell.addEventListener('click', () => {
+          const d = data.days.find(x => x.day === Number(cell.dataset.day));
+          const detail = document.getElementById('cal-day-detail');
+          detail.style.display = 'block';
+          detail.innerHTML = `
+            <div class="name" style="margin-bottom:6px;">${String(d.day).padStart(2,'0')}.${String(calMonth).padStart(2,'0')}.${calYear}</div>
+            <div class="current-period-row"><span class="label">Тара-бала</span><span class="value">${d.taraName} (${d.taraQuality})</span></div>
+            <div class="current-period-row"><span class="label">Титхи</span><span class="value">${d.tithi}</span></div>
+            ${d.dashaChange ? `<div class="current-period-row"><span class="label">Смена периода</span><span class="value">${d.dashaChange.level}: ${d.dashaChange.lord}</span></div>` : ''}
+          `;
+        });
+      });
+    } catch (e) {
+      errorEl.textContent = 'Не удалось загрузить календарь: ' + e.message;
+      errorEl.style.display = 'block';
+      grid.innerHTML = '';
+    }
+  }
+
+  document.getElementById('cal-prev-btn').addEventListener('click', () => {
+    calMonth--; if (calMonth < 1) { calMonth = 12; calYear--; }
+    renderCalendarMonth();
+  });
+  document.getElementById('cal-next-btn').addEventListener('click', () => {
+    calMonth++; if (calMonth > 12) { calMonth = 1; calYear++; }
+    renderCalendarMonth();
+  });
+
+  async function loadGoalsIntoSelect() {
+    const select = document.getElementById('search-goal-select');
+    if (select.dataset.loaded) return;
+    try {
+      const res = await fetch('/api/goals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const data = await res.json();
+      select.innerHTML = data.goals.map(g => `<option value="${g.key}">${g.label}</option>`).join('');
+      select.dataset.loaded = '1';
+    } catch (e) { /* останется пустым — не критично */ }
+  }
+
+  document.getElementById('search-run-btn').addEventListener('click', async () => {
+    const errorEl = document.getElementById('days-error-msg');
+    errorEl.style.display = 'none';
+    const resultsEl = document.getElementById('search-results');
+    resultsEl.innerHTML = '<div style="font-size:13px;color:var(--taupe);">Считаю…</div>';
+
+    const goal = document.getElementById('search-goal-select').value;
+    const fromDate = document.getElementById('search-from-date').value;
+    const toDate = document.getElementById('search-to-date').value;
+    const p = currentChartMeta.params;
+    const birthDateUTC = new Date(Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, 0) - p.utcOffset * 3600000).toISOString();
+
+    try {
+      const res = await fetch('/api/date-search', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: getInitData(), chart: currentChart, birthDateUTC, lat: p.lat, lon: p.lon, utcOffset: p.utcOffset, goal, fromDate, toDate })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Ошибка');
+
+      if (data.windows.length === 0) {
+        resultsEl.innerHTML = '<div class="form-card" style="padding:16px;font-size:13px;color:var(--taupe);">В этом диапазоне не нашлось окон, где ключевые для этой цели периоды даши совпадают с хорошим днём. Попробуйте более широкий диапазон.</div>';
+        return;
+      }
+      resultsEl.innerHTML = `
+        <div style="font-size:11px;color:var(--taupe);margin-bottom:10px;">Смотрим на: ${data.relevantLords.join(', ')}</div>
+        ${data.windows.map(w => `
+          <div class="search-window">
+            <div class="sw-dates">${w.start.split('-').reverse().join('.')} — ${w.end.split('-').reverse().join('.')}</div>
+            <div class="sw-score">оценка периода: ${w.maxScore}</div>
+          </div>
+        `).join('')}
+      `;
+    } catch (e) {
+      errorEl.textContent = 'Не удалось найти даты: ' + e.message;
+      errorEl.style.display = 'block';
+      resultsEl.innerHTML = '';
+    }
+  });
 </script>
 </body>
 </html>
