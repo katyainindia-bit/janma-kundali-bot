@@ -27,7 +27,7 @@
     color: var(--ink);
     font-family: 'Inter', sans-serif;
     -webkit-font-smoothing: antialiased;
-    padding-bottom: 70px;
+    padding-bottom: calc(70px + env(safe-area-inset-bottom));
   }
 
   h1, h2, .display {
@@ -331,6 +331,7 @@
     padding: 12px 16px;
     border-bottom: 1px solid var(--line);
     font-size: 14px;
+    cursor: pointer;
   }
   .planet-row:last-child { border-bottom: none; }
   .planet-row .sym { font-weight: 700; width: 28px; flex-shrink: 0; }
@@ -445,7 +446,7 @@
     <img src="/assets/janma-icon.png" alt="">
     <div>
       <div class="brand-name">Janma Kundali</div>
-      <div class="brand-by">by Катя Дас</div>
+      <div class="brand-by">by Katya Das</div>
     </div>
   </div>
   <button class="menu-btn">☰</button>
@@ -458,31 +459,31 @@
     <h2>Построить натальную карту</h2>
     <div class="field">
       <label for="f-name">Имя (для подписи)</label>
-      <input type="text" id="f-name" placeholder="Например: Катя Дас">
+      <input type="text" id="f-name" placeholder="Например: Иван Иванов">
     </div>
     <div class="row2">
       <div class="field">
         <label for="f-day">День</label>
-        <input type="number" id="f-day" min="1" max="31" value="7">
+        <input type="number" id="f-day" min="1" max="31">
       </div>
       <div class="field">
         <label for="f-month">Месяц</label>
-        <input type="number" id="f-month" min="1" max="12" value="12">
+        <input type="number" id="f-month" min="1" max="12">
       </div>
     </div>
     <div class="row2">
       <div class="field">
         <label for="f-year">Год</label>
-        <input type="number" id="f-year" value="1989">
+        <input type="number" id="f-year">
       </div>
       <div class="field">
         <label for="f-time">Время (ЧЧ:ММ)</label>
-        <input type="text" id="f-time" value="06:25" placeholder="06:25">
+        <input type="text" id="f-time" placeholder="12:00">
       </div>
     </div>
     <div class="field">
       <label for="f-city">Город рождения</label>
-      <input type="text" id="f-city" value="Пермь" placeholder="Например: Пермь">
+      <input type="text" id="f-city" placeholder="Например: Москва">
     </div>
     <button class="btn-primary" id="build-btn">Построить карту</button>
     <div class="error-msg" id="error-msg"></div>
@@ -546,15 +547,49 @@
           <span><i class="dot" style="background:#b23b2e"></i>падение</span>
         </div>
       </div>
+
+      <div class="form-card" id="lagna-scrub-card" style="padding:16px;">
+        <div class="varga-chart-label" style="margin-bottom:6px;">Диапазон действия Лагны</div>
+        <div style="text-align:center;font-family:'Playfair Display',serif;font-weight:600;font-size:15px;" id="lagna-range-label">—</div>
+        <input type="range" id="lagna-slider" min="-180" max="180" step="1" value="0" style="width:100%;accent-color:#C8A26B;margin-top:10px;">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--taupe);">
+          <span>−3ч</span><span id="lagna-current-time" style="font-weight:600;color:var(--ink);">—</span><span>+3ч</span>
+        </div>
+        <button class="btn-secondary" id="lagna-reset-btn" style="margin-top:12px;margin-bottom:0;">Сбросить на время рождения</button>
+      </div>
+
+      <button class="btn-secondary" id="export-open-btn">📄 Экспорт карты</button>
+      <div class="form-card" id="export-panel" style="padding:16px;display:none;">
+        <h2 style="font-size:15px;margin-bottom:10px;">Что включить в PDF</h2>
+        <label style="display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:10px;"><input type="checkbox" id="export-chart" checked style="width:16px;height:16px;"> Натальная карта</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:10px;"><input type="checkbox" id="export-d9" style="width:16px;height:16px;"> Навамша (D9)</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:10px;"><input type="checkbox" id="export-d10" style="width:16px;height:16px;"> Дашамша (D10)</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:10px;"><input type="checkbox" id="export-transits" style="width:16px;height:16px;"> Текущие транзиты</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:14px;"><input type="checkbox" id="export-periods" style="width:16px;height:16px;"> Периоды даши</label>
+        <button class="btn-primary" id="export-run-btn" style="margin-bottom:0;">Скачать PDF</button>
+        <div class="error-msg" id="export-error-msg"></div>
+      </div>
     </div>
 
     <div class="tab-content" id="tab-planets">
       <div class="planet-list" id="planet-list"></div>
+      <div id="planet-detail" class="form-card" style="padding:16px;display:none;"></div>
     </div>
 
     <div class="tab-content" id="tab-dasha">
       <div id="dasha-current" class="info-card" style="display:block;"></div>
       <div id="dasha-list"></div>
+
+      <div class="form-card" id="event-composer" style="padding:16px;display:none;">
+        <h2 style="font-size:15px;margin-bottom:6px;" id="event-period-label">—</h2>
+        <p style="font-size:12px;color:var(--taupe);margin-bottom:10px;" id="event-positions-label">—</p>
+        <textarea id="event-note-text" class="note-edit-area" rows="4" placeholder="Что произошло в этот период?"></textarea>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <button class="btn-primary" id="event-save-btn" style="margin-bottom:0;">Сохранить в заметки</button>
+          <button class="btn-secondary" id="event-cancel-btn" style="margin-bottom:0;">Отмена</button>
+        </div>
+        <div class="error-msg" id="event-error-msg"></div>
+      </div>
     </div>
 
     <div class="tab-content" id="tab-transits">
@@ -684,7 +719,7 @@
     </div>
     <div class="field">
       <label for="p-city">Место</label>
-      <input type="text" id="p-city" placeholder="Например: Пермь" value="Пермь">
+      <input type="text" id="p-city" placeholder="Например: Москва">
     </div>
     <button class="btn-primary" id="p-build-btn">Показать панчангу</button>
     <div class="error-msg" id="p-error-msg"></div>
@@ -914,6 +949,86 @@
   const EXALTATION = {'Солнце':0,'Луна':1,'Марс':9,'Меркурий':5,'Юпитер':3,'Венера':11,'Сатурн':6};
   const DEBILITATION = {'Солнце':6,'Луна':7,'Марс':3,'Меркурий':11,'Юпитер':9,'Венера':5,'Сатурн':0};
   const OWN_SIGNS = {'Солнце':[4],'Луна':[3],'Марс':[0,7],'Меркурий':[2,5],'Юпитер':[8,11],'Венера':[1,6],'Сатурн':[9,10]};
+
+  // --- Данные для карточки описания планеты (клик по строке в "Планеты") ---
+  const SIGN_LORDS_D1 = ['Марс','Венера','Меркурий','Луна','Солнце','Меркурий','Венера','Марс','Юпитер','Сатурн','Сатурн','Юпитер'];
+  const FRIENDS_D1 = {
+    'Солнце': ['Луна','Марс','Юпитер'], 'Луна': ['Солнце','Меркурий'], 'Марс': ['Солнце','Луна','Юпитер'],
+    'Меркурий': ['Солнце','Венера'], 'Юпитер': ['Солнце','Луна','Марс'], 'Венера': ['Меркурий','Сатурн'],
+    'Сатурн': ['Меркурий','Венера'], 'Раху': ['Меркурий','Венера','Сатурн'], 'Кету': ['Меркурий','Венера','Сатурн'],
+  };
+  const ENEMIES_D1 = {
+    'Солнце': ['Венера','Сатурн'], 'Луна': [], 'Марс': ['Меркурий'], 'Меркурий': ['Луна'],
+    'Юпитер': ['Меркурий','Венера'], 'Венера': ['Солнце','Луна'], 'Сатурн': ['Солнце','Луна','Марс'],
+    'Раху': ['Солнце','Луна','Марс'], 'Кету': ['Солнце','Луна','Марс'],
+  };
+  const DIGNITY_LABELS_D1 = {
+    exaltation: 'Экзальтация', own: 'Свой знак', friend: 'Дружественный знак',
+    neutral: 'Нейтральный знак', enemy: 'Враждебный знак', debilitation: 'Падение',
+  };
+  const DIGNITY_TEXTS_D1 = {
+    exaltation: 'Планета здесь чувствует себя сильнее всего — её качества раскрываются наиболее полно и естественно, без внутреннего сопротивления.',
+    own: 'Планета находится в своей стихии — она действует уверенно, устойчиво и по-своему, без необходимости подстраиваться под чужие правила.',
+    friend: 'Планета попадает в дружественную для себя обстановку — её проявления смягчаются и находят поддержку, действовать становится легче.',
+    neutral: 'Планета здесь ни в выигрышном, ни в невыгодном положении — она проявляется ровно, без явных усилений или ослаблений от самого знака.',
+    enemy: 'Планета оказывается в напряжённой для себя обстановке — её качества проявляются с трудом, через сопротивление или искажение.',
+    debilitation: 'Планета здесь ослаблена сильнее всего — её естественные качества проявляются с наибольшим трудом, через дискомфорт или неуверенность, пока не найдётся способ их компенсировать.',
+  };
+  const PLANET_SIGNIFICATIONS_D1 = {
+    Солнце: 'Отвечает за самоощущение, волю и жизненную силу, за отца и авторитетные фигуры, за то, как человек проявляет себя вовне и стремится быть замеченным. Стихия — огонь.',
+    Луна: 'Отвечает за эмоции, внутреннее восприятие и чувство безопасности, за мать и повседневные привычки, за то, как человек реагирует на мир на уровне чувств, а не разума. Стихия — вода.',
+    Меркурий: 'Отвечает за мышление, речь и обучаемость, за то, как человек анализирует, общается и обрабатывает информацию. Связан с логикой, торговлей и коммуникацией.',
+    Венера: 'Отвечает за любовь, отношения и чувство прекрасного, за удовольствие, гармонию и то, что человек ценит и к чему тянется. Связана с партнёрством и искусством. Стихия — вода.',
+    Марс: 'Отвечает за энергию, действие и напор, за смелость, конкуренцию и способность отстаивать себя. Связан с физической силой и инициативой. Стихия — огонь.',
+    Юпитер: 'Отвечает за рост, мудрость и убеждения, за учителей, веру и стремление к смыслу. Связан с удачей, изобилием и расширением возможностей.',
+    Сатурн: 'Отвечает за дисциплину, ограничения и время, за терпение, ответственность и то, чему приходится учиться через трудности. Связан со структурой и зрелостью.',
+    Раху: 'Точка неудержимого желания и одержимости — тянет туда, где нет готового опыта, толкает за привычные границы, часто через беспокойство и жажду нового.',
+    Кету: 'Точка отрешённости и завершённых уроков прошлого — склоняет к отпусканию и внутреннему поиску, там, где человек уже «всё попробовал» на уровне души.',
+  };
+
+  function getDignityStatusD1(planetName, signIndex) {
+    if (EXALTATION[planetName] === signIndex) return 'exaltation';
+    if (DEBILITATION[planetName] === signIndex) return 'debilitation';
+    if (OWN_SIGNS[planetName] && OWN_SIGNS[planetName].includes(signIndex)) return 'own';
+    const lord = SIGN_LORDS_D1[signIndex];
+    if ((FRIENDS_D1[planetName] || []).includes(lord)) return 'friend';
+    if ((ENEMIES_D1[planetName] || []).includes(lord)) return 'enemy';
+    return 'neutral';
+  }
+
+  const SIGN_NAMES_D1 = ['Овен','Телец','Близнецы','Рак','Лев','Дева','Весы','Скорпион','Стрелец','Козерог','Водолей','Рыбы'];
+
+  async function showPlanetDetail(planetName, signIndex, isRetrograde) {
+    const status = getDignityStatusD1(planetName, signIndex);
+    const detail = document.getElementById('planet-detail');
+    detail.style.display = 'block';
+    detail.innerHTML = `
+      <div class="name" style="margin-bottom:4px;">${planetName} в ${SIGN_NAMES_D1[signIndex]}${isRetrograde ? ' ℞' : ''}</div>
+      <div style="font-size:12px;color:var(--gold);font-weight:600;margin-bottom:10px;text-transform:uppercase;letter-spacing:.03em;">${DIGNITY_LABELS_D1[status]}${isRetrograde ? ' · Ретроградна' : ''}</div>
+      <p style="font-size:13px;line-height:1.5;margin-bottom:10px;">${DIGNITY_TEXTS_D1[status]}</p>
+      ${isRetrograde ? '<p style="font-size:13px;line-height:1.5;color:#a8654a;margin-bottom:10px;">℞ Ретроградность: планета движется по знаку в обратном направлении относительно Земли — её темы разворачиваются внутрь, требуют пересмотра или возвращения к уже пройденному, вместо прямого внешнего движения вперёд.</p>' : ''}
+      <p style="font-size:13px;line-height:1.5;color:var(--taupe);margin-bottom:14px;">${PLANET_SIGNIFICATIONS_D1[planetName]}</p>
+      <button class="btn-secondary" id="planet-premium-teaser" style="margin-bottom:0;">✨ Узнать, что это значит именно для вашей карты</button>
+    `;
+    document.getElementById('planet-premium-teaser').addEventListener('click', async () => {
+      try {
+        const res = await fetch('/api/tier', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ initData: getInitData() })
+        });
+        const data = await res.json();
+        if (data.isPremium) {
+          const msg = 'Персональный разбор этой планеты появится здесь одним из следующих обновлений.';
+          if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showAlert) window.Telegram.WebApp.showAlert(msg);
+          else alert(msg);
+        } else {
+          showUpgradePrompt();
+        }
+      } catch (e) {
+        showUpgradePrompt();
+      }
+    });
+  }
   function dignityColor(name, signIdx) {
     if (EXALTATION[name] === signIdx) return '#4f7a52';
     if (DEBILITATION[name] === signIdx) return '#b23b2e';
@@ -1010,7 +1125,7 @@
         const px=startX+col*colGap, py=startY+row*rowGap;
         const color = dignityColor(item.name, item.p.sign.index);
         const t = el('text', {x:px,y:py,'text-anchor':'middle','dominant-baseline':'central','font-family':'Inter, sans-serif','font-size':fs,'font-weight':700,fill:color});
-        t.textContent = PLANET_SYMBOLS[item.name];
+        t.textContent = PLANET_SYMBOLS[item.name] + (item.p.retrograde ? '℞' : '');
         svg.appendChild(t);
         const dt = el('text', {x:px,y:py+fs*1.2,'text-anchor':'middle','font-family':'Inter, sans-serif','font-size':9,fill:'#7A6B5A'});
         dt.textContent = dms(item.p.sign.degInSign);
@@ -1055,14 +1170,18 @@
     html += order.map(name => {
       const p = chart.planets[name];
       const color = dignityColor(name, p.sign.index);
-      return `<div class="planet-row">
-        <div class="sym" style="color:${color}">${PLANET_SYMBOLS[name]}</div>
+      return `<div class="planet-row" data-planet="${name}" data-signidx="${p.sign.index}" data-retro="${p.retrograde ? '1' : '0'}">
+        <div class="sym" style="color:${color}">${PLANET_SYMBOLS[name]}${p.retrograde ? '<span style="color:#a8654a;font-size:11px;vertical-align:super;">℞</span>' : ''}</div>
         <div class="pname">${name}</div>
         <div class="pdeg">${dms(p.sign.degInSign)}</div>
         <div class="psign">${p.sign.index+1}. ${p.sign.name}<br><span style="font-size:11px;">${p.nakshatra.name} (пада ${p.nakshatra.pada})</span></div>
       </div>`;
     }).join('');
     container.innerHTML = html;
+
+    container.querySelectorAll('.planet-row[data-planet]').forEach(row => {
+      row.addEventListener('click', () => showPlanetDetail(row.dataset.planet, Number(row.dataset.signidx), row.dataset.retro === '1'));
+    });
   }
 
   document.querySelectorAll('#home-tabs .tab-btn').forEach(btn => {
@@ -1407,6 +1526,7 @@
         hour: row.hour, minute: row.minute, lat: row.lat, lon: row.lon,
         utcOffset: row.utc_offset, placeLabel: row.place_label,
       });
+      currentArchiveChartId = row.id;
       document.querySelector('.nav-item[data-nav="home"]').click();
       document.querySelector('.tab-btn[data-tab="chart"]').click();
     } catch (e) {
@@ -1432,6 +1552,7 @@
 
   // ---------- Кнопка 🔖 на главной — сохранить текущую карту в архив ----------
   let currentChartMeta = null; // {name, params, placeLabel} — для кнопки "Сохранить в архив"
+  let currentArchiveChartId = null; // id карты в архиве, если она уже там сохранена (для заметок к периодам)
   function updateBookmarkBtnState() {
     document.getElementById('bookmark-btn').style.opacity = currentChartMeta ? '1' : '0.4';
   }
@@ -1449,12 +1570,13 @@
       label = window.prompt('Название карты в архиве:', defaultLabel) || defaultLabel;
     }
     try {
-      await archiveApi('save', {
+      const { id } = await archiveApi('save', {
         label,
         params: currentChartMeta.params,
         placeLabel: currentChartMeta.placeLabel,
         folder: null,
       });
+      currentArchiveChartId = id;
       if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
         window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
       }
@@ -1478,6 +1600,7 @@
   // заполняет секцию результатов (карта/планеты/даши/транзиты).
   // Используется и формой построения карты, и открытием карты из архива.
   async function displayChartResults({ name, day, month, year, hour, minute, lat, lon, utcOffset, placeLabel }) {
+    currentArchiveChartId = null;
     const chartRes = await fetch('/api/chart', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ day, month, year, hour, minute, lat, lon, utcOffset })
@@ -1494,6 +1617,7 @@
     currentChart = chart;
     currentChartMeta = { name, params: { day, month, year, hour, minute, lat, lon, utcOffset }, placeLabel };
     updateBookmarkBtnState();
+    initLagnaScrubber(year, month, day, hour, minute, lat, lon, utcOffset);
 
     const birthDateUTC = new Date(Date.UTC(year, month-1, day, hour, minute, 0) - utcOffset*3600000).toISOString();
 
@@ -1549,12 +1673,17 @@
   function renderDasha(mahadashas, chain) {
     const cur = document.getElementById('dasha-current');
     if (chain) {
+      const finestLords = chain.pratyantardasha
+        ? [chain.mahadasha.lord, chain.antardasha.lord, chain.pratyantardasha.lord]
+        : chain.antardasha ? [chain.mahadasha.lord, chain.antardasha.lord] : [chain.mahadasha.lord];
+      const finestPeriod = chain.pratyantardasha || chain.antardasha || chain.mahadasha;
       cur.innerHTML = `
         <div style="width:100%">
           <div class="name" style="margin-bottom:8px;">Текущий период</div>
           <div class="current-period-row"><span class="label">Махадаша</span><span class="value">${chain.mahadasha.lord} (${fmtDate(chain.mahadasha.start)} – ${fmtDate(chain.mahadasha.end)})</span></div>
           ${chain.antardasha ? `<div class="current-period-row"><span class="label">Антардаша</span><span class="value">${chain.antardasha.lord} (${fmtDate(chain.antardasha.start)} – ${fmtDate(chain.antardasha.end)})</span></div>` : ''}
           ${chain.pratyantardasha ? `<div class="current-period-row"><span class="label">Пратьянтардаша</span><span class="value">${chain.pratyantardasha.lord} (${fmtDate(chain.pratyantardasha.start)} – ${fmtDate(chain.pratyantardasha.end)})</span></div>` : ''}
+          <button class="btn-secondary" data-event-btn data-lords='${JSON.stringify(finestLords)}' data-start="${finestPeriod.start}" data-end="${finestPeriod.end}" style="margin-top:10px;margin-bottom:0;">📝 Добавить событие в этот период</button>
         </div>`;
     }
 
@@ -1566,7 +1695,11 @@
         const isCurAD = chain && chain.antardasha && ad.lord === chain.antardasha.lord && ad.start === chain.antardasha.start;
         const pratys = (ad.pratyantardashas||[]).map(pd => {
           const isCurPD = chain && chain.pratyantardasha && pd.lord === chain.pratyantardasha.lord && pd.start === chain.pratyantardasha.start;
-          return `<div class="praty-row ${isCurPD?'current':''}"><span>${pd.lord}</span><span>${fmtDate(pd.start)} – ${fmtDate(pd.end)}</span></div>`;
+          const lords = JSON.stringify([md.lord, ad.lord, pd.lord]);
+          return `<div class="praty-row ${isCurPD?'current':''}">
+            <span>${pd.lord}</span><span>${fmtDate(pd.start)} – ${fmtDate(pd.end)}</span>
+            <button data-event-btn data-lords='${lords}' data-start="${pd.start}" data-end="${pd.end}" style="background:none;border:none;color:var(--gold);font-size:13px;cursor:pointer;padding:0 0 0 8px;">📝</button>
+          </div>`;
         }).join('');
         return `<details class="antar-row ${isCurAD?'current':''}"><summary>${ad.lord} · ${fmtDate(ad.start)} – ${fmtDate(ad.end)}</summary>${pratys}</details>`;
       }).join('');
@@ -1696,6 +1829,29 @@
   });
 
   // Дата по умолчанию — сегодня
+  // Автоматически ставим двоеточие при вводе времени (ЧЧ:ММ) — не нужно
+  // печатать его самостоятельно, просто вводишь 4 цифры подряд.
+  function attachTimeAutoFormat(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('input', (e) => {
+      const digits = e.target.value.replace(/\D/g, '').slice(0, 4);
+      e.target.value = digits.length > 2 ? digits.slice(0,2) + ':' + digits.slice(2) : digits;
+    });
+  }
+  attachTimeAutoFormat('f-time');
+  attachTimeAutoFormat('p-time');
+
+  // Нейтральные значения по умолчанию для формы главной карты — текущая дата/время,
+  // без чьих-либо личных данных.
+  (function setDefaultFormDate() {
+    const now = new Date();
+    document.getElementById('f-day').value = now.getDate();
+    document.getElementById('f-month').value = now.getMonth() + 1;
+    document.getElementById('f-year').value = now.getFullYear();
+    document.getElementById('f-time').value = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+  })();
+
   document.getElementById('p-date').value = new Date().toISOString().slice(0,10);
 
   document.getElementById('p-build-btn').addEventListener('click', async () => {
@@ -2232,6 +2388,261 @@
       errorEl.textContent = 'Не удалось найти даты: ' + e.message;
       errorEl.style.display = 'block';
       resultsEl.innerHTML = '';
+    }
+  });
+
+  // ============================================================
+  // Экспорт карты в PDF — выбор разделов, скачивание файла.
+  // ============================================================
+  document.getElementById('export-open-btn').addEventListener('click', () => {
+    const panel = document.getElementById('export-panel');
+    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  });
+
+  document.getElementById('export-run-btn').addEventListener('click', async () => {
+    const errorEl = document.getElementById('export-error-msg');
+    errorEl.style.display = 'none';
+    if (!currentChart || !currentChartMeta) {
+      errorEl.textContent = 'Сначала постройте натальную карту.';
+      errorEl.style.display = 'block';
+      return;
+    }
+    const btn = document.getElementById('export-run-btn');
+    const originalText = btn.textContent;
+    btn.textContent = 'Собираю PDF…';
+    btn.disabled = true;
+
+    const vargas = [];
+    if (document.getElementById('export-d9').checked) vargas.push('d9');
+    if (document.getElementById('export-d10').checked) vargas.push('d10');
+
+    const p = currentChartMeta.params;
+    const birthDateUTC = new Date(Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, 0) - p.utcOffset * 3600000).toISOString();
+    const timeStr = String(p.hour).padStart(2,'0') + ':' + String(p.minute).padStart(2,'0');
+    const dateStr = String(p.day).padStart(2,'0') + '.' + String(p.month).padStart(2,'0') + '.' + p.year;
+
+    try {
+      const res = await fetch('/api/export-pdf', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          initData: getInitData(),
+          name: currentChartMeta.name, dateStr, timeStr, placeLabel: currentChartMeta.placeLabel,
+          chart: currentChart, birthDateUTC,
+          sections: {
+            chart: document.getElementById('export-chart').checked,
+            vargas,
+            transits: document.getElementById('export-transits').checked,
+            periods: document.getElementById('export-periods').checked,
+          }
+        })
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Ошибка');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${currentChartMeta.name || 'chart'}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (e) {
+      errorEl.textContent = 'Не удалось собрать PDF: ' + e.message;
+      errorEl.style.display = 'block';
+    } finally {
+      btn.textContent = originalText;
+      btn.disabled = false;
+    }
+  });
+
+  // ============================================================
+  // Бегунок Лагны: показывает, в каком диапазоне времени (вокруг введённого
+  // момента) асцендент остаётся в том же знаке, и даёт "прокрутить" время
+  // вперёд/назад, глядя, как при этом меняется вся карта (дома зависят
+  // от знака асцендента). Считается полностью в браузере — как и бегунок
+  // транзитов, использует резервный движок (в браузере Swiss Ephemeris
+  // недоступен), поэтому возможна погрешность в пределах пары секунд
+  // по времени границы — не критично для целей рэктификации на глаз.
+  // ============================================================
+  function pmodClient(x, n) { return ((x % n) + n) % n; }
+
+  function jdToLocalTimeStrClient(jd, utcOffsetHours) {
+    let localJd = jd + utcOffsetHours / 24;
+    localJd = Math.round(localJd * 86400) / 86400; // округляем до секунды
+    const jdShifted = localJd + 0.5;
+    const Z = Math.floor(jdShifted);
+    const F = jdShifted - Z;
+    let A;
+    if (Z < 2299161) A = Z;
+    else {
+      const alpha = Math.floor((Z - 1867216.25) / 36524.25);
+      A = Z + 1 + alpha - Math.floor(alpha / 4);
+    }
+    const B = A + 1524;
+    const C2 = Math.floor((B - 122.1) / 365.25);
+    const D = Math.floor(365.25 * C2);
+    const E = Math.floor((B - D) / 30.6001);
+    const dayFloat = B - D - Math.floor(30.6001 * E) + F;
+    const month = E < 14 ? E - 1 : E - 13;
+    const year = month > 2 ? C2 - 4716 : C2 - 4715;
+    const dayInt = Math.floor(dayFloat);
+    const dayFrac = dayFloat - dayInt;
+    const totalSec = Math.round(dayFrac * 86400);
+    const hh = Math.floor(totalSec / 3600), mm = Math.floor((totalSec % 3600) / 60), ss = totalSec % 60;
+    return {
+      dateStr: `${String(dayInt).padStart(2,'0')}.${String(month).padStart(2,'0')}`,
+      timeStr: `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`,
+    };
+  }
+
+  // Общий поиск границы знака асцендента (та же техника бисекции, что и
+  // для переходов титхи/накшатры в панчанге, только для угла асцендента).
+  function findAscBoundaryJD(jdNow, lat, lon, ayanamshaType, direction) {
+    const angleFn = (j) => window.JyotishEngine.ascendantSidereal(j, lat, lon, ayanamshaType);
+    const spanDeg = 30;
+    const nowVal = pmodClient(angleFn(jdNow), 360);
+    const idxNow = Math.floor(nowVal / spanDeg);
+    const targetRaw = direction > 0 ? (idxNow + 1) * spanDeg : idxNow * spanDeg;
+    function contVal(jd) {
+      let v = pmodClient(angleFn(jd), 360);
+      if (direction > 0) { while (v < nowVal - 1e-9) v += 360; }
+      else { while (v > nowVal + 1e-9) v -= 360; }
+      return v;
+    }
+    let step = direction > 0 ? 0.0007 : -0.0007; // ~1 минута
+    let b = jdNow, found = false;
+    for (let iter = 0; iter < 16; iter++) {
+      b = jdNow + step;
+      const vb = contVal(b);
+      const crossed = direction > 0 ? vb >= targetRaw : vb <= targetRaw;
+      if (crossed) { found = true; break; }
+      step *= 2;
+    }
+    if (!found) return null;
+    let a = jdNow;
+    for (let i = 0; i < 40; i++) {
+      const mid = (a + b) / 2;
+      const vm = contVal(mid);
+      const crossed = direction > 0 ? vm >= targetRaw : vm <= targetRaw;
+      if (crossed) b = mid; else a = mid;
+    }
+    return b;
+  }
+
+  let lagnaBirth = null; // {year,month,day,hour,minute,lat,lon,utcOffset}
+
+  function initLagnaScrubber(year, month, day, hour, minute, lat, lon, utcOffset) {
+    lagnaBirth = { year, month, day, hour, minute, lat, lon, utcOffset };
+    document.getElementById('lagna-slider').value = 0;
+    renderLagnaAt(0);
+  }
+
+  function renderLagnaAt(offsetMinutes) {
+    if (!lagnaBirth || !window.JyotishEngine) return;
+    const b = lagnaBirth;
+    const jd = window.JyotishEngine.jdFromDate(b.year, b.month, b.day, b.hour, b.minute, 0, b.utcOffset) + offsetMinutes / 1440;
+
+    const startJD = findAscBoundaryJD(jd, b.lat, b.lon, 'lahiri', -1);
+    const endJD = findAscBoundaryJD(jd, b.lat, b.lon, 'lahiri', 1);
+    const rangeLabel = document.getElementById('lagna-range-label');
+    if (startJD !== null && endJD !== null) {
+      const s = jdToLocalTimeStrClient(startJD, b.utcOffset);
+      const e = jdToLocalTimeStrClient(endJD, b.utcOffset);
+      rangeLabel.textContent = (s.dateStr === e.dateStr ? s.timeStr : `${s.dateStr} ${s.timeStr}`) + ' ↔ ' + (s.dateStr === e.dateStr ? e.timeStr : `${e.dateStr} ${e.timeStr}`);
+    } else {
+      rangeLabel.textContent = '—';
+    }
+    const cur = jdToLocalTimeStrClient(jd, b.utcOffset);
+    document.getElementById('lagna-current-time').textContent = (offsetMinutes === 0 ? cur.timeStr : cur.dateStr + ' ' + cur.timeStr);
+
+    // Пересчитываем ВСЮ карту на новый момент (дома зависят от знака асцендента)
+    // резервным движком — в браузере он единственный доступный.
+    const chartAtOffset = window.JyotishEngine.calculateChart({
+      year: b.year, month: b.month, day: b.day, hour: b.hour, minute: b.minute, second: offsetMinutes * 60,
+      utcOffset: b.utcOffset, lat: b.lat, lon: b.lon, ayanamshaType: 'lahiri',
+    });
+    renderChartSVG(chartAtOffset, 'chart-svg');
+    renderPlanetList(chartAtOffset);
+  }
+
+  document.getElementById('lagna-slider').addEventListener('input', (e) => {
+    renderLagnaAt(Number(e.target.value));
+  });
+
+  document.getElementById('lagna-reset-btn').addEventListener('click', () => {
+    document.getElementById('lagna-slider').value = 0;
+    renderLagnaAt(0);
+  });
+
+  // ============================================================
+  // «Добавить событие» к периоду даши: открывает заметку, заранее
+  // заполненную периодом и натальным положением задействованных планет
+  // (лордов маха-/антар-/пратьянтардаши), сохраняет в заметки архива.
+  // ============================================================
+  function openEventComposer(lords, startISO, endISO) {
+    const panel = document.getElementById('event-composer');
+    const startStr = fmtDate(startISO), endStr = fmtDate(endISO);
+    const levelWord = lords.length === 3 ? 'Пратьянтардаша' : lords.length === 2 ? 'Антардаша' : 'Махадаша';
+    document.getElementById('event-period-label').textContent = `${levelWord}: ${lords.join(' / ')} (${startStr} – ${endStr})`;
+
+    const posLines = lords.map(l => {
+      const p = currentChart && currentChart.planets[l];
+      return p ? `${l}: ${p.house} дом, ${p.sign.name}` : `${l}: —`;
+    });
+    document.getElementById('event-positions-label').textContent = posLines.join(' · ');
+    document.getElementById('event-note-text').value = `Период: ${levelWord} ${lords.join('/')} (${startStr}–${endStr})\n${posLines.join('; ')}\n\n`;
+    document.getElementById('event-error-msg').style.display = 'none';
+    panel.style.display = 'block';
+    if (panel.scrollIntoView) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function handleEventBtnClick(e) {
+    const btn = e.target.closest('[data-event-btn]');
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation(); // не даём клику схлопнуть <details>, если кнопка внутри summary/аккордеона
+    openEventComposer(JSON.parse(btn.dataset.lords), btn.dataset.start, btn.dataset.end);
+  }
+  document.getElementById('dasha-current').addEventListener('click', handleEventBtnClick);
+  document.getElementById('dasha-list').addEventListener('click', handleEventBtnClick);
+
+  document.getElementById('event-cancel-btn').addEventListener('click', () => {
+    document.getElementById('event-composer').style.display = 'none';
+  });
+
+  document.getElementById('event-save-btn').addEventListener('click', async () => {
+    const errorEl = document.getElementById('event-error-msg');
+    errorEl.style.display = 'none';
+    const noteText = document.getElementById('event-note-text').value.trim();
+    if (!noteText) { errorEl.textContent = 'Напишите, что произошло.'; errorEl.style.display = 'block'; return; }
+
+    try {
+      const tierRes = await fetch('/api/tier', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ initData: getInitData() }) });
+      const tierData = await tierRes.json();
+      if (!tierData.isPremium) {
+        document.getElementById('event-composer').style.display = 'none';
+        showUpgradePrompt();
+        return;
+      }
+    } catch (e) { /* если проверка не удалась — попробуем сохранить, сервер сам отклонит при необходимости */ }
+
+    try {
+      if (!currentArchiveChartId) {
+        if (!currentChartMeta) throw new Error('Карта не построена');
+        const { id } = await archiveApi('save', { label: currentChartMeta.name, params: currentChartMeta.params, placeLabel: currentChartMeta.placeLabel });
+        currentArchiveChartId = id;
+      }
+      await archiveApi('notes/add', { chartId: currentArchiveChartId, note: noteText });
+      document.getElementById('event-composer').style.display = 'none';
+      const msg = 'Заметка сохранена в архиве.';
+      if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showAlert) window.Telegram.WebApp.showAlert(msg);
+      else alert(msg);
+    } catch (e) {
+      errorEl.textContent = 'Не удалось сохранить: ' + e.message;
+      errorEl.style.display = 'block';
     }
   });
 </script>

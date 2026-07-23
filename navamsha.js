@@ -41,7 +41,7 @@ function calculateNavamsha(chart) {
   for (const [name, p] of Object.entries(chart.planets)) {
     const sign = navamshaPosition(p.siderealLon);
     const house = (sign.index - ascD9Sign.index + 12) % 12 + 1;
-    planets[name] = { sign, house };
+    planets[name] = { sign, house, retrograde: !!p.retrograde };
   }
 
   return {

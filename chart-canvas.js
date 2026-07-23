@@ -178,7 +178,7 @@ function drawDignityLegend(ctx, legendY, extraTransitDot) {
 // North Indian
 // ============================================================
 function renderNorthIndianPNG(chart, opts = {}) {
-  const { title = 'Натальная карта', subtitle = '', width = 900, chartSize = 640 } = opts;
+  const { title = 'Натальная карта', subtitle = '', width = 900, chartSize = 640, noHeader = false } = opts;
   const ascSignIdx = chart.ascendant.sign.index;
   const signPlanets = {};
   for (let i = 0; i < 12; i++) signPlanets[i] = [];
@@ -187,7 +187,7 @@ function renderNorthIndianPNG(chart, opts = {}) {
   }
 
   const order = ['Солнце','Луна','Меркурий','Венера','Марс','Юпитер','Сатурн','Раху','Кету'];
-  const headerH = 148;
+  const headerH = noHeader ? 20 : 148;
   const listRowH = 30;
   const legendH = 34;
   const listH = 40 + (order.length + 1) * listRowH + legendH;
@@ -200,7 +200,7 @@ function renderNorthIndianPNG(chart, opts = {}) {
   const ctx = canvas.getContext('2d');
   rect(ctx, 0, 0, width, totalH, { fill: COLORS.parchment });
 
-  drawHeader(ctx, width, title, subtitle);
+  if (!noHeader) drawHeader(ctx, width, title, subtitle);
 
   ctx.save();
   ctx.translate(chartOffsetX, chartOffsetY);
@@ -247,7 +247,7 @@ function renderNorthIndianPNG(chart, opts = {}) {
       const col = i % cols, row = Math.floor(i / cols);
       const px = startX + col * colGap, py = startY + row * rowGap;
       const color = COLORS[dignityOf(item.name, item.p.sign.index)];
-      text(ctx, PLANET_SYMBOLS[item.name], px, py, { font: `bold ${fontSize}px JKSans`, color, align: 'center', baseline: 'middle' });
+      text(ctx, PLANET_SYMBOLS[item.name] + (item.p.retrograde ? '℞' : ''), px, py, { font: `bold ${fontSize}px JKSans`, color, align: 'center', baseline: 'middle' });
     });
     planetsHere.forEach((item, i) => {
       const col = i % cols, row = Math.floor(i / cols);
@@ -282,7 +282,7 @@ function renderNorthIndianPNG(chart, opts = {}) {
     const y = listStartY + (i + 1) * listRowH + 14;
     const color = COLORS[dignityOf(name, p.sign.index)];
     if (i % 2 === 0) rect(ctx, 30, y - 18, width - 60, listRowH, { fill: COLORS.parchmentCard });
-    text(ctx, PLANET_SYMBOLS[name], 40, y, { font: 'bold 14px JKSans', color });
+    text(ctx, PLANET_SYMBOLS[name] + (p.retrograde ? '℞' : ''), 40, y, { font: 'bold 14px JKSans', color });
     text(ctx, name, 70, y, { font: '14px JKSans', color: COLORS.ink });
     text(ctx, `${p.sign.index + 1}. ${p.sign.name}`, 180, y, { font: '14px JKSans', color: COLORS.ink });
     text(ctx, dmsFromDeg(p.sign.degInSign), 280, y, { font: '14px JKSans', color: COLORS.inkSoft });
@@ -303,7 +303,7 @@ const SOUTH_GRID_LAYOUT = [
 ];
 
 function renderSouthIndianPNG(natalChart, opts = {}) {
-  const { title = 'Натальная карта', subtitle = '', width = 900, chartSize = 640 } = opts;
+  const { title = 'Натальная карта', subtitle = '', width = 900, chartSize = 640, noHeader = false } = opts;
   const ascSignIdx = natalChart.ascendant.sign.index;
 
   const signPlanets = {};
@@ -313,7 +313,7 @@ function renderSouthIndianPNG(natalChart, opts = {}) {
   }
 
   const order = ['Солнце','Луна','Меркурий','Венера','Марс','Юпитер','Сатурн','Раху','Кету'];
-  const headerH = 148;
+  const headerH = noHeader ? 20 : 148;
   const listRowH = 30;
   const legendH = 34;
   const listH = 40 + (order.length + 1) * listRowH + legendH;
@@ -326,7 +326,7 @@ function renderSouthIndianPNG(natalChart, opts = {}) {
   const ctx = canvas.getContext('2d');
   rect(ctx, 0, 0, width, totalH, { fill: COLORS.parchment });
 
-  drawHeader(ctx, width, title, subtitle);
+  if (!noHeader) drawHeader(ctx, width, title, subtitle);
 
   ctx.save();
   ctx.translate(chartOffsetX, chartOffsetY);
@@ -367,7 +367,7 @@ function renderSouthIndianPNG(natalChart, opts = {}) {
       const col = i % cols, row = Math.floor(i / cols);
       const px = startX + col * colGap, py = startY + row * rowGap;
       const color = COLORS[dignityOf(item.name, item.p.sign.index)];
-      text(ctx, PLANET_SYMBOLS[item.name], px, py, { font: `bold ${fontSize}px JKSans`, color, align: 'center', baseline: 'middle' });
+      text(ctx, PLANET_SYMBOLS[item.name] + (item.p.retrograde ? '℞' : ''), px, py, { font: `bold ${fontSize}px JKSans`, color, align: 'center', baseline: 'middle' });
     });
     planetsHere.forEach((item, i) => {
       const col = i % cols, row = Math.floor(i / cols);
@@ -406,7 +406,7 @@ function renderSouthIndianPNG(natalChart, opts = {}) {
     const y = listStartY + (i + 1) * listRowH + 14;
     const color = COLORS[dignityOf(name, p.sign.index)];
     if (i % 2 === 0) rect(ctx, 30, y - 18, width - 60, listRowH, { fill: COLORS.parchmentCard });
-    text(ctx, PLANET_SYMBOLS[name], 40, y, { font: 'bold 14px JKSans', color });
+    text(ctx, PLANET_SYMBOLS[name] + (p.retrograde ? '℞' : ''), 40, y, { font: 'bold 14px JKSans', color });
     text(ctx, name, 70, y, { font: '14px JKSans', color: COLORS.ink });
     text(ctx, `${p.sign.index + 1}. ${p.sign.name}`, 180, y, { font: '14px JKSans', color: COLORS.ink });
     text(ctx, dmsFromDeg(p.sign.degInSign), 280, y, { font: '14px JKSans', color: COLORS.inkSoft });
@@ -422,7 +422,7 @@ function renderSouthIndianPNG(natalChart, opts = {}) {
 const TRANSIT_COLOR = '#6b8299';
 
 function renderNorthIndianWithTransitsPNG(natalChart, transitsResult, opts = {}) {
-  const { title = 'Транзиты', subtitle = '', width = 900, chartSize = 640 } = opts;
+  const { title = 'Транзиты', subtitle = '', width = 900, chartSize = 640, noHeader = false } = opts;
   const ascSignIdx = natalChart.ascendant.sign.index;
 
   const signPlanets = {};
@@ -437,7 +437,7 @@ function renderNorthIndianWithTransitsPNG(natalChart, transitsResult, opts = {})
     transitsByHouse[t.transitHouse].push({ name, t });
   }
 
-  const headerH = 148;
+  const headerH = noHeader ? 20 : 148;
   const listRowH = 30;
   const legendH = 34;
   const listH = 40 + 12 * listRowH + legendH;
@@ -450,7 +450,7 @@ function renderNorthIndianWithTransitsPNG(natalChart, transitsResult, opts = {})
   const ctx = canvas.getContext('2d');
   rect(ctx, 0, 0, width, totalH, { fill: COLORS.parchment });
 
-  drawHeader(ctx, width, title, subtitle);
+  if (!noHeader) drawHeader(ctx, width, title, subtitle);
 
   ctx.save();
   ctx.translate(chartOffsetX, chartOffsetY);
@@ -497,7 +497,7 @@ function renderNorthIndianWithTransitsPNG(natalChart, transitsResult, opts = {})
       const col = i % cols, row = Math.floor(i / cols);
       const px = startX + col * colGap, py = startY + row * rowGap;
       const color = COLORS[dignityOf(item.name, item.p.sign.index)];
-      text(ctx, PLANET_SYMBOLS[item.name], px, py, { font: `bold ${fontSize}px JKSans`, color, align: 'center', baseline: 'middle' });
+      text(ctx, PLANET_SYMBOLS[item.name] + (item.p.retrograde ? '℞' : ''), px, py, { font: `bold ${fontSize}px JKSans`, color, align: 'center', baseline: 'middle' });
     });
     planetsHere.forEach((item, i) => {
       const col = i % cols, row = Math.floor(i / cols);
@@ -570,7 +570,7 @@ function renderNorthIndianWithTransitsPNG(natalChart, transitsResult, opts = {})
 // показываются — там оценивают только знак/дом/достоинство).
 // ============================================================
 function renderDivisionalPNG(d9chart, opts = {}) {
-  const { title = 'Навамша (D9)', subtitle = '', width = 900, chartSize = 640 } = opts;
+  const { title = 'Навамша (D9)', subtitle = '', width = 900, chartSize = 640, noHeader = false } = opts;
   const ascSignIdx = d9chart.ascendant.sign.index;
   const signPlanets = {};
   for (let i = 0; i < 12; i++) signPlanets[i] = [];
@@ -579,7 +579,7 @@ function renderDivisionalPNG(d9chart, opts = {}) {
   }
 
   const order = ['Солнце','Луна','Меркурий','Венера','Марс','Юпитер','Сатурн','Раху','Кету'];
-  const headerH = 148;
+  const headerH = noHeader ? 20 : 148;
   const listRowH = 30;
   const legendH = 34;
   const listH = 40 + (order.length + 1) * listRowH + legendH;
@@ -592,7 +592,7 @@ function renderDivisionalPNG(d9chart, opts = {}) {
   const ctx = canvas.getContext('2d');
   rect(ctx, 0, 0, width, totalH, { fill: COLORS.parchment });
 
-  drawHeader(ctx, width, title, subtitle);
+  if (!noHeader) drawHeader(ctx, width, title, subtitle);
 
   ctx.save();
   ctx.translate(chartOffsetX, chartOffsetY);
@@ -639,7 +639,7 @@ function renderDivisionalPNG(d9chart, opts = {}) {
       const col = i % cols, row = Math.floor(i / cols);
       const px = startX + col * colGap, py = startY + row * rowGap;
       const color = COLORS[dignityOf(item.name, item.p.sign.index)];
-      text(ctx, PLANET_SYMBOLS[item.name], px, py, { font: `bold ${fontSize}px JKSans`, color, align: 'center', baseline: 'middle' });
+      text(ctx, PLANET_SYMBOLS[item.name] + (item.p.retrograde ? '℞' : ''), px, py, { font: `bold ${fontSize}px JKSans`, color, align: 'center', baseline: 'middle' });
     });
     planetsHere.forEach((item, i) => {
       const col = i % cols, row = Math.floor(i / cols);
@@ -674,7 +674,7 @@ function renderDivisionalPNG(d9chart, opts = {}) {
     const y = listStartY + (i + 1) * listRowH + 14;
     const color = COLORS[dignityOf(name, p.sign.index)];
     if (i % 2 === 0) rect(ctx, 30, y - 18, width - 60, listRowH, { fill: COLORS.parchmentCard });
-    text(ctx, PLANET_SYMBOLS[name], 40, y, { font: 'bold 14px JKSans', color });
+    text(ctx, PLANET_SYMBOLS[name] + (p.retrograde ? '℞' : ''), 40, y, { font: 'bold 14px JKSans', color });
     text(ctx, name, 70, y, { font: '14px JKSans', color: COLORS.ink });
     text(ctx, `${p.sign.index + 1}. ${p.sign.name}`, 180, y, { font: '14px JKSans', color: COLORS.ink });
     text(ctx, dmsFromDeg(p.sign.degInSign), 280, y, { font: '14px JKSans', color: COLORS.inkSoft });

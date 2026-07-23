@@ -15,6 +15,7 @@ const { calculateNavamsha } = require('./navamsha.js');
 const { calculateDashamsha } = require('./dashamsha.js');
 const { calculateVarga: calculateOtherVarga, VARGA_DEFS } = require('./divisional-charts.js');
 const { computeCalendarMonth, computeDateSearch, GOALS } = require('./date-tools.js');
+const { buildChartExportPDF } = require('./chart-export-pdf.js');
 const { resolveCity } = require('./ru-timezone.js');
 const { resolveWorldCity } = require('./world-geocoding.js');
 const db = require('./database.js');
@@ -390,6 +391,45 @@ function startWebApp() {
 
 
   // ---------- «Дни»: персональный календарь и поиск дат под цель (Premium) ----------
+  // ---------- Экспорт карты в PDF (выбор разделов) ----------
+  app.post('/api/export-pdf', requireTelegramUser, (req, res) => {
+    try {
+      const { name, dateStr, timeStr, placeLabel, chart, birthDateUTC, sections } = req.body;
+      const isPremiumUser = db.isPremium(req.tgUser.id);
+      const FREE_VARGAS = ['d9', 'd10'];
+
+      const requestedVargas = (sections && sections.vargas) || [];
+      const allowedVargas = requestedVargas.filter(k => FREE_VARGAS.includes(k) || isPremiumUser);
+
+      let transitsResult = null;
+      if (sections && sections.transits) {
+        transitsResult = computeCurrentTransits(chart, new Date());
+      }
+      let dashaData = null;
+      if (sections && sections.periods) {
+        const mahadashas = computeVimshottariDasha(chart, new Date(birthDateUTC));
+        const chain = findCurrentDashaChain(mahadashas, new Date());
+        dashaData = { mahadashas, chain };
+      }
+
+      buildChartExportPDF({
+        name: name || 'Без имени', dateStr, timeStr, placeLabel, chart,
+        sections: { chart: !!(sections && sections.chart), vargas: allowedVargas, transits: !!(sections && sections.transits), periods: !!(sections && sections.periods) },
+        transitsResult, dashaData,
+      }).then(buf => {
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'attachment; filename="chart-export.pdf"');
+        res.send(buf);
+      }).catch(e => {
+        console.error(e);
+        res.status(500).json({ error: e.message });
+      });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   app.post('/api/goals', (req, res) => {
     res.json({ goals: Object.entries(GOALS).map(([key, g]) => ({ key, label: g.label })) });
   });

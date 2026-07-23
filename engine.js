@@ -358,12 +358,32 @@ function calculateChartFallback(params) {
 
   const ascTropical = ascendantTropical(jd, lat, lon);
 
+  // Ретроградность — численно: сравниваем долготу сейчас и немного раньше.
+  // Если она УМЕНЬШИЛАСЬ (с поправкой на переход через 0°/360°) — планета ретроградна.
+  const NEVER_RETROGRADE = new Set(['Солнце', 'Луна']);
+  const RETRO_FN = {
+    Меркурий: (j) => geocentricLon('mercury', j), Венера: (j) => geocentricLon('venus', j),
+    Марс: (j) => geocentricLon('mars', j), Юпитер: (j) => geocentricLon('jupiter', j),
+    Сатурн: (j) => geocentricLon('saturn', j),
+  };
+  function isRetrograde(name, jdNow) {
+    if (NEVER_RETROGRADE.has(name)) return false;
+    if (name === 'Раху' || name === 'Кету') return true; // средний узел всегда ретрограден
+    const fn = RETRO_FN[name];
+    if (!fn) return false;
+    const dt = 0.25; // ~6 часов назад — достаточно для устойчивого знака скорости
+    const now = fn(jdNow), before = fn(jdNow - dt);
+    let diff = now - before;
+    if (diff > 180) diff -= 360; else if (diff < -180) diff += 360; // переход через 0°/360°
+    return diff < 0;
+  }
+
   const planets = {};
   for (const [name, tropLon] of Object.entries(tropicalPositions)) {
     const sidLon = pmod(tropLon - ayanamsha, 360);
     const sign = signOf(sidLon);
     const nak = nakshatraOf(sidLon);
-    planets[name] = { siderealLon: sidLon, sign, nakshatra: nak };
+    planets[name] = { siderealLon: sidLon, sign, nakshatra: nak, retrograde: isRetrograde(name, jd) };
   }
 
   const ascSidereal = pmod(ascTropical - ayanamsha, 360);
@@ -413,13 +433,21 @@ function calculateChartSwisseph(params) {
     Солнце: swe.SE_SUN, Луна: swe.SE_MOON, Меркурий: swe.SE_MERCURY, Венера: swe.SE_VENUS,
     Марс: swe.SE_MARS, Юпитер: swe.SE_JUPITER, Сатурн: swe.SE_SATURN,
   };
+  const NEVER_RETROGRADE = new Set(['Солнце', 'Луна']); // светила по традиции ретроградными не считаются
   const siderealLons = {};
+  const retrogradeFlags = {};
   for (const [name, code] of Object.entries(bodyCodes)) {
-    siderealLons[name] = pmod(swe.swe_calc_ut(jd, code, flag).longitude, 360);
+    const res = swe.swe_calc_ut(jd, code, flag);
+    siderealLons[name] = pmod(res.longitude, 360);
+    retrogradeFlags[name] = !NEVER_RETROGRADE.has(name) && res.longitudeSpeed < 0;
   }
   const rahuSid = pmod(swe.swe_calc_ut(jd, swe.SE_MEAN_NODE, swe.SEFLG_MOSEPH | swe.SEFLG_SIDEREAL).longitude, 360);
   siderealLons['Раху'] = rahuSid;
   siderealLons['Кету'] = pmod(rahuSid + 180, 360);
+  // Средний узел (Раху/Кету) по определению всегда движется в обратном направлении —
+  // традиционно считается постоянно ретроградным.
+  retrogradeFlags['Раху'] = true;
+  retrogradeFlags['Кету'] = true;
 
   const housesRes = swe.swe_houses_ex(jd, swe.SEFLG_MOSEPH | swe.SEFLG_SIDEREAL, lat, lon, 'P');
   const ascSidereal = pmod(housesRes.ascendant, 360);
@@ -428,7 +456,7 @@ function calculateChartSwisseph(params) {
   for (const [name, sidLon] of Object.entries(siderealLons)) {
     const sign = signOf(sidLon);
     const nak = nakshatraOf(sidLon);
-    planets[name] = { siderealLon: sidLon, sign, nakshatra: nak };
+    planets[name] = { siderealLon: sidLon, sign, nakshatra: nak, retrograde: !!retrogradeFlags[name] };
   }
 
   const ascSign = signOf(ascSidereal);
@@ -457,15 +485,30 @@ function calculateChart(params) {
   return calculateChartFallback(params);
 }
 
+// Сидерический асцендент на произвольный момент — нужен для поиска
+// границ смены Лагны (бегунок "диапазон действия Лагны" в интерфейсе).
+// Использует тот же путь, что и основной расчёт карты (Swiss Ephemeris
+// сидерически напрямую, либо резервный движок тропически минус аянамша).
+function ascendantSidereal(jd, latDeg, lonDeg, ayanamshaType) {
+  if (SWISSEPH_AVAILABLE) {
+    const sidMode = ayanamshaType === 'raman' ? swe.SE_SIDM_RAMAN : swe.SE_SIDM_LAHIRI;
+    swe.swe_set_sid_mode(sidMode, 0, 0);
+    const res = swe.swe_houses_ex(jd, swe.SEFLG_MOSEPH | swe.SEFLG_SIDEREAL, latDeg, lonDeg, 'P');
+    return pmod(res.ascendant, 360);
+  }
+  const ayanamsha = ayanamshaType === 'raman' ? ramanAyanamshaFallback(jd) : lahiriAyanamshaFallback(jd);
+  return pmod(ascendantTropicalFallback(jd, latDeg, lonDeg) - ayanamsha, 360);
+}
+
 if (typeof window !== 'undefined') {
   window.JyotishEngine = {
     calculateChart, jdFromDate, lahiriAyanamsha, ramanAyanamsha,
-    sunLongitude, moonLongitude,
+    sunLongitude, moonLongitude, ascendantSidereal,
   };
 }
 if (typeof module !== 'undefined') {
   module.exports = {
     calculateChart, jdFromDate, lahiriAyanamsha, ramanAyanamsha,
-    sunLongitude, moonLongitude, SWISSEPH_AVAILABLE,
+    sunLongitude, moonLongitude, ascendantSidereal, SWISSEPH_AVAILABLE,
   };
 }

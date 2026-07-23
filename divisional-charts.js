@@ -193,7 +193,7 @@ function buildVargaChart(chart, positionFn) {
   for (const [name, p] of Object.entries(chart.planets)) {
     const sign = positionFn(p.siderealLon);
     const house = (sign.index - ascSign.index + 12) % 12 + 1;
-    planets[name] = { sign, house };
+    planets[name] = { sign, house, retrograde: !!p.retrograde };
   }
   return { ascendant: { sign: ascSign }, planets };
 }
