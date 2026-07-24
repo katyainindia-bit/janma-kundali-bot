@@ -420,6 +420,27 @@
   .antar-row.has-note > summary, .dasha-accordion.has-note > summary { background: #FBF3DF; cursor: pointer; }
   .praty-row:last-child { border-bottom: none; }
 
+  .period-tooltip {
+    position: fixed;
+    z-index: 9999;
+    max-width: 280px;
+    background: var(--card-light);
+    border: 1px solid var(--gold);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--ink);
+    box-shadow: 0 8px 24px rgba(31,31,31,0.16);
+    white-space: pre-line;
+    opacity: 0;
+    transform: translateY(4px);
+    pointer-events: none;
+    transition: opacity .12s ease, transform .12s ease;
+  }
+  .period-tooltip.visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
+  .period-tooltip .period-tooltip-date { display:block; font-size:11px; color: var(--gold); font-weight:600; letter-spacing:.03em; margin-bottom:4px; }
+
   /* ---------- Нижняя навигация ---------- */
   .bottom-nav {
     position: fixed;
@@ -1716,9 +1737,7 @@
   }
 
   function noteTitleAttr(startISO) {
-    const notes = periodNotesMap[startISO];
-    if (!notes) return '';
-    return ` title="${escapeHtml(notes.map(n => n.note).join(' | '))}"`;
+    return ''; // содержимое теперь показывается в кастомном period-tooltip (наведение/тап), а не в системной подсказке
   }
 
   function renderDasha(mahadashas, chain) {
@@ -1780,25 +1799,86 @@
     if (lastMahadashas) renderDasha(lastMahadashas, lastChain);
   }
 
-  function showPeriodNotePopup(startISO) {
-    const notes = periodNotesMap[startISO] || [];
-    if (notes.length === 0) return;
-    const text = notes.map(n => n.note).join('\n\n———\n\n');
-    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showAlert) window.Telegram.WebApp.showAlert(text);
-    else alert(text);
+  let periodTooltipEl = null;
+  let periodTooltipOpenFor = null;
+
+  function ensurePeriodTooltip() {
+    if (!periodTooltipEl) {
+      periodTooltipEl = document.createElement('div');
+      periodTooltipEl.className = 'period-tooltip';
+      document.body.appendChild(periodTooltipEl);
+    }
+    return periodTooltipEl;
+  }
+
+  function showPeriodTooltip(targetEl, startISO) {
+    const notes = periodNotesMap[startISO];
+    if (!notes || notes.length === 0) return;
+    const tip = ensurePeriodTooltip();
+    tip.innerHTML = `<span class="period-tooltip-date">${fmtDate(startISO)}</span>${escapeHtml(notes.map(n => n.note).join('\n\n———\n\n'))}`;
+    tip.classList.add('visible');
+    const rect = targetEl.getBoundingClientRect();
+    const margin = 10;
+    let left = rect.left;
+    if (left + 280 > window.innerWidth - margin) left = window.innerWidth - 280 - margin;
+    if (left < margin) left = margin;
+    tip.style.left = left + 'px';
+    tip.style.top = (rect.bottom + 6) + 'px';
+    requestAnimationFrame(() => {
+      const th = tip.offsetHeight;
+      if (rect.bottom + th + 10 > window.innerHeight) {
+        tip.style.top = Math.max(margin, rect.top - th - 6) + 'px';
+      }
+    });
+  }
+
+  function hidePeriodTooltip() {
+    if (periodTooltipEl) periodTooltipEl.classList.remove('visible');
+    periodTooltipOpenFor = null;
+  }
+
+  function toggleTooltipForRow(row) {
+    if (!row) return;
+    const startISO = row.dataset.periodStart;
+    if (!periodNotesMap[startISO]) return;
+    if (periodTooltipOpenFor === startISO) { hidePeriodTooltip(); return; }
+    showPeriodTooltip(row, startISO);
+    periodTooltipOpenFor = startISO;
   }
 
   function handlePeriodRowClick(e) {
     if (e.target.closest('[data-event-btn]')) return; // кнопка "добавить событие" — своя логика
     const marker = e.target.closest('.note-marker');
-    if (marker) { e.preventDefault(); e.stopPropagation(); showPeriodNotePopup(marker.dataset.periodStart); return; }
+    if (marker) { e.preventDefault(); e.stopPropagation(); toggleTooltipForRow(marker.closest('[data-period-start]')); return; }
     const row = e.target.closest('[data-period-start]');
     if (row && periodNotesMap[row.dataset.periodStart]) {
-      showPeriodNotePopup(row.dataset.periodStart);
+      toggleTooltipForRow(row);
     }
   }
   document.getElementById('dasha-current').addEventListener('click', handlePeriodRowClick);
   document.getElementById('dasha-list').addEventListener('click', handlePeriodRowClick);
+
+  // Наведение мышью (десктоп): показываем тултип, пока курсор над периодом с заметкой
+  function handlePeriodMouseOver(e) {
+    const row = e.target.closest('[data-period-start]');
+    if (row && periodNotesMap[row.dataset.periodStart] && periodTooltipOpenFor !== row.dataset.periodStart) {
+      showPeriodTooltip(row, row.dataset.periodStart);
+      periodTooltipOpenFor = row.dataset.periodStart;
+    }
+  }
+  function handlePeriodMouseOut(e) {
+    const row = e.target.closest('[data-period-start]');
+    if (row && (!e.relatedTarget || !row.contains(e.relatedTarget))) hidePeriodTooltip();
+  }
+  document.getElementById('dasha-current').addEventListener('mouseover', handlePeriodMouseOver);
+  document.getElementById('dasha-current').addEventListener('mouseout', handlePeriodMouseOut);
+  document.getElementById('dasha-list').addEventListener('mouseover', handlePeriodMouseOver);
+  document.getElementById('dasha-list').addEventListener('mouseout', handlePeriodMouseOut);
+
+  // Тап/клик вне периода и вне тултипа — закрыть тултип
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('[data-period-start]') && !e.target.closest('.period-tooltip')) hidePeriodTooltip();
+  });
 
   function renderTransits(transits, natalChart) {
     const order = ['Солнце','Луна','Меркурий','Венера','Марс','Юпитер','Сатурн','Раху','Кету'];
