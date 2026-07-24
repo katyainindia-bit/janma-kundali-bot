@@ -25,7 +25,7 @@ const FONT_SERIF = path.join(__dirname, 'fonts', 'DejaVuSerif.ttf');
 const FONT_SERIF_BOLD = path.join(__dirname, 'fonts', 'DejaVuSerif-Bold.ttf');
 const FONT_SANS = path.join(__dirname, 'fonts', 'DejaVuSans.ttf');
 const FONT_SANS_BOLD = path.join(__dirname, 'fonts', 'DejaVuSans-Bold.ttf');
-const LOGO_PATH = path.join(__dirname, 'assets', 'logo-ink.png');
+const LOGO_PATH = path.join(__dirname, 'public', 'assets', 'janma-icon.png');
 const BOT_LINK = 'https://t.me/janma_kundali_bot';
 const BOT_LINK_LABEL = 't.me/janma_kundali_bot';
 
@@ -43,12 +43,12 @@ function fmtDate(d) {
 
 function drawHeader(doc, title, subtitle) {
   doc.rect(0, 0, doc.page.width, doc.page.height).fill(COLORS.parchment);
+  // Один логотип — как в приложении: значок + "Janma Kundali" + "by Katya Das"
   try {
-    doc.image(LOGO_PATH, 50, 16, { width: 38 });
+    doc.image(LOGO_PATH, 50, 18, { width: 30 });
   } catch (e) { /* лого недоступно — не критично */ }
-  const rightBoxX = 50, rightBoxW = doc.page.width - 100;
-  doc.fillColor(COLORS.ink).font(FONT_SERIF_BOLD).fontSize(13).text('Джанма Кундали', rightBoxX, 22, { width: rightBoxW, align: 'right' });
-  doc.fillColor(COLORS.gold).font(FONT_SANS).fontSize(10).text(BOT_LINK_LABEL, rightBoxX, 40, { width: rightBoxW, align: 'right', link: BOT_LINK, underline: false });
+  doc.fillColor(COLORS.ink).font(FONT_SERIF_BOLD).fontSize(15).text('Janma Kundali', 88, 20);
+  doc.fillColor(COLORS.gold).font(FONT_SANS).fontSize(9).text('by Katya Das', 88, 38);
 
   doc.fillColor(COLORS.ink).font(FONT_SERIF_BOLD).fontSize(20).text(title, 50, 66, { align: 'center', width: doc.page.width - 100 });
   if (subtitle) {
@@ -68,6 +68,23 @@ function drawPeriodRow(doc, label, value, y, opts = {}) {
   doc.fillColor(COLORS.inkSoft).font(FONT_SANS).fontSize(10).text(label, 55, y, { width: 150 });
   doc.fillColor(highlight ? COLORS.goldBright : COLORS.ink).font(highlight ? FONT_SANS_BOLD : FONT_SANS).fontSize(11).text(value, 210, y - 1);
   return y + 22;
+}
+
+function drawSubPeriodRow(doc, indent, label, value, y, opts = {}) {
+  const { highlight = false, fontSize = 10, bold = false } = opts;
+  if (highlight) doc.rect(45, y - 3, doc.page.width - 90, fontSize + 8).fill('#fff9ee');
+  doc.fillColor(COLORS.inkSoft).font(FONT_SANS).fontSize(fontSize).text(label, 55 + indent, y, { width: 170 - indent });
+  doc.fillColor(highlight ? COLORS.goldBright : COLORS.ink).font(bold ? FONT_SANS_BOLD : FONT_SANS).fontSize(fontSize).text(value, 220, y - 0.5);
+  return y + fontSize + 8;
+}
+
+function ensureSpace(doc, y, needed, title, subtitle) {
+  if (y + needed > doc.page.height - 60) {
+    doc.addPage();
+    drawHeader(doc, title, subtitle);
+    return 152;
+  }
+  return y;
 }
 
 function embedImage(doc, buffer, topY) {
@@ -134,9 +151,11 @@ function buildChartExportPDF({ name, dateStr, timeStr, placeLabel, chart, sectio
     }
 
     if (sections.periods && dashaData) {
-      newPage('Периоды Вимшоттари даша');
+      const periodsTitle = 'Периоды Вимшоттари даша';
+      newPage(periodsTitle);
       let y = 152;
       const { mahadashas, chain } = dashaData;
+      const periodsMode = sections.periodsMode === 'full' ? 'full' : 'current';
 
       if (chain) {
         y = drawSectionTitle(doc, 'Текущий период', y);
@@ -150,15 +169,63 @@ function buildChartExportPDF({ name, dateStr, timeStr, placeLabel, chart, sectio
         y += 16;
       }
 
-      y = drawSectionTitle(doc, 'Махадаши жизни', y);
-      for (const md of mahadashas) {
-        if (y > doc.page.height - 80) {
-          doc.addPage();
-          drawHeader(doc, 'Периоды Вимшоттари даша', subtitle);
-          y = 152;
+      if (periodsMode === 'full') {
+        // Полный режим: оглавление + отдельная страница на каждую махадашу
+        // со всеми антардашами и пратьянтардашами — как в отдельном отчёте по дашам.
+        y = drawSectionTitle(doc, 'Оглавление — махадаши жизни', y);
+        for (const md of mahadashas) {
+          y = ensureSpace(doc, y, 22, periodsTitle, subtitle);
+          const isCurrent = chain && md.lord === chain.mahadasha.lord && new Date(md.start).getTime() === new Date(chain.mahadasha.start).getTime();
+          y = drawPeriodRow(doc, md.lord, `${fmtDate(new Date(md.start))} – ${fmtDate(new Date(md.end))}`, y, { highlight: isCurrent });
         }
-        const isCurrent = chain && md.lord === chain.mahadasha.lord && new Date(md.start).getTime() === new Date(chain.mahadasha.start).getTime();
-        y = drawPeriodRow(doc, md.lord, `${fmtDate(new Date(md.start))} – ${fmtDate(new Date(md.end))}`, y, { highlight: isCurrent });
+
+        for (const md of mahadashas) {
+          doc.addPage();
+          const chapterTitle = `Махадаша: ${md.lord}`;
+          const chapterSubtitle = `${fmtDate(new Date(md.start))} – ${fmtDate(new Date(md.end))}  ·  ${subtitle}`;
+          drawHeader(doc, chapterTitle, chapterSubtitle);
+          y = 152;
+
+          for (const ad of md.antardashas) {
+            y = ensureSpace(doc, y, 40, chapterTitle, chapterSubtitle);
+            const isCurrentAD = chain && chain.antardasha && ad.lord === chain.antardasha.lord && ad.start === chain.antardasha.start;
+            y = drawSubPeriodRow(doc, 0, 'Антардаша', `${ad.lord}  (${fmtDate(new Date(ad.start))} – ${fmtDate(new Date(ad.end))})`, y, { highlight: isCurrentAD, fontSize: 11.5, bold: true });
+
+            for (const pd of ad.pratyantardashas) {
+              y = ensureSpace(doc, y, 22, chapterTitle, chapterSubtitle);
+              const isCurrentPD = chain && chain.pratyantardasha && pd.lord === chain.pratyantardasha.lord && pd.start === chain.pratyantardasha.start;
+              y = drawSubPeriodRow(doc, 22, 'Пратьянтардаша', `${pd.lord}  (${fmtDate(new Date(pd.start))} – ${fmtDate(new Date(pd.end))})`, y, { highlight: isCurrentPD, fontSize: 9.5 });
+            }
+            y += 6;
+          }
+        }
+      } else {
+        // Обычный режим: список всех махадаш жизни + текущая махадаша развёрнута
+        // целиком (все её антардаши и пратьянтардаши), чтобы не было "пусто".
+        y = drawSectionTitle(doc, 'Махадаши жизни', y);
+        for (const md of mahadashas) {
+          y = ensureSpace(doc, y, 22, periodsTitle, subtitle);
+          const isCurrent = chain && md.lord === chain.mahadasha.lord && new Date(md.start).getTime() === new Date(chain.mahadasha.start).getTime();
+          y = drawPeriodRow(doc, md.lord, `${fmtDate(new Date(md.start))} – ${fmtDate(new Date(md.end))}`, y, { highlight: isCurrent });
+        }
+
+        const currentMD = chain ? mahadashas.find(md => md.lord === chain.mahadasha.lord && new Date(md.start).getTime() === new Date(chain.mahadasha.start).getTime()) : null;
+        if (currentMD) {
+          y += 16;
+          y = ensureSpace(doc, y, 30, periodsTitle, subtitle);
+          y = drawSectionTitle(doc, `Внутри текущей махадаши (${currentMD.lord})`, y);
+          for (const ad of currentMD.antardashas) {
+            y = ensureSpace(doc, y, 40, periodsTitle, subtitle);
+            const isCurrentAD = chain && chain.antardasha && ad.lord === chain.antardasha.lord && ad.start === chain.antardasha.start;
+            y = drawSubPeriodRow(doc, 0, 'Антардаша', `${ad.lord}  (${fmtDate(new Date(ad.start))} – ${fmtDate(new Date(ad.end))})`, y, { highlight: isCurrentAD, fontSize: 11.5, bold: true });
+            for (const pd of ad.pratyantardashas) {
+              y = ensureSpace(doc, y, 22, periodsTitle, subtitle);
+              const isCurrentPD = chain && chain.pratyantardasha && pd.lord === chain.pratyantardasha.lord && pd.start === chain.pratyantardasha.start;
+              y = drawSubPeriodRow(doc, 22, 'Пратьянтардаша', `${pd.lord}  (${fmtDate(new Date(pd.start))} – ${fmtDate(new Date(pd.end))})`, y, { highlight: isCurrentPD, fontSize: 9.5 });
+            }
+            y += 6;
+          }
+        }
       }
     }
 

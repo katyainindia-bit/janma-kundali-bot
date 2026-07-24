@@ -426,7 +426,7 @@ function startWebApp() {
 
       buildChartExportPDF({
         name: name || 'Без имени', dateStr, timeStr, placeLabel, chart,
-        sections: { chart: !!(sections && sections.chart), vargas: allowedVargas, transits: !!(sections && sections.transits), periods: !!(sections && sections.periods) },
+        sections: { chart: !!(sections && sections.chart), vargas: allowedVargas, transits: !!(sections && sections.transits), periods: !!(sections && sections.periods), periodsMode: sections && sections.periodsMode },
         transitsResult, dashaData,
       }).then(buf => {
         const token = crypto.randomBytes(16).toString('hex');

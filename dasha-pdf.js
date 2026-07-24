@@ -19,7 +19,7 @@ const FONT_SERIF = path.join(__dirname, 'fonts', 'DejaVuSerif.ttf');
 const FONT_SERIF_BOLD = path.join(__dirname, 'fonts', 'DejaVuSerif-Bold.ttf');
 const FONT_SANS = path.join(__dirname, 'fonts', 'DejaVuSans.ttf');
 const FONT_SANS_BOLD = path.join(__dirname, 'fonts', 'DejaVuSans-Bold.ttf');
-const LOGO_PATH = path.join(__dirname, 'assets', 'logo-ink.png');
+const LOGO_PATH = path.join(__dirname, 'public', 'assets', 'janma-icon.png');
 const BOT_LINK = 'https://t.me/janma_kundali_bot';
 const BOT_LINK_LABEL = 't.me/janma_kundali_bot';
 
@@ -30,15 +30,14 @@ function fmtDate(d) {
 function drawHeader(doc, title, subtitle) {
   doc.rect(0, 0, doc.page.width, doc.page.height).fill(COLORS.parchment);
 
-  // Логотип слева, название и кликабельная ссылка — в правом углу
+  // Один логотип — как в приложении: значок + "Janma Kundali" + "by Katya Das"
   try {
-    doc.image(LOGO_PATH, 50, 16, { width: 38 });
+    doc.image(LOGO_PATH, 50, 18, { width: 30 });
   } catch (e) {
     // если файл логотипа недоступен — просто пропускаем, не ломаем PDF
   }
-  const rightBoxX = 50, rightBoxW = doc.page.width - 100;
-  doc.fillColor(COLORS.ink).font(FONT_SERIF_BOLD).fontSize(13).text('Джанма Кундали', rightBoxX, 22, { width: rightBoxW, align: 'right' });
-  doc.fillColor(COLORS.gold).font(FONT_SANS).fontSize(10).text(BOT_LINK_LABEL, rightBoxX, 40, { width: rightBoxW, align: 'right', link: BOT_LINK, underline: false });
+  doc.fillColor(COLORS.ink).font(FONT_SERIF_BOLD).fontSize(15).text('Janma Kundali', 88, 20);
+  doc.fillColor(COLORS.gold).font(FONT_SANS).fontSize(9).text('by Katya Das', 88, 38);
 
   doc.fillColor(COLORS.ink).font(FONT_SERIF_BOLD).fontSize(20).text(title, 50, 66, { align: 'center', width: doc.page.width - 100 });
   if (subtitle) {

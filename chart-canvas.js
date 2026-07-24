@@ -155,8 +155,26 @@ function circle(ctx, cx, cy, r, color) {
 
 // Ретроградность — чёрточка НАД символом планеты (комбинирующий U+0305),
 // а не буква — компактнее и привычнее по виду классических распечаток.
-function retroText(symbol, isRetro) {
-  return isRetro ? symbol.split('').map(c => c + '\u0305').join('') : symbol;
+// Ретроградность — настоящая линия НАД символом (по замеренной ширине текста),
+// а не диакритик U+0305 (тот давал разрывы между буквами на некоторых шрифтах).
+function drawRetroBar(ctx, str, x, y, { font, color, align = 'left', baseline = 'alphabetic' }) {
+  ctx.font = font;
+  const w = ctx.measureText(str).width;
+  const sizeMatch = font.match(/(\d+(?:\.\d+)?)px/);
+  const fontSize = sizeMatch ? parseFloat(sizeMatch[1]) : 12;
+  let barX1, barX2;
+  if (align === 'center') { barX1 = x - w / 2 - 1.5; barX2 = x + w / 2 + 1.5; }
+  else if (align === 'right') { barX1 = x - w - 1.5; barX2 = x + 1.5; }
+  else { barX1 = x - 1.5; barX2 = x + w + 1.5; }
+  const topOffset = baseline === 'middle' ? fontSize * 0.55 : fontSize * 0.82;
+  const barY = y - topOffset - 3;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(1.4, fontSize * 0.11);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(barX1, barY);
+  ctx.lineTo(barX2, barY);
+  ctx.stroke();
 }
 
 function drawHeader(ctx, width, title, subtitle) {
@@ -254,7 +272,8 @@ function renderNorthIndianPNG(chart, opts = {}) {
       const col = i % cols, row = Math.floor(i / cols);
       const px = startX + col * colGap, py = startY + row * rowGap;
       const color = COLORS[dignityOf(item.name, item.p.sign.index)];
-      text(ctx, retroText(PLANET_SYMBOLS[item.name], item.p.retrograde), px, py, { font: `bold ${fontSize}px JKSans`, color, align: 'center', baseline: 'middle' });
+      text(ctx, PLANET_SYMBOLS[item.name], px, py, { font: `bold ${fontSize}px JKSans`, color, align: 'center', baseline: 'middle' });
+      if (item.p.retrograde) drawRetroBar(ctx, PLANET_SYMBOLS[item.name], px, py, { font: `bold ${fontSize}px JKSans`, color, align: 'center', baseline: 'middle' });
     });
     planetsHere.forEach((item, i) => {
       const col = i % cols, row = Math.floor(i / cols);
@@ -279,7 +298,7 @@ function renderNorthIndianPNG(chart, opts = {}) {
     const y = listStartY + 14;
     rect(ctx, 30, y - 18, width - 60, listRowH, { fill: '#fbf6ec' });
     text(ctx, 'Лагна', 40, y, { font: 'bold 13px JKSans', color: COLORS.gold });
-    text(ctx, `${asc.sign.index + 1}. ${asc.sign.name}`, 180, y, { font: '14px JKSans', color: COLORS.ink });
+    text(ctx, `${asc.sign.name}`, 180, y, { font: '14px JKSans', color: COLORS.ink });
     text(ctx, dmsFromDeg(asc.sign.degInSign), 280, y, { font: '14px JKSans', color: COLORS.inkSoft });
     text(ctx, `${asc.nakshatra.name} (пада ${asc.nakshatra.pada})`, 400, y, { font: '14px JKSans', color: COLORS.ink });
   }
@@ -289,9 +308,10 @@ function renderNorthIndianPNG(chart, opts = {}) {
     const y = listStartY + (i + 1) * listRowH + 14;
     const color = COLORS[dignityOf(name, p.sign.index)];
     if (i % 2 === 0) rect(ctx, 30, y - 18, width - 60, listRowH, { fill: COLORS.parchmentCard });
-    text(ctx, retroText(PLANET_SYMBOLS[name], p.retrograde), 40, y, { font: 'bold 14px JKSans', color });
+    text(ctx, PLANET_SYMBOLS[name], 40, y, { font: 'bold 14px JKSans', color });
+    if (p.retrograde) drawRetroBar(ctx, PLANET_SYMBOLS[name], 40, y, { font: 'bold 14px JKSans', color, align: 'left', baseline: 'alphabetic' });
     text(ctx, name, 70, y, { font: '14px JKSans', color: COLORS.ink });
-    text(ctx, `${p.sign.index + 1}. ${p.sign.name}`, 180, y, { font: '14px JKSans', color: COLORS.ink });
+    text(ctx, `${p.sign.name}`, 180, y, { font: '14px JKSans', color: COLORS.ink });
     text(ctx, dmsFromDeg(p.sign.degInSign), 280, y, { font: '14px JKSans', color: COLORS.inkSoft });
     text(ctx, `${p.nakshatra.name} (пада ${p.nakshatra.pada})`, 400, y, { font: '14px JKSans', color: COLORS.ink });
   });
@@ -374,7 +394,8 @@ function renderSouthIndianPNG(natalChart, opts = {}) {
       const col = i % cols, row = Math.floor(i / cols);
       const px = startX + col * colGap, py = startY + row * rowGap;
       const color = COLORS[dignityOf(item.name, item.p.sign.index)];
-      text(ctx, retroText(PLANET_SYMBOLS[item.name], item.p.retrograde), px, py, { font: `bold ${fontSize}px JKSans`, color, align: 'center', baseline: 'middle' });
+      text(ctx, PLANET_SYMBOLS[item.name], px, py, { font: `bold ${fontSize}px JKSans`, color, align: 'center', baseline: 'middle' });
+      if (item.p.retrograde) drawRetroBar(ctx, PLANET_SYMBOLS[item.name], px, py, { font: `bold ${fontSize}px JKSans`, color, align: 'center', baseline: 'middle' });
     });
     planetsHere.forEach((item, i) => {
       const col = i % cols, row = Math.floor(i / cols);
@@ -403,7 +424,7 @@ function renderSouthIndianPNG(natalChart, opts = {}) {
     const y = listStartY + 14;
     rect(ctx, 30, y - 18, width - 60, listRowH, { fill: '#fbf6ec' });
     text(ctx, 'Лагна', 40, y, { font: 'bold 13px JKSans', color: COLORS.gold });
-    text(ctx, `${asc.sign.index + 1}. ${asc.sign.name}`, 180, y, { font: '14px JKSans', color: COLORS.ink });
+    text(ctx, `${asc.sign.name}`, 180, y, { font: '14px JKSans', color: COLORS.ink });
     text(ctx, dmsFromDeg(asc.sign.degInSign), 280, y, { font: '14px JKSans', color: COLORS.inkSoft });
     text(ctx, `${asc.nakshatra.name} (пада ${asc.nakshatra.pada})`, 400, y, { font: '14px JKSans', color: COLORS.ink });
   }
@@ -413,9 +434,10 @@ function renderSouthIndianPNG(natalChart, opts = {}) {
     const y = listStartY + (i + 1) * listRowH + 14;
     const color = COLORS[dignityOf(name, p.sign.index)];
     if (i % 2 === 0) rect(ctx, 30, y - 18, width - 60, listRowH, { fill: COLORS.parchmentCard });
-    text(ctx, retroText(PLANET_SYMBOLS[name], p.retrograde), 40, y, { font: 'bold 14px JKSans', color });
+    text(ctx, PLANET_SYMBOLS[name], 40, y, { font: 'bold 14px JKSans', color });
+    if (p.retrograde) drawRetroBar(ctx, PLANET_SYMBOLS[name], 40, y, { font: 'bold 14px JKSans', color, align: 'left', baseline: 'alphabetic' });
     text(ctx, name, 70, y, { font: '14px JKSans', color: COLORS.ink });
-    text(ctx, `${p.sign.index + 1}. ${p.sign.name}`, 180, y, { font: '14px JKSans', color: COLORS.ink });
+    text(ctx, `${p.sign.name}`, 180, y, { font: '14px JKSans', color: COLORS.ink });
     text(ctx, dmsFromDeg(p.sign.degInSign), 280, y, { font: '14px JKSans', color: COLORS.inkSoft });
     text(ctx, `${p.nakshatra.name} (пада ${p.nakshatra.pada})`, 400, y, { font: '14px JKSans', color: COLORS.ink });
   });
@@ -504,7 +526,8 @@ function renderNorthIndianWithTransitsPNG(natalChart, transitsResult, opts = {})
       const col = i % cols, row = Math.floor(i / cols);
       const px = startX + col * colGap, py = startY + row * rowGap;
       const color = COLORS[dignityOf(item.name, item.p.sign.index)];
-      text(ctx, retroText(PLANET_SYMBOLS[item.name], item.p.retrograde), px, py, { font: `bold ${fontSize}px JKSans`, color, align: 'center', baseline: 'middle' });
+      text(ctx, PLANET_SYMBOLS[item.name], px, py, { font: `bold ${fontSize}px JKSans`, color, align: 'center', baseline: 'middle' });
+      if (item.p.retrograde) drawRetroBar(ctx, PLANET_SYMBOLS[item.name], px, py, { font: `bold ${fontSize}px JKSans`, color, align: 'center', baseline: 'middle' });
     });
     planetsHere.forEach((item, i) => {
       const col = i % cols, row = Math.floor(i / cols);
@@ -646,7 +669,8 @@ function renderDivisionalPNG(d9chart, opts = {}) {
       const col = i % cols, row = Math.floor(i / cols);
       const px = startX + col * colGap, py = startY + row * rowGap;
       const color = COLORS[dignityOf(item.name, item.p.sign.index)];
-      text(ctx, retroText(PLANET_SYMBOLS[item.name], item.p.retrograde), px, py, { font: `bold ${fontSize}px JKSans`, color, align: 'center', baseline: 'middle' });
+      text(ctx, PLANET_SYMBOLS[item.name], px, py, { font: `bold ${fontSize}px JKSans`, color, align: 'center', baseline: 'middle' });
+      if (item.p.retrograde) drawRetroBar(ctx, PLANET_SYMBOLS[item.name], px, py, { font: `bold ${fontSize}px JKSans`, color, align: 'center', baseline: 'middle' });
     });
     planetsHere.forEach((item, i) => {
       const col = i % cols, row = Math.floor(i / cols);
@@ -671,7 +695,7 @@ function renderDivisionalPNG(d9chart, opts = {}) {
     const y = listStartY + 14;
     rect(ctx, 30, y - 18, width - 60, listRowH, { fill: '#fbf6ec' });
     text(ctx, 'Лагна', 40, y, { font: 'bold 13px JKSans', color: COLORS.gold });
-    text(ctx, `${asc.sign.index + 1}. ${asc.sign.name}`, 180, y, { font: '14px JKSans', color: COLORS.ink });
+    text(ctx, `${asc.sign.name}`, 180, y, { font: '14px JKSans', color: COLORS.ink });
     text(ctx, dmsFromDeg(asc.sign.degInSign), 280, y, { font: '14px JKSans', color: COLORS.inkSoft });
     text(ctx, '1', 400, y, { font: '14px JKSans', color: COLORS.ink });
   }
@@ -681,9 +705,10 @@ function renderDivisionalPNG(d9chart, opts = {}) {
     const y = listStartY + (i + 1) * listRowH + 14;
     const color = COLORS[dignityOf(name, p.sign.index)];
     if (i % 2 === 0) rect(ctx, 30, y - 18, width - 60, listRowH, { fill: COLORS.parchmentCard });
-    text(ctx, retroText(PLANET_SYMBOLS[name], p.retrograde), 40, y, { font: 'bold 14px JKSans', color });
+    text(ctx, PLANET_SYMBOLS[name], 40, y, { font: 'bold 14px JKSans', color });
+    if (p.retrograde) drawRetroBar(ctx, PLANET_SYMBOLS[name], 40, y, { font: 'bold 14px JKSans', color, align: 'left', baseline: 'alphabetic' });
     text(ctx, name, 70, y, { font: '14px JKSans', color: COLORS.ink });
-    text(ctx, `${p.sign.index + 1}. ${p.sign.name}`, 180, y, { font: '14px JKSans', color: COLORS.ink });
+    text(ctx, `${p.sign.name}`, 180, y, { font: '14px JKSans', color: COLORS.ink });
     text(ctx, dmsFromDeg(p.sign.degInSign), 280, y, { font: '14px JKSans', color: COLORS.inkSoft });
     text(ctx, String(p.house), 400, y, { font: '14px JKSans', color: COLORS.ink });
   });
