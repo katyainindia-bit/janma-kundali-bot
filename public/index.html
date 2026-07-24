@@ -243,6 +243,7 @@
   }
   .cal-day.good { background: #E3F0E0; color: #3f6b3a; }
   .cal-day.bad { background: #F5E3E0; color: #a8654a; }
+  .cal-event-icon { position: absolute; top: 1px; right: 2px; font-size: 9px; line-height: 1; }
   .cal-day .dot-change {
     position: absolute; top: 3px; right: 3px; width: 5px; height: 5px;
     border-radius: 50%; background: var(--gold);
@@ -547,6 +548,18 @@
         <button class="btn-primary" id="today-upgrade-btn">Оформить Premium</button>
       </div>
       <div id="today-content" style="display:none;">
+        <div class="info-card" id="today-events-card" style="display:none;">
+          <div class="name" style="margin-bottom:6px;">События сегодня</div>
+          <div id="today-events"></div>
+        </div>
+        <div class="info-card" id="today-supported-card" style="display:none;">
+          <div class="name" style="margin-bottom:6px;">✅ Что сегодня поддержано</div>
+          <div id="today-supported"></div>
+        </div>
+        <div class="info-card" id="today-postpone-card" style="display:none;">
+          <div class="name" style="margin-bottom:6px;">⚠ Что лучше отложить</div>
+          <div id="today-postpone"></div>
+        </div>
         <div class="info-card" style="display:block;">
           <div class="name" style="margin-bottom:6px;">Сейчас действует</div>
           <div class="current-period-row"><span class="label">Махадаша</span><span class="value" id="today-maha">—</span></div>
@@ -563,6 +576,10 @@
         <div class="form-card" style="padding:16px;">
           <h2 style="font-size:15px;margin-bottom:10px;">Заметные транзиты сегодня</h2>
           <div id="today-notable"></div>
+        </div>
+        <div class="form-card" style="padding:16px;" id="today-upcoming-card">
+          <h2 style="font-size:15px;margin-bottom:10px;">Ближайшие события</h2>
+          <div id="today-upcoming"></div>
         </div>
       </div>
       <div class="error-msg" id="today-error-msg"></div>
@@ -817,8 +834,8 @@
     <div class="tab-content" id="daystab-search">
       <div class="form-card" style="padding:16px;">
         <div class="field">
-          <label for="search-goal-select">Цель</label>
-          <select id="search-goal-select"></select>
+          <label for="search-action-select">Действие</label>
+          <select id="search-action-select"></select>
         </div>
         <div class="field">
           <label for="search-from-date">С какой даты искать</label>
@@ -828,8 +845,17 @@
           <label for="search-to-date">По какую дату</label>
           <input type="date" id="search-to-date">
         </div>
-        <button class="btn-primary" id="search-run-btn" style="margin-top:14px;">Найти благоприятные окна</button>
+        <button class="btn-primary" id="search-run-btn" style="margin-top:14px;">Показать в календаре</button>
       </div>
+      <div class="form-card" id="search-cal-card" style="padding:16px;display:none;">
+        <div class="name" id="search-cal-label" style="margin-bottom:10px;">—</div>
+        <div id="search-cal-grid" class="cal-grid"></div>
+        <div class="chip-row" style="margin-top:14px;">
+          <span class="chip" style="cursor:default;">🟢 благоприятно</span>
+          <span class="chip" style="cursor:default;">🔴 требует осторожности</span>
+        </div>
+      </div>
+      <div id="search-day-detail" class="form-card" style="padding:16px;display:none;"></div>
       <div id="search-results"></div>
     </div>
   </div>
@@ -971,6 +997,19 @@
     Telegram.WebApp.ready();
     Telegram.WebApp.expand();
   }
+
+  // Соответствует EVENT_TYPES/EVENT_ICONS в calendar-events.js на сервере
+  // (отдельная копия — серверный модуль напрямую в браузер не попадает)
+  const EVENT_ICONS = {
+    'Праздник': '🕉️',
+    'Затмение (лунное)': '🌘',
+    'Затмение (солнечное)': '🌞',
+    'Санкранти': '🪐',
+    'Пурнима': '🌕',
+    'Амавасья': '🌑',
+    'Экадаши': '🌙',
+    'Особый день': '✨',
+  };
 
   const PLANET_SYMBOLS = {
     'Солнце':'Su','Луна':'Mo','Меркурий':'Me','Венера':'Ve','Марс':'Ma',
@@ -2432,6 +2471,39 @@
       const hint = MOON_HOUSE_HINT[data.moonTransitHouse] || '';
       document.getElementById('today-moon-house').textContent = `${data.moonTransitHouse}-й дом${hint ? ' — ' + hint : ''}`;
 
+      const eventsCard = document.getElementById('today-events-card');
+      if (data.events && data.events.length > 0) {
+        document.getElementById('today-events').innerHTML = data.events.map(ev => `<div class="note-item"><div class="note-text">${escapeHtml(ev.label)}</div></div>`).join('');
+        eventsCard.style.display = 'block';
+      } else {
+        eventsCard.style.display = 'none';
+      }
+
+      const supportedCard = document.getElementById('today-supported-card');
+      if (data.supported && data.supported.length > 0) {
+        document.getElementById('today-supported').innerHTML = data.supported.map(l => `<div class="note-item"><div class="note-text">${escapeHtml(l)}</div></div>`).join('');
+        supportedCard.style.display = 'block';
+      } else {
+        supportedCard.style.display = 'none';
+      }
+
+      const postponeCard = document.getElementById('today-postpone-card');
+      if (data.postpone && data.postpone.length > 0) {
+        document.getElementById('today-postpone').innerHTML = data.postpone.map(l => `<div class="note-item"><div class="note-text">${escapeHtml(l)}</div></div>`).join('');
+        postponeCard.style.display = 'block';
+      } else {
+        postponeCard.style.display = 'none';
+      }
+
+      const upcomingEl = document.getElementById('today-upcoming');
+      if (data.upcomingEvents && data.upcomingEvents.length > 0) {
+        upcomingEl.innerHTML = data.upcomingEvents.map(ev => `
+          <div class="note-item"><div class="note-text">${escapeHtml(ev.label)} <span class="sub">— через ${ev.daysAhead} дн. (${fmtDate(ev.date)})</span></div></div>
+        `).join('');
+      } else {
+        upcomingEl.innerHTML = '<div style="font-size:13px;color:var(--taupe);">В ближайшее время особых дат не найдено.</div>';
+      }
+
       const notableEl = document.getElementById('today-notable');
       if (data.notableTransits.length === 0) {
         notableEl.innerHTML = '<div style="font-size:13px;color:var(--taupe);">Сегодня нет транзитов к чувствительным точкам карты.</div>';
@@ -2490,7 +2562,7 @@
 
     contentEl.style.display = 'block';
     await renderCalendarMonth();
-    await loadGoalsIntoSelect();
+    await loadActionsIntoSelect();
     const today = new Date();
     document.getElementById('search-from-date').value = today.toISOString().slice(0, 10);
     document.getElementById('search-to-date').value = new Date(today.getTime() + 90 * 86400000).toISOString().slice(0, 10);
@@ -2534,21 +2606,47 @@
       data.days.forEach(d => {
         const cls = d.taraQuality.includes('наименее') || d.taraQuality === 'неблагоприятно' ? 'bad'
           : (d.taraQuality.includes('наиболее') || d.taraQuality === 'благоприятно') ? 'good' : '';
-        html += `<div class="cal-day ${cls}" data-day="${d.day}">${d.day}${d.dashaChange ? '<span class="dot-change"></span>' : ''}</div>`;
+        const eventIcon = (d.events && d.events[0]) ? `<span class="cal-event-icon">${EVENT_ICONS[d.events[0].type] || '✨'}</span>` : '';
+        html += `<div class="cal-day ${cls}" data-day="${d.day}">${d.day}${d.dashaChange ? '<span class="dot-change"></span>' : ''}${eventIcon}</div>`;
       });
       grid.innerHTML = html;
 
       grid.querySelectorAll('.cal-day[data-day]').forEach(cell => {
-        cell.addEventListener('click', () => {
-          const d = data.days.find(x => x.day === Number(cell.dataset.day));
+        cell.addEventListener('click', async () => {
+          const day = Number(cell.dataset.day);
           const detail = document.getElementById('cal-day-detail');
           detail.style.display = 'block';
-          detail.innerHTML = `
-            <div class="name" style="margin-bottom:6px;">${String(d.day).padStart(2,'0')}.${String(calMonth).padStart(2,'0')}.${calYear}</div>
-            <div class="current-period-row"><span class="label">Тара-бала</span><span class="value">${d.taraName} (${d.taraQuality})</span></div>
-            <div class="current-period-row"><span class="label">Титхи</span><span class="value">${d.tithi}</span></div>
-            ${d.dashaChange ? `<div class="current-period-row"><span class="label">Смена периода</span><span class="value">${d.dashaChange.level}: ${d.dashaChange.lord}</span></div>` : ''}
-          `;
+          detail.innerHTML = '<div style="font-size:13px;color:var(--taupe);">Загрузка…</div>';
+          try {
+            const p2 = currentChartMeta.params;
+            const birthDateUTC2 = new Date(Date.UTC(p2.year, p2.month - 1, p2.day, p2.hour, p2.minute, 0) - p2.utcOffset * 3600000).toISOString();
+            const detRes = await fetch('/api/day-detail', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ initData: getInitData(), chart: currentChart, birthDateUTC: birthDateUTC2, year: calYear, month: calMonth, day, lat: p2.lat, lon: p2.lon, utcOffset: p2.utcOffset })
+            });
+            const dd = await detRes.json();
+            if (!detRes.ok) throw new Error(dd.error || 'Ошибка');
+
+            const pn = dd.panchanga;
+            detail.innerHTML = `
+              <div class="name" style="margin-bottom:8px;">${dd.date}</div>
+              ${dd.events.length ? `<div style="margin-bottom:8px;">${dd.events.map(ev => `<div class="note-item"><div class="note-text">${escapeHtml(EVENT_ICONS[ev.type]||'')} ${escapeHtml(ev.label)}</div></div>`).join('')}</div>` : ''}
+              <div class="current-period-row"><span class="label">Вара</span><span class="value">${pn.vara}</span></div>
+              <div class="current-period-row"><span class="label">Титхи</span><span class="value">${pn.tithi.name} (${pn.tithi.paksha})</span></div>
+              <div class="current-period-row"><span class="label">Накшатра дня</span><span class="value">${pn.nakshatraOfDay}</span></div>
+              <div class="current-period-row"><span class="label">Йога</span><span class="value">${pn.yoga.name}</span></div>
+              <div class="current-period-row"><span class="label">Карана</span><span class="value">${pn.karana.name}</span></div>
+              <div class="current-period-row"><span class="label">Тара-бала</span><span class="value">${dd.taraBala.name} (${dd.taraBala.quality})</span></div>
+              ${dd.dashaChangeToday ? `<div class="current-period-row"><span class="label">Смена периода</span><span class="value">${dd.dashaChangeToday.level}: ${dd.dashaChangeToday.lord}</span></div>` : ''}
+              <div class="current-period-row"><span class="label">🌅 Восход</span><span class="value">${pn.sunrise||'—'}</span></div>
+              <div class="current-period-row"><span class="label">🌇 Закат</span><span class="value">${pn.sunset||'—'}</span></div>
+              ${pn.rahuKalam ? `<div class="current-period-row" style="color:#a8654a;"><span class="label">⚠️ Раху-калам</span><span class="value">${pn.rahuKalam.start}–${pn.rahuKalam.end}</span></div>` : ''}
+              ${dd.supported.length ? `<div style="margin-top:10px;font-size:13px;"><b>✅ Поддержано:</b> ${dd.supported.map(escapeHtml).join(', ')}</div>` : ''}
+              ${dd.postpone.length ? `<div style="margin-top:6px;font-size:13px;"><b>⚠ Лучше отложить:</b> ${dd.postpone.map(escapeHtml).join(', ')}</div>` : ''}
+            `;
+          } catch (e) {
+            detail.innerHTML = `<div class="error-msg" style="display:block;">Не удалось загрузить: ${escapeHtml(e.message)}</div>`;
+          }
         });
       });
     } catch (e) {
@@ -2567,13 +2665,13 @@
     renderCalendarMonth();
   });
 
-  async function loadGoalsIntoSelect() {
-    const select = document.getElementById('search-goal-select');
+  async function loadActionsIntoSelect() {
+    const select = document.getElementById('search-action-select');
     if (select.dataset.loaded) return;
     try {
-      const res = await fetch('/api/goals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const res = await fetch('/api/actions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
       const data = await res.json();
-      select.innerHTML = data.goals.map(g => `<option value="${g.key}">${g.label}</option>`).join('');
+      select.innerHTML = data.actions.map(a => `<option value="${a.key}">${a.label}</option>`).join('');
       select.dataset.loaded = '1';
     } catch (e) { /* останется пустым — не критично */ }
   }
@@ -2581,40 +2679,53 @@
   document.getElementById('search-run-btn').addEventListener('click', async () => {
     const errorEl = document.getElementById('days-error-msg');
     errorEl.style.display = 'none';
-    const resultsEl = document.getElementById('search-results');
-    resultsEl.innerHTML = '<div style="font-size:13px;color:var(--taupe);">Считаю…</div>';
+    const calCard = document.getElementById('search-cal-card');
+    const dayDetail = document.getElementById('search-day-detail');
+    dayDetail.style.display = 'none';
+    calCard.style.display = 'block';
+    document.getElementById('search-cal-grid').innerHTML = '<div style="grid-column:1/-1;text-align:center;font-size:12px;color:var(--taupe);">Считаю…</div>';
 
-    const goal = document.getElementById('search-goal-select').value;
+    const actionKey = document.getElementById('search-action-select').value;
     const fromDate = document.getElementById('search-from-date').value;
     const toDate = document.getElementById('search-to-date').value;
     const p = currentChartMeta.params;
     const birthDateUTC = new Date(Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, 0) - p.utcOffset * 3600000).toISOString();
 
     try {
-      const res = await fetch('/api/date-search', {
+      const res = await fetch('/api/action-date-search', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData: getInitData(), chart: currentChart, birthDateUTC, lat: p.lat, lon: p.lon, utcOffset: p.utcOffset, goal, fromDate, toDate })
+        body: JSON.stringify({ initData: getInitData(), chart: currentChart, birthDateUTC, lat: p.lat, lon: p.lon, utcOffset: p.utcOffset, action: actionKey, fromDate, toDate })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Ошибка');
 
-      if (data.windows.length === 0) {
-        resultsEl.innerHTML = '<div class="form-card" style="padding:16px;font-size:13px;color:var(--taupe);">В этом диапазоне не нашлось окон, где ключевые для этой цели периоды даши совпадают с хорошим днём. Попробуйте более широкий диапазон.</div>';
-        return;
-      }
-      resultsEl.innerHTML = `
-        <div style="font-size:11px;color:var(--taupe);margin-bottom:10px;">Смотрим на: ${data.relevantLords.join(', ')}</div>
-        ${data.windows.map(w => `
-          <div class="search-window">
-            <div class="sw-dates">${w.start.split('-').reverse().join('.')} — ${w.end.split('-').reverse().join('.')}</div>
-            <div class="sw-score">оценка периода: ${w.maxScore}</div>
-          </div>
-        `).join('')}
-      `;
+      document.getElementById('search-cal-label').textContent = data.actionLabel;
+      const grid = document.getElementById('search-cal-grid');
+      const firstDate = new Date(data.days[0].date + 'T00:00:00Z');
+      const firstDow = (firstDate.getUTCDay() + 6) % 7;
+      let html = '';
+      for (let i = 0; i < firstDow; i++) html += '<div></div>';
+      data.days.forEach(d => {
+        const dt = new Date(d.date + 'T00:00:00Z');
+        html += `<div class="cal-day ${d.quality === 'good' ? 'good' : d.quality === 'bad' ? 'bad' : ''}" data-date="${d.date}">${dt.getUTCDate()}</div>`;
+      });
+      grid.innerHTML = html;
+
+      grid.querySelectorAll('.cal-day[data-date]').forEach(cell => {
+        cell.addEventListener('click', () => {
+          const d = data.days.find(x => x.date === cell.dataset.date);
+          dayDetail.style.display = 'block';
+          const lines = [...d.favorable.map(f => `✅ ${f}`), ...d.restrictions.map(r => `⚠ ${r}`)];
+          dayDetail.innerHTML = `
+            <div class="name" style="margin-bottom:6px;">${d.date.split('-').reverse().join('.')}</div>
+            ${lines.length ? lines.map(l => `<div class="note-item"><div class="note-text">${escapeHtml(l)}</div></div>`).join('') : '<div style="font-size:13px;color:var(--taupe);">Нейтральный день — явных факторов не найдено.</div>'}
+          `;
+        });
+      });
     } catch (e) {
-      errorEl.textContent = 'Не удалось найти даты: ' + e.message;
+      errorEl.textContent = 'Не удалось построить календарь: ' + e.message;
       errorEl.style.display = 'block';
-      resultsEl.innerHTML = '';
+      calCard.style.display = 'none';
     }
   });
 

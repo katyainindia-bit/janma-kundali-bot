@@ -6,6 +6,9 @@
 
 const { computeVimshottariDasha, findCurrentDashaChain } = require('./dasha.js');
 const { computePanchanga, computeTaraBala } = require('./panchanga.js');
+const { computeCurrentTransits } = require('./transits.js');
+const { ACTIONS, evaluateAction } = require('./muhurta.js');
+const { getEventsForDate } = require('./calendar-events.js');
 
 const SIGN_LORDS = ['Марс','Венера','Меркурий','Луна','Солнце','Меркурий','Венера','Марс','Юпитер','Сатурн','Сатурн','Юпитер'];
 
@@ -91,9 +94,74 @@ function computeCalendarMonth(chart, birthDateUTC, year, month, lat, lon, utcOff
       taraQuality: q.taraBala.quality,
       tithi: q.tithi.name,
       dashaChange,
+      vara: q.vara,
+      events: getEventsForDate(year, month, d, q.tithi.number),
     });
   }
   return days;
+}
+
+/**
+ * Полная детализация одного дня: панчанга целиком (то, что раньше показывала
+ * отдельная вкладка «Панчанга») + даши на эту дату + движок мухурты
+ * (что поддержано / что лучше отложить) + астрологические события дня.
+ */
+function computeDayDetail(chart, birthDateUTC, year, month, day, lat, lon, utcOffset) {
+  const dateAtNoonUTC = new Date(Date.UTC(year, month - 1, day, 12, 0, 0) - utcOffset * 3600000);
+
+  const panchanga = computePanchanga(year, month, day, 12, 0, lat, lon, utcOffset);
+
+  const nakSpan = 360 / 27;
+  const natalMoonNakIdx = Math.floor(chart.planets['Луна'].siderealLon / nakSpan);
+  const taraBala = computeTaraBala(natalMoonNakIdx, panchanga.nakshatraOfDayIdx);
+
+  const mahadashas = computeVimshottariDasha(chart, birthDateUTC);
+  const chain = findCurrentDashaChain(mahadashas, dateAtNoonUTC);
+
+  function isSameUTCDate(d1, d2) {
+    return d1.getUTCFullYear() === d2.getUTCFullYear() && d1.getUTCMonth() === d2.getUTCMonth() && d1.getUTCDate() === d2.getUTCDate();
+  }
+  let dashaChangeToday = null;
+  if (chain) {
+    if (chain.pratyantardasha && isSameUTCDate(new Date(chain.pratyantardasha.start), dateAtNoonUTC)) {
+      dashaChangeToday = { level: 'пратьянтардаша', lord: chain.pratyantardasha.lord };
+    } else if (chain.antardasha && isSameUTCDate(new Date(chain.antardasha.start), dateAtNoonUTC)) {
+      dashaChangeToday = { level: 'антардаша', lord: chain.antardasha.lord };
+    } else if (isSameUTCDate(new Date(chain.mahadasha.start), dateAtNoonUTC)) {
+      dashaChangeToday = { level: 'махадаша', lord: chain.mahadasha.lord };
+    }
+  }
+
+  const transits = computeCurrentTransits(chart, dateAtNoonUTC);
+  const moonTransitHouse = transits.planets['Луна'].transitHouse;
+
+  const dayCtx = {
+    tithiNumber: panchanga.tithi.number,
+    nakshatraIdx: panchanga.nakshatraOfDayIdx,
+    weekdayIdx: new Date(Date.UTC(year, month - 1, day)).getUTCDay(),
+    taraBala,
+    dashaChangeToday,
+    moonHouseFromLagna: moonTransitHouse,
+  };
+  const muhurtaResults = Object.keys(ACTIONS)
+    .filter(key => ACTIONS[key].roles && Object.keys(ACTIONS[key].roles).length > 0)
+    .map(key => evaluateAction(key, dayCtx));
+  const supported = muhurtaResults.filter(r => r.restrictions.length === 0 && r.favorable.length > 0).map(r => r.label).slice(0, 4);
+  const postpone = muhurtaResults.filter(r => r.restrictions.length > 0).map(r => r.label).slice(0, 4);
+
+  const events = getEventsForDate(year, month, day, panchanga.tithi.number);
+
+  return {
+    date: `${String(day).padStart(2, '0')}.${String(month).padStart(2, '0')}.${year}`,
+    panchanga,
+    taraBala,
+    chain,
+    dashaChangeToday,
+    moonTransitHouse,
+    supported,
+    postpone,
+    events,
+  };
 }
 
 /**
@@ -173,4 +241,69 @@ function computeDateSearch(chart, birthDateUTC, lat, lon, utcOffset, goalKey, fr
   };
 }
 
-module.exports = { GOALS, computeCalendarMonth, computeDateSearch };
+module.exports = { GOALS, computeCalendarMonth, computeDateSearch, computeDayDetail, computeActionDateSearch };
+
+/**
+ * Поиск по цели на новом движке мухурты: сканирует диапазон дат для
+ * конкретного действия (не старых 8 целей, а из ACTIONS в muhurta.js),
+ * возвращает по каждому дню классификацию (good/neutral/bad) — для
+ * подсветки в календаре, а не список «окон».
+ */
+function computeActionDateSearch(chart, birthDateUTC, lat, lon, utcOffset, actionKey, fromDateUTC, toDateUTC) {
+  const action = ACTIONS[actionKey];
+  if (!action) throw new Error('Неизвестное действие: ' + actionKey);
+
+  const nakSpan = 360 / 27;
+  const natalMoonNakIdx = Math.floor(chart.planets['Луна'].siderealLon / nakSpan);
+  const mahadashas = computeVimshottariDasha(chart, birthDateUTC);
+
+  const maxDays = 200; // защита от слишком широкого диапазона
+  const dayMs = 24 * 3600 * 1000;
+  const totalDays = Math.min(maxDays, Math.round((toDateUTC - fromDateUTC) / dayMs) + 1);
+
+  function isSameUTCDate(d1, d2) {
+    return d1.getUTCFullYear() === d2.getUTCFullYear() && d1.getUTCMonth() === d2.getUTCMonth() && d1.getUTCDate() === d2.getUTCDate();
+  }
+
+  const days = [];
+  for (let i = 0; i < totalDays; i++) {
+    const dateUTC = new Date(fromDateUTC.getTime() + i * dayMs);
+    const p = computePanchanga(dateUTC.getUTCFullYear(), dateUTC.getUTCMonth() + 1, dateUTC.getUTCDate(), 12, 0, lat, lon, utcOffset);
+    const taraBala = computeTaraBala(natalMoonNakIdx, p.nakshatraOfDayIdx);
+    const chain = findCurrentDashaChain(mahadashas, dateUTC);
+
+    let dashaChangeToday = null;
+    if (chain) {
+      if (chain.pratyantardasha && isSameUTCDate(new Date(chain.pratyantardasha.start), dateUTC)) {
+        dashaChangeToday = { level: 'пратьянтардаша', lord: chain.pratyantardasha.lord };
+      } else if (chain.antardasha && isSameUTCDate(new Date(chain.antardasha.start), dateUTC)) {
+        dashaChangeToday = { level: 'антардаша', lord: chain.antardasha.lord };
+      } else if (isSameUTCDate(new Date(chain.mahadasha.start), dateUTC)) {
+        dashaChangeToday = { level: 'махадаша', lord: chain.mahadasha.lord };
+      }
+    }
+
+    const transits = computeCurrentTransits(chart, dateUTC);
+    const moonHouseFromLagna = transits.planets['Луна'].transitHouse;
+
+    const dayCtx = {
+      tithiNumber: p.tithi.number,
+      nakshatraIdx: p.nakshatraOfDayIdx,
+      weekdayIdx: dateUTC.getUTCDay(),
+      taraBala,
+      dashaChangeToday,
+      moonHouseFromLagna,
+    };
+    const result = evaluateAction(actionKey, dayCtx);
+    const quality = result.restrictions.length > 0 ? 'bad' : (result.favorable.length > 0 ? 'good' : 'neutral');
+
+    days.push({
+      date: dateUTC.toISOString().slice(0, 10),
+      quality,
+      restrictions: result.restrictions,
+      favorable: result.favorable,
+    });
+  }
+
+  return { actionLabel: action.label, days };
+}

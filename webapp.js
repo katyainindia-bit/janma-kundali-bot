@@ -14,7 +14,9 @@ const { computePanchanga, computeTaraBala } = require('./panchanga.js');
 const { calculateNavamsha } = require('./navamsha.js');
 const { calculateDashamsha } = require('./dashamsha.js');
 const { calculateVarga: calculateOtherVarga, VARGA_DEFS } = require('./divisional-charts.js');
-const { computeCalendarMonth, computeDateSearch, GOALS } = require('./date-tools.js');
+const { computeCalendarMonth, computeDateSearch, computeDayDetail, computeActionDateSearch, GOALS } = require('./date-tools.js');
+const { ACTIONS, evaluateAction } = require('./muhurta.js');
+const { getEventsForDate, findUpcomingEvents } = require('./calendar-events.js');
 const { buildChartExportPDF } = require('./chart-export-pdf.js');
 const { resolveCity } = require('./ru-timezone.js');
 const { resolveWorldCity } = require('./world-geocoding.js');
@@ -374,6 +376,45 @@ function startWebApp() {
         }
       }
 
+      // 6. Смена периода даши именно сегодня (по календарной дате, не только по времени)
+      function isSameUTCDate(d1, d2) {
+        return d1.getUTCFullYear() === d2.getUTCFullYear() && d1.getUTCMonth() === d2.getUTCMonth() && d1.getUTCDate() === d2.getUTCDate();
+      }
+      let dashaChangeToday = null;
+      if (chain) {
+        if (chain.pratyantardasha && isSameUTCDate(new Date(chain.pratyantardasha.start), now)) {
+          dashaChangeToday = { level: 'пратьянтардаша', lord: chain.pratyantardasha.lord };
+        } else if (chain.antardasha && isSameUTCDate(new Date(chain.antardasha.start), now)) {
+          dashaChangeToday = { level: 'антардаша', lord: chain.antardasha.lord };
+        } else if (isSameUTCDate(new Date(chain.mahadasha.start), now)) {
+          dashaChangeToday = { level: 'махадаша', lord: chain.mahadasha.lord };
+        }
+      }
+
+      // 7. Движок мухурты: прогоняем сегодняшний день по всем настроенным действиям,
+      // делим на «что поддержано» / «что лучше отложить». Действия с пустыми roles
+      // (пока не заполненные — например, Посвящения) пропускаем.
+      const dayCtx = {
+        tithiNumber: todayPanchanga.tithi.number,
+        nakshatraIdx: todayPanchanga.nakshatraOfDayIdx,
+        weekdayIdx: now.getUTCDay(),
+        taraBala,
+        dashaChangeToday,
+        moonHouseFromLagna: moonTransitHouse,
+      };
+      const muhurtaResults = Object.keys(ACTIONS)
+        .filter(key => ACTIONS[key].roles && Object.keys(ACTIONS[key].roles).length > 0)
+        .map(key => evaluateAction(key, dayCtx));
+      const supported = muhurtaResults.filter(r => r.restrictions.length === 0 && r.favorable.length > 0).map(r => r.label).slice(0, 4);
+      const postpone = muhurtaResults.filter(r => r.restrictions.length > 0).map(r => r.label).slice(0, 4);
+
+      // 8. Астрологические события — сегодняшние и ближайшие предстоящие
+      const events = getEventsForDate(now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate(), todayPanchanga.tithi.number);
+      const upcomingEvents = findUpcomingEvents(now, 120, (d) => {
+        const pp = computePanchanga(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(), 12, 0, lat, lon, utcOffset);
+        return pp.tithi.number;
+      }).filter(e => e.daysAhead > 0).slice(0, 3);
+
       res.json({
         asOf: now.toISOString(),
         chain,
@@ -382,6 +423,11 @@ function startWebApp() {
         tithi: todayPanchanga.tithi,
         moonTransitHouse,
         notableTransits,
+        dashaChangeToday,
+        supported,
+        postpone,
+        events,
+        upcomingEvents,
       });
     } catch (e) {
       console.error(e);
@@ -454,11 +500,46 @@ function startWebApp() {
     res.json({ goals: Object.entries(GOALS).map(([key, g]) => ({ key, label: g.label })) });
   });
 
+  // Список действий движка мухурты — новая версия «Поиск по цели»,
+  // на замену старым 8 GOALS (те остаются для обратной совместимости выше)
+  app.post('/api/actions', (req, res) => {
+    res.json({
+      actions: Object.entries(ACTIONS)
+        .filter(([, a]) => a.roles && Object.keys(a.roles).length > 0)
+        .map(([key, a]) => ({ key, label: a.label })),
+    });
+  });
+
+  app.post('/api/action-date-search', requireTelegramUser, requirePremium, (req, res) => {
+    try {
+      const { chart, birthDateUTC, lat, lon, utcOffset, action, fromDate, toDate } = req.body;
+      const result = computeActionDateSearch(
+        chart, new Date(birthDateUTC), lat, lon, utcOffset, action,
+        new Date(fromDate), new Date(toDate)
+      );
+      res.json(result);
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   app.post('/api/calendar-month', requireTelegramUser, requirePremium, (req, res) => {
     try {
       const { chart, birthDateUTC, year, month, lat, lon, utcOffset } = req.body;
       const days = computeCalendarMonth(chart, new Date(birthDateUTC), year, month, lat, lon, utcOffset);
       res.json({ days });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/day-detail', requireTelegramUser, requirePremium, (req, res) => {
+    try {
+      const { chart, birthDateUTC, year, month, day, lat, lon, utcOffset } = req.body;
+      const detail = computeDayDetail(chart, new Date(birthDateUTC), year, month, day, lat, lon, utcOffset);
+      res.json(detail);
     } catch (e) {
       console.error(e);
       res.status(500).json({ error: e.message });
