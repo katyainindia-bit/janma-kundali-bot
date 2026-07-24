@@ -415,9 +415,10 @@
     border-bottom: 1px solid var(--line);
   }
   .praty-row.current { color: var(--gold); font-weight: 600; }
-  .note-marker { cursor: pointer; font-size: 13px; display: inline-block; margin-left: 2px; }
-  .praty-row.has-note, .current-period-row.has-note { background: #FBF3DF; border-radius: 8px; padding-left: 8px; cursor: pointer; }
-  .antar-row.has-note > summary, .dasha-accordion.has-note > summary { background: #FBF3DF; cursor: pointer; }
+  .note-marker { cursor: pointer; display: inline-flex; align-items: center; vertical-align: middle; margin-left: 4px; color: var(--gold); }
+  .note-marker svg { display: block; }
+  .praty-row.has-note, .current-period-row.has-note { background: #FBF3DF; border-radius: 8px; padding-left: 8px; }
+  .antar-row.has-note > summary, .dasha-accordion.has-note > summary { background: #FBF3DF; }
   .praty-row:last-child { border-bottom: none; }
 
   .period-tooltip {
@@ -1727,6 +1728,21 @@
 
   let lastMahadashas = null, lastChain = null;
   let periodNotesMap = {}; // period_start (ISO) -> [{id, note, created_at}, ...]
+  let periodLordsMap = {}; // period_start (ISO) -> [md.lord] | [md.lord, ad.lord] | [md.lord, ad.lord, pd.lord]
+
+  function buildPeriodLordsMap(mahadashas) {
+    const map = {};
+    (mahadashas || []).forEach(md => {
+      map[md.start] = [md.lord];
+      (md.antardashas || []).forEach(ad => {
+        map[ad.start] = [md.lord, ad.lord];
+        (ad.pratyantardashas || []).forEach(pd => {
+          map[pd.start] = [md.lord, ad.lord, pd.lord];
+        });
+      });
+    });
+    return map;
+  }
 
   // Есть ли хоть одна заметка (своя или у вложенных пратьянтардаш) в диапазоне [startISO, endISO)
   function anyNoteInRange(startISO, endISO) {
@@ -1739,9 +1755,11 @@
     return false;
   }
 
+  const NOTE_MARKER_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5.5" width="16" height="15" rx="1.5"/><path d="M8 3.5v4M16 3.5v4M4 10h16"/><path d="M8 14h2M14 14h2M8 17h2M14 17h2"/></svg>';
+
   function noteMarker(startISO, endISO) {
     if (!anyNoteInRange(startISO, endISO)) return '';
-    return ` <span class="note-marker" data-period-start="${startISO}" data-period-end="${endISO}" title="Есть заметка">📅</span>`;
+    return ` <span class="note-marker" data-period-start="${startISO}" data-period-end="${endISO}" title="Есть заметка">${NOTE_MARKER_SVG}</span>`;
   }
   function hasNoteClass(startISO, endISO) {
     return anyNoteInRange(startISO, endISO) ? 'has-note' : '';
@@ -1754,6 +1772,7 @@
   function renderDasha(mahadashas, chain) {
     lastMahadashas = mahadashas;
     lastChain = chain;
+    periodLordsMap = buildPeriodLordsMap(mahadashas);
     const cur = document.getElementById('dasha-current');
     if (chain) {
       const finestLords = chain.pratyantardasha
@@ -1829,7 +1848,7 @@
     for (const key in periodNotesMap) {
       const t = new Date(key).getTime();
       if (t >= start && t < end) {
-        periodNotesMap[key].forEach(n => result.push({ date: key, note: n.note }));
+        periodNotesMap[key].forEach(n => result.push({ date: key, note: n.note, lords: periodLordsMap[key] || [] }));
       }
     }
     result.sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -1840,9 +1859,10 @@
     const notes = collectNotesInRange(startISO, endISO);
     if (notes.length === 0) return;
     const tip = ensurePeriodTooltip();
-    tip.innerHTML = notes.map(n =>
-      `<span class="period-tooltip-date">${fmtDate(n.date)}</span>${escapeHtml(n.note)}`
-    ).join('<hr style="border:none;border-top:1px solid var(--line);margin:8px 0;">');
+    tip.innerHTML = notes.map(n => {
+      const label = n.lords.length ? `${fmtDate(n.date)} · ${n.lords.join('–')}` : fmtDate(n.date);
+      return `<span class="period-tooltip-date">${label}</span>${escapeHtml(n.note)}`;
+    }).join('<hr style="border:none;border-top:1px solid var(--line);margin:8px 0;">');
     tip.classList.add('visible');
     const rect = targetEl.getBoundingClientRect();
     const margin = 10;
@@ -1874,15 +1894,16 @@
     periodTooltipOpenFor = startISO;
   }
 
+  // Подсказка открывается ТОЛЬКО с самого значка-календаря — клик по остальной части
+  // строки должен просто разворачивать период (аккордеон), не показывая заметку
   function handlePeriodRowClick(e) {
     if (e.target.closest('[data-event-btn]')) return; // кнопка "добавить событие" — своя логика
     const marker = e.target.closest('.note-marker');
-    if (marker) { e.preventDefault(); e.stopPropagation(); toggleTooltipForRow(marker); return; }
-    const row = e.target.closest('[data-period-start]');
-    if (row) toggleTooltipForRow(row);
+    if (marker) { e.preventDefault(); e.stopPropagation(); toggleTooltipForRow(marker); }
   }
   document.getElementById('dasha-current').addEventListener('click', handlePeriodRowClick);
   document.getElementById('dasha-list').addEventListener('click', handlePeriodRowClick);
+
 
   // Наведение мышью (десктоп): показываем тултип только при наведении на значок 📅
   function handlePeriodMouseOver(e) {
