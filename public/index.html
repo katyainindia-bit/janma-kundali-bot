@@ -1065,14 +1065,24 @@
   // классических распечатках) — настоящей линией по замеренной ширине
   // текста, а не диакритиком (тот давал разрывы между буквами на iOS/Android).
   function addRetroBar(svg, textEl, color) {
-    let bbox;
-    try { bbox = textEl.getBBox(); } catch (e) { return; }
+    // Не полагаемся на getBBox(): в скрытом контейнере (или в некоторых
+    // мобильных WebView) он либо бросает ошибку, либо возвращает нулевой
+    // размер — и линия просто не рисуется, независимо от того, когда именно
+    // вызывается эта функция. Вместо измерения — считаем позицию и ширину
+    // по уже известным атрибутам самого текстового узла (x, y, font-size,
+    // число символов), это не зависит от видимости/раскладки страницы.
+    const px = parseFloat(textEl.getAttribute('x'));
+    const py = parseFloat(textEl.getAttribute('y'));
+    const fs = parseFloat(textEl.getAttribute('font-size'));
+    if (!isFinite(px) || !isFinite(py) || !isFinite(fs)) return;
+    const textLen = (textEl.textContent || '').length || 1;
+    const halfWidth = (textLen * fs * 0.62) / 2; // приблизительная ширина жирного sans-serif символа
     const pad = 1.5;
     const ns = 'http://www.w3.org/2000/svg';
     const line = document.createElementNS(ns, 'line');
     const attrs = {
-      x1: bbox.x - pad, x2: bbox.x + bbox.width + pad,
-      y1: bbox.y - 3, y2: bbox.y - 3,
+      x1: px - halfWidth - pad, x2: px + halfWidth + pad,
+      y1: py - fs * 0.62, y2: py - fs * 0.62,
       stroke: color, 'stroke-width': 1.6, 'stroke-linecap': 'round',
     };
     for (const k in attrs) line.setAttribute(k, attrs[k]);
