@@ -1046,11 +1046,14 @@
     let bbox;
     try { bbox = textEl.getBBox(); } catch (e) { return; }
     const pad = 1.5;
-    const line = el('line', {
+    const ns = 'http://www.w3.org/2000/svg';
+    const line = document.createElementNS(ns, 'line');
+    const attrs = {
       x1: bbox.x - pad, x2: bbox.x + bbox.width + pad,
       y1: bbox.y - 3, y2: bbox.y - 3,
       stroke: color, 'stroke-width': 1.6, 'stroke-linecap': 'round',
-    });
+    };
+    for (const k in attrs) line.setAttribute(k, attrs[k]);
     svg.appendChild(line);
   }
 
