@@ -1472,7 +1472,7 @@
       });
       listEl.querySelectorAll('[data-del]').forEach(btn => {
         btn.addEventListener('click', async () => {
-          try { await archiveApi('notes/delete', { chartId, noteId: Number(btn.dataset.del) }); await loadAdNotes(chartId); }
+          try { await archiveApi('notes/delete', { chartId, noteId: Number(btn.dataset.del) }); await loadAdNotes(chartId); await refreshPeriodNotes(); }
           catch (e) { alert('Не удалось удалить заметку: ' + e.message); }
         });
       });
@@ -1497,7 +1497,7 @@
     item.querySelector('[data-save-edit]').addEventListener('click', async () => {
       const newText = item.querySelector('textarea').value.trim();
       if (!newText) return;
-      try { await archiveApi('notes/update', { chartId, noteId, note: newText }); await loadAdNotes(chartId); }
+      try { await archiveApi('notes/update', { chartId, noteId, note: newText }); await loadAdNotes(chartId); await refreshPeriodNotes(); }
       catch (e) { alert('Не удалось сохранить заметку: ' + e.message); }
     });
   }
@@ -1728,12 +1728,23 @@
   let lastMahadashas = null, lastChain = null;
   let periodNotesMap = {}; // period_start (ISO) -> [{id, note, created_at}, ...]
 
-  function noteMarker(startISO) {
-    if (!periodNotesMap[startISO]) return '';
-    return ` <span class="note-marker" data-period-start="${startISO}" title="Есть заметка">📅</span>`;
+  // Есть ли хоть одна заметка (своя или у вложенных пратьянтардаш) в диапазоне [startISO, endISO)
+  function anyNoteInRange(startISO, endISO) {
+    const start = new Date(startISO).getTime();
+    const end = new Date(endISO).getTime();
+    for (const key in periodNotesMap) {
+      const t = new Date(key).getTime();
+      if (t >= start && t < end) return true;
+    }
+    return false;
   }
-  function hasNoteClass(startISO) {
-    return periodNotesMap[startISO] ? 'has-note' : '';
+
+  function noteMarker(startISO, endISO) {
+    if (!anyNoteInRange(startISO, endISO)) return '';
+    return ` <span class="note-marker" data-period-start="${startISO}" data-period-end="${endISO}" title="Есть заметка">📅</span>`;
+  }
+  function hasNoteClass(startISO, endISO) {
+    return anyNoteInRange(startISO, endISO) ? 'has-note' : '';
   }
 
   function noteTitleAttr(startISO) {
@@ -1752,9 +1763,9 @@
       cur.innerHTML = `
         <div style="width:100%">
           <div class="name" style="margin-bottom:8px;">Текущий период</div>
-          <div class="current-period-row ${hasNoteClass(chain.mahadasha.start)}" data-period-start="${chain.mahadasha.start}"${noteTitleAttr(chain.mahadasha.start)}><span class="label">Махадаша</span><span class="value">${chain.mahadasha.lord} (${fmtDate(chain.mahadasha.start)} – ${fmtDate(chain.mahadasha.end)})${noteMarker(chain.mahadasha.start)}</span></div>
-          ${chain.antardasha ? `<div class="current-period-row ${hasNoteClass(chain.antardasha.start)}" data-period-start="${chain.antardasha.start}"${noteTitleAttr(chain.antardasha.start)}><span class="label">Антардаша</span><span class="value">${chain.antardasha.lord} (${fmtDate(chain.antardasha.start)} – ${fmtDate(chain.antardasha.end)})${noteMarker(chain.antardasha.start)}</span></div>` : ''}
-          ${chain.pratyantardasha ? `<div class="current-period-row ${hasNoteClass(chain.pratyantardasha.start)}" data-period-start="${chain.pratyantardasha.start}"${noteTitleAttr(chain.pratyantardasha.start)}><span class="label">Пратьянтардаша</span><span class="value">${chain.pratyantardasha.lord} (${fmtDate(chain.pratyantardasha.start)} – ${fmtDate(chain.pratyantardasha.end)})${noteMarker(chain.pratyantardasha.start)}</span></div>` : ''}
+          <div class="current-period-row ${hasNoteClass(chain.mahadasha.start, chain.mahadasha.end)}" data-period-start="${chain.mahadasha.start}" data-period-end="${chain.mahadasha.end}"${noteTitleAttr(chain.mahadasha.start)}><span class="label">Махадаша</span><span class="value">${chain.mahadasha.lord} (${fmtDate(chain.mahadasha.start)} – ${fmtDate(chain.mahadasha.end)})${noteMarker(chain.mahadasha.start, chain.mahadasha.end)}</span></div>
+          ${chain.antardasha ? `<div class="current-period-row ${hasNoteClass(chain.antardasha.start, chain.antardasha.end)}" data-period-start="${chain.antardasha.start}" data-period-end="${chain.antardasha.end}"${noteTitleAttr(chain.antardasha.start)}><span class="label">Антардаша</span><span class="value">${chain.antardasha.lord} (${fmtDate(chain.antardasha.start)} – ${fmtDate(chain.antardasha.end)})${noteMarker(chain.antardasha.start, chain.antardasha.end)}</span></div>` : ''}
+          ${chain.pratyantardasha ? `<div class="current-period-row ${hasNoteClass(chain.pratyantardasha.start, chain.pratyantardasha.end)}" data-period-start="${chain.pratyantardasha.start}" data-period-end="${chain.pratyantardasha.end}"${noteTitleAttr(chain.pratyantardasha.start)}><span class="label">Пратьянтардаша</span><span class="value">${chain.pratyantardasha.lord} (${fmtDate(chain.pratyantardasha.start)} – ${fmtDate(chain.pratyantardasha.end)})${noteMarker(chain.pratyantardasha.start, chain.pratyantardasha.end)}</span></div>` : ''}
           <button class="btn-secondary" data-event-btn data-lords='${JSON.stringify(finestLords)}' data-start="${finestPeriod.start}" data-end="${finestPeriod.end}" style="margin-top:10px;margin-bottom:0;">📝 Добавить событие в этот период</button>
         </div>`;
     }
@@ -1768,15 +1779,15 @@
         const pratys = (ad.pratyantardashas||[]).map(pd => {
           const isCurPD = chain && chain.pratyantardasha && pd.lord === chain.pratyantardasha.lord && pd.start === chain.pratyantardasha.start;
           const lords = JSON.stringify([md.lord, ad.lord, pd.lord]);
-          return `<div class="praty-row ${isCurPD?'current':''} ${hasNoteClass(pd.start)}" data-period-start="${pd.start}"${noteTitleAttr(pd.start)}>
-            <span>${pd.lord}${noteMarker(pd.start)}</span><span>${fmtDate(pd.start)} – ${fmtDate(pd.end)}</span>
+          return `<div class="praty-row ${isCurPD?'current':''} ${hasNoteClass(pd.start, pd.end)}" data-period-start="${pd.start}" data-period-end="${pd.end}"${noteTitleAttr(pd.start)}>
+            <span>${pd.lord}${noteMarker(pd.start, pd.end)}</span><span>${fmtDate(pd.start)} – ${fmtDate(pd.end)}</span>
             <button data-event-btn data-lords='${lords}' data-start="${pd.start}" data-end="${pd.end}" style="background:none;border:none;color:var(--gold);font-size:13px;cursor:pointer;padding:0 0 0 8px;">📝</button>
           </div>`;
         }).join('');
-        return `<details class="antar-row ${isCurAD?'current':''} ${hasNoteClass(ad.start)}"><summary data-period-start="${ad.start}"${noteTitleAttr(ad.start)}>${ad.lord}${noteMarker(ad.start)} · ${fmtDate(ad.start)} – ${fmtDate(ad.end)}</summary>${pratys}</details>`;
+        return `<details class="antar-row ${isCurAD?'current':''} ${hasNoteClass(ad.start, ad.end)}"><summary data-period-start="${ad.start}" data-period-end="${ad.end}"${noteTitleAttr(ad.start)}>${ad.lord}${noteMarker(ad.start, ad.end)} · ${fmtDate(ad.start)} – ${fmtDate(ad.end)}</summary>${pratys}</details>`;
       }).join('');
-      return `<details class="dasha-accordion ${isCurMD?'current':''} ${hasNoteClass(md.start)}" style="margin-bottom:10px;">
-        <summary data-period-start="${md.start}"${noteTitleAttr(md.start)}>${md.lord}${noteMarker(md.start)} <span class="dates">${fmtDate(md.start)} – ${fmtDate(md.end)}</span></summary>
+      return `<details class="dasha-accordion ${isCurMD?'current':''} ${hasNoteClass(md.start, md.end)}" style="margin-bottom:10px;">
+        <summary data-period-start="${md.start}" data-period-end="${md.end}"${noteTitleAttr(md.start)}>${md.lord}${noteMarker(md.start, md.end)} <span class="dates">${fmtDate(md.start)} – ${fmtDate(md.end)}</span></summary>
         <div class="inner">${antars}</div>
       </details>`;
     }).join('');
@@ -1811,11 +1822,27 @@
     return periodTooltipEl;
   }
 
-  function showPeriodTooltip(targetEl, startISO) {
-    const notes = periodNotesMap[startISO];
-    if (!notes || notes.length === 0) return;
+  function collectNotesInRange(startISO, endISO) {
+    const start = new Date(startISO).getTime();
+    const end = new Date(endISO || startISO).getTime();
+    const result = [];
+    for (const key in periodNotesMap) {
+      const t = new Date(key).getTime();
+      if (t >= start && t < end) {
+        periodNotesMap[key].forEach(n => result.push({ date: key, note: n.note }));
+      }
+    }
+    result.sort((a, b) => new Date(a.date) - new Date(b.date));
+    return result;
+  }
+
+  function showPeriodTooltip(targetEl, startISO, endISO) {
+    const notes = collectNotesInRange(startISO, endISO);
+    if (notes.length === 0) return;
     const tip = ensurePeriodTooltip();
-    tip.innerHTML = `<span class="period-tooltip-date">${fmtDate(startISO)}</span>${escapeHtml(notes.map(n => n.note).join('\n\n———\n\n'))}`;
+    tip.innerHTML = notes.map(n =>
+      `<span class="period-tooltip-date">${fmtDate(n.date)}</span>${escapeHtml(n.note)}`
+    ).join('<hr style="border:none;border-top:1px solid var(--line);margin:8px 0;">');
     tip.classList.add('visible');
     const rect = targetEl.getBoundingClientRect();
     const margin = 10;
@@ -1840,20 +1867,19 @@
   function toggleTooltipForRow(row) {
     if (!row) return;
     const startISO = row.dataset.periodStart;
-    if (!periodNotesMap[startISO]) return;
+    const endISO = row.dataset.periodEnd || startISO;
+    if (!anyNoteInRange(startISO, endISO)) return;
     if (periodTooltipOpenFor === startISO) { hidePeriodTooltip(); return; }
-    showPeriodTooltip(row, startISO);
+    showPeriodTooltip(row, startISO, endISO);
     periodTooltipOpenFor = startISO;
   }
 
   function handlePeriodRowClick(e) {
     if (e.target.closest('[data-event-btn]')) return; // кнопка "добавить событие" — своя логика
     const marker = e.target.closest('.note-marker');
-    if (marker) { e.preventDefault(); e.stopPropagation(); toggleTooltipForRow(marker.closest('[data-period-start]')); return; }
+    if (marker) { e.preventDefault(); e.stopPropagation(); toggleTooltipForRow(marker); return; }
     const row = e.target.closest('[data-period-start]');
-    if (row && periodNotesMap[row.dataset.periodStart]) {
-      toggleTooltipForRow(row);
-    }
+    if (row) toggleTooltipForRow(row);
   }
   document.getElementById('dasha-current').addEventListener('click', handlePeriodRowClick);
   document.getElementById('dasha-list').addEventListener('click', handlePeriodRowClick);
@@ -1862,7 +1888,7 @@
   function handlePeriodMouseOver(e) {
     const marker = e.target.closest('.note-marker');
     if (marker && periodTooltipOpenFor !== marker.dataset.periodStart) {
-      showPeriodTooltip(marker, marker.dataset.periodStart);
+      showPeriodTooltip(marker, marker.dataset.periodStart, marker.dataset.periodEnd);
       periodTooltipOpenFor = marker.dataset.periodStart;
     }
   }
