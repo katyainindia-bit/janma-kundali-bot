@@ -110,6 +110,26 @@ function varaGeneral(weekdayIdx) {
 // см. OPEN_QUESTIONS.
 // ============================================================
 
+// Иконка на каждое действие — для чипов «поддержано / лучше отложить»
+const ACTION_ICONS = {
+  education: '🎓',
+  travel: '✈️',
+  relocation: '🚚',
+  realestate: '🏠',
+  construction: '🏗️',
+  wedding: '💍',
+  medicalProcedure: '🩺',
+  spiritualPractice: '🧘',
+  initiation: '🕉️',
+  contract: '📝',
+  business: '💼',
+  project: '🚀',
+  bigPurchase: '🛍️',
+  investment: '💰',
+  financialDay: '💰',
+  haircut: '💇',
+};
+
 const ACTIONS = {
   education: {
     label: 'Начало обучения',
@@ -344,6 +364,7 @@ function evaluateAction(actionKey, dayCtx) {
 
 module.exports = {
   ACTIONS,
+  ACTION_ICONS,
   TITHI_PANCHAKA,
   NAKSHATRA_GANA,
   tithiPanchaka,

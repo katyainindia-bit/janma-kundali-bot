@@ -2457,7 +2457,8 @@
       if (!res.ok) throw new Error(data.error || 'Ошибка');
 
       const chain = data.chain;
-      document.getElementById('today-maha').textContent = chain && chain.mahadasha ? chain.mahadasha.lord : '—';
+      document.getElementById('today-maha').innerHTML = chain && chain.mahadasha
+        ? `${chain.mahadasha.lord}<br><span class="sub">главный фон периода</span>` : '—';
       document.getElementById('today-antar').innerHTML = chain && chain.antardasha
         ? `${chain.antardasha.lord}<br><span class="sub">до ${fmtDate(chain.antardasha.end)}</span>` : '—';
       document.getElementById('today-pratyantar').innerHTML = chain && chain.pratyantardasha
@@ -2468,13 +2469,15 @@
       document.getElementById('today-nak').textContent = data.nakshatraOfDay;
       document.getElementById('today-moon-house').textContent = data.moonHouseMeaning || `${data.moonTransitHouse}-й дом`;
 
-      document.getElementById('today-summary-text').textContent = data.daySummary || '';
+      document.getElementById('today-summary-text').innerHTML = data.dayEnergy
+        ? `<div style="font-size:22px;margin-bottom:6px;">${data.dayEnergy.emoji} ${'★'.repeat(data.dayEnergy.stars)}${'☆'.repeat(5 - data.dayEnergy.stars)}</div>${escapeHtml(data.daySummary || '')}`
+        : escapeHtml(data.daySummary || '');
 
       const eventsCard = document.getElementById('today-events-card');
       if (data.events && data.events.length > 0) {
         document.getElementById('today-events').innerHTML = data.events.map(ev => `
           <div class="note-item">
-            <div class="note-text"><b>${escapeHtml(ev.label)}</b>${ev.description ? '<br><span style="color:var(--taupe);font-size:12px;">' + escapeHtml(ev.description) + '</span>' : ''}</div>
+            <div class="note-text"><b>${EVENT_ICONS[ev.type] || ''} ${escapeHtml(ev.label)}</b>${ev.description ? '<br><span style="color:var(--taupe);font-size:12px;">' + escapeHtml(ev.description) + '</span>' : ''}</div>
           </div>`).join('');
         eventsCard.style.display = 'block';
       } else {
@@ -2483,7 +2486,7 @@
 
       const supportedCard = document.getElementById('today-supported-card');
       if (data.supported && data.supported.length > 0) {
-        document.getElementById('today-supported').innerHTML = data.supported.map(l => `<div class="note-item"><div class="note-text">${escapeHtml(l)}</div></div>`).join('');
+        document.getElementById('today-supported').innerHTML = `<div class="chip-row">${data.supported.map(a => `<span class="chip" style="cursor:default;">${a.icon} ${escapeHtml(a.label)}</span>`).join('')}</div>`;
         supportedCard.style.display = 'block';
       } else {
         supportedCard.style.display = 'none';
@@ -2491,7 +2494,7 @@
 
       const postponeCard = document.getElementById('today-postpone-card');
       if (data.postpone && data.postpone.length > 0) {
-        document.getElementById('today-postpone').innerHTML = data.postpone.map(l => `<div class="note-item"><div class="note-text">${escapeHtml(l)}</div></div>`).join('');
+        document.getElementById('today-postpone').innerHTML = `<div class="chip-row">${data.postpone.map(a => `<span class="chip" style="cursor:default;">${a.icon} ${escapeHtml(a.label)}</span>`).join('')}</div>`;
         postponeCard.style.display = 'block';
       } else {
         postponeCard.style.display = 'none';
@@ -2500,7 +2503,7 @@
       const upcomingEl = document.getElementById('today-upcoming');
       if (data.upcomingEvents && data.upcomingEvents.length > 0) {
         upcomingEl.innerHTML = data.upcomingEvents.map(ev => `
-          <div class="note-item"><div class="note-text">${escapeHtml(ev.label)} <span class="sub">— через ${ev.daysAhead} дн. (${fmtDate(ev.date)})</span></div></div>
+          <div class="note-item"><div class="note-text">${EVENT_ICONS[ev.type] || ''} ${escapeHtml(ev.label)} <span class="sub">— через ${ev.daysAhead} дн. (${fmtDate(ev.date)})</span></div></div>
         `).join('');
       } else {
         upcomingEl.innerHTML = '<div style="font-size:13px;color:var(--taupe);">В ближайшее время особых дат не найдено.</div>';

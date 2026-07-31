@@ -7,9 +7,9 @@
 const { computeVimshottariDasha, findCurrentDashaChain } = require('./dasha.js');
 const { computePanchanga, computeTaraBala } = require('./panchanga.js');
 const { computeCurrentTransits } = require('./transits.js');
-const { ACTIONS, evaluateAction } = require('./muhurta.js');
+const { ACTIONS, ACTION_ICONS, evaluateAction } = require('./muhurta.js');
 const { getEventsForDate } = require('./calendar-events.js');
-const { houseMeaningPhrase, buildDaySummary } = require('./day-summary.js');
+const { houseMeaningPhrase, computeDayTier } = require('./day-summary.js');
 
 const SIGN_LORDS = ['Марс','Венера','Меркурий','Луна','Солнце','Меркурий','Венера','Марс','Юпитер','Сатурн','Сатурн','Юпитер'];
 
@@ -147,17 +147,22 @@ function computeDayDetail(chart, birthDateUTC, year, month, day, lat, lon, utcOf
   const muhurtaResults = Object.keys(ACTIONS)
     .filter(key => ACTIONS[key].roles && Object.keys(ACTIONS[key].roles).length > 0)
     .map(key => evaluateAction(key, dayCtx));
-  const supported = muhurtaResults.filter(r => r.restrictions.length === 0 && r.favorable.length > 0).map(r => r.label).slice(0, 4);
-  const postpone = muhurtaResults.filter(r => r.restrictions.length > 0).map(r => r.label).slice(0, 4);
+  let supportedResults = muhurtaResults.filter(r => r.restrictions.length === 0 && r.favorable.length > 0);
+  const strictSupportedCount = supportedResults.length;
+  if (supportedResults.length === 0) {
+    supportedResults = muhurtaResults.filter(r => r.restrictions.length === 0);
+  }
+  const supported = supportedResults.slice(0, 4).map(r => ({ key: r.actionKey, label: r.label, icon: ACTION_ICONS[r.actionKey] || '✅' }));
+  const postpone = muhurtaResults.filter(r => r.restrictions.length > 0).slice(0, 4).map(r => ({ key: r.actionKey, label: r.label, icon: ACTION_ICONS[r.actionKey] || '⚠' }));
 
   const events = getEventsForDate(year, month, day, panchanga.tithi.number);
   const hasEclipse = events.some(ev => ev.type === 'Затмение (лунное)' || ev.type === 'Затмение (солнечное)');
-  const daySummary = buildDaySummary({
+  const dayTier = computeDayTier({
     dateISO: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
     hasEclipse,
     tithiName: panchanga.tithi.name,
     dashaChangeToday,
-    supportedCount: supported.length,
+    supportedCount: strictSupportedCount,
     postponeCount: postpone.length,
   });
   const moonHouseMeaning = houseMeaningPhrase(moonTransitHouse);
@@ -173,7 +178,8 @@ function computeDayDetail(chart, birthDateUTC, year, month, day, lat, lon, utcOf
     supported,
     postpone,
     events,
-    daySummary,
+    daySummary: dayTier.headline,
+    dayEnergy: { emoji: dayTier.emoji, label: dayTier.energyLabel, stars: dayTier.stars },
   };
 }
 

@@ -29,7 +29,7 @@ const HOUSE_MEANINGS = {
 function houseMeaningPhrase(house) {
   const m = HOUSE_MEANINGS[house];
   if (!m) return null;
-  return `Луна в ${house} доме — внимание естественным образом направлено на: ${m}.`;
+  return `Сегодня Луна в ${house} доме. Хороший день для: ${m}.`;
 }
 
 // Общая тема транзитной планеты — для смысл-сначала в «Заметных транзитах»
@@ -54,39 +54,57 @@ function transitPhrase(planetName, house) {
   return `${planetName}${theme ? ' (' + theme + ')' : ''} сейчас акцентирует: ${houseMeaning}.`;
 }
 
-// --- Синтез заголовка дня («Совет дня») ---
+// --- Тир дня: единая точка правды для заголовка И индикатора энергии ---
 // Приоритет сигналов (сверху вниз, первый сработавший — главный):
 // 1. Затмение сегодня
 // 2. Экадаши/Амавасья (день внутрь, а не наружу)
 // 3. Смена периода даши сегодня
-// 4. Много ограничений, почти нет поддержанного — день осторожности
+// 4. Много ограничений, почти нет поддержанного (строгий подсчёт!) — день осторожности
 // 5. Много поддержанного, нет ограничений — день действия
 // 6. Ровный/смешанный день
 
-const TEMPLATES = {
-  eclipse: [
-    'Сегодня затмение — время для тишины, а не для решений. Понаблюдайте, не торопитесь действовать.',
-    'День затмения. Важные шаги лучше отложить и побыть внимательнее к себе.',
-  ],
-  inward: [
-    'Сегодня день для внутренней работы, а не для новых стартов. Практики и завершение дел — в фокусе.',
-    'Хороший день, чтобы закончить начатое и обратиться внутрь. Новые проекты лучше отложить.',
-  ],
-  dashaChange: [
-    'Сегодня меняется период — день перехода. Не торопитесь с большими решениями, дайте новому периоду закрепиться.',
-  ],
-  caution: [
-    'Сегодня день лучше провести спокойно — крупные решения и новые начинания лучше перенести.',
-    'День требует осторожности: не лучшее время для важных стартов, подойдёт для текущих дел.',
-  ],
-  action: [
-    'Сегодня хороший день для движения вперёд — можно начинать, договариваться, действовать.',
-    'День поддерживает активность: подходящее время для новых шагов и важных разговоров.',
-  ],
-  neutral: [
-    'День ровный, без особых ограничений — подходит для текущих дел и постепенного движения.',
-    'Сегодня без явных плюсов и минусов — хорошее время заниматься тем, что уже начато.',
-  ],
+const TIERS = {
+  eclipse: {
+    headlines: [
+      'Сегодня затмение — время для тишины, а не для решений. Понаблюдайте, не торопитесь действовать.',
+      'День затмения. Важные шаги лучше отложить и побыть внимательнее к себе.',
+    ],
+    emoji: '🔴', energyLabel: 'Напряжённый', stars: 2,
+  },
+  inward: {
+    headlines: [
+      'Сегодня день для внутренней работы, а не для новых стартов. Практики и завершение дел — в фокусе.',
+      'Хороший день, чтобы закончить начатое и обратиться внутрь. Новые проекты лучше отложить.',
+    ],
+    emoji: '🟡', energyLabel: 'Нейтральный', stars: 3,
+  },
+  dashaChange: {
+    headlines: [
+      'Сегодня меняется период — день перехода. Не торопитесь с большими решениями, дайте новому периоду закрепиться.',
+    ],
+    emoji: '🟡', energyLabel: 'Нейтральный', stars: 3,
+  },
+  caution: {
+    headlines: [
+      'Сегодня день лучше провести спокойно — крупные решения и новые начинания лучше перенести.',
+      'День требует осторожности: не лучшее время для важных стартов, подойдёт для текущих дел.',
+    ],
+    emoji: '🔴', energyLabel: 'Напряжённый', stars: 2,
+  },
+  action: {
+    headlines: [
+      'Сегодня хороший день для движения вперёд — можно начинать, договариваться, действовать.',
+      'День поддерживает активность: подходящее время для новых шагов и важных разговоров.',
+    ],
+    emoji: '🟢', energyLabel: 'Благоприятный', stars: 5,
+  },
+  neutral: {
+    headlines: [
+      'День ровный, без особых ограничений — подходит для текущих дел и постепенного движения.',
+      'Сегодня без явных плюсов и минусов — хорошее время заниматься тем, что уже начато.',
+    ],
+    emoji: '🟡', energyLabel: 'Нейтральный', stars: 3,
+  },
 };
 
 // Детерминированный выбор варианта фразы по дате (тот же день — та же фраза,
@@ -97,13 +115,23 @@ function pick(list, seedStr) {
   return list[h % list.length];
 }
 
-function buildDaySummary({ dateISO, hasEclipse, tithiName, dashaChangeToday, supportedCount, postponeCount }) {
-  if (hasEclipse) return pick(TEMPLATES.eclipse, dateISO);
-  if (tithiName === 'Экадаши' || tithiName === 'Амавасья') return pick(TEMPLATES.inward, dateISO);
-  if (dashaChangeToday) return pick(TEMPLATES.dashaChange, dateISO);
-  if (postponeCount >= 3 && supportedCount === 0) return pick(TEMPLATES.caution, dateISO);
-  if (supportedCount >= 2 && postponeCount === 0) return pick(TEMPLATES.action, dateISO);
-  return pick(TEMPLATES.neutral, dateISO);
+function computeDayTier({ dateISO, hasEclipse, tithiName, dashaChangeToday, supportedCount, postponeCount }) {
+  let tierKey;
+  if (hasEclipse) tierKey = 'eclipse';
+  else if (tithiName === 'Экадаши' || tithiName === 'Амавасья') tierKey = 'inward';
+  else if (dashaChangeToday) tierKey = 'dashaChange';
+  else if (postponeCount >= 3 && supportedCount === 0) tierKey = 'caution';
+  else if (supportedCount >= 2 && postponeCount === 0) tierKey = 'action';
+  else tierKey = 'neutral';
+
+  const tier = TIERS[tierKey];
+  return {
+    tier: tierKey,
+    headline: pick(tier.headlines, dateISO),
+    emoji: tier.emoji,
+    energyLabel: tier.energyLabel,
+    stars: tier.stars,
+  };
 }
 
-module.exports = { HOUSE_MEANINGS, houseMeaningPhrase, transitPhrase, buildDaySummary };
+module.exports = { HOUSE_MEANINGS, houseMeaningPhrase, transitPhrase, computeDayTier };

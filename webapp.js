@@ -15,9 +15,9 @@ const { calculateNavamsha } = require('./navamsha.js');
 const { calculateDashamsha } = require('./dashamsha.js');
 const { calculateVarga: calculateOtherVarga, VARGA_DEFS } = require('./divisional-charts.js');
 const { computeCalendarMonth, computeDateSearch, computeDayDetail, computeActionDateSearch, GOALS } = require('./date-tools.js');
-const { ACTIONS, evaluateAction } = require('./muhurta.js');
+const { ACTIONS, ACTION_ICONS, evaluateAction } = require('./muhurta.js');
 const { getEventsForDate, findUpcomingEvents } = require('./calendar-events.js');
-const { houseMeaningPhrase, buildDaySummary, transitPhrase } = require('./day-summary.js');
+const { houseMeaningPhrase, computeDayTier, transitPhrase } = require('./day-summary.js');
 const { buildChartExportPDF } = require('./chart-export-pdf.js');
 const { resolveCity } = require('./ru-timezone.js');
 const { resolveWorldCity } = require('./world-geocoding.js');
@@ -406,8 +406,18 @@ function startWebApp() {
       const muhurtaResults = Object.keys(ACTIONS)
         .filter(key => ACTIONS[key].roles && Object.keys(ACTIONS[key].roles).length > 0)
         .map(key => evaluateAction(key, dayCtx));
-      const supported = muhurtaResults.filter(r => r.restrictions.length === 0 && r.favorable.length > 0).map(r => r.label).slice(0, 4);
-      const postpone = muhurtaResults.filter(r => r.restrictions.length > 0).map(r => r.label).slice(0, 4);
+
+      // «Поддержано» строго = нет ограничений + есть явный плюс. Но в дни, где почти
+      // всё под ограничением (например, Экадаши), этот список может остаться пустым —
+      // а блок «поддержано» должен быть виден всегда (иначе выглядит как один сплошной
+      // негатив). В этом случае смягчаем условие до «хотя бы нет ограничений».
+      let supportedResults = muhurtaResults.filter(r => r.restrictions.length === 0 && r.favorable.length > 0);
+      const strictSupportedCount = supportedResults.length; // для тона заголовка/энергии — не смягчаем
+      if (supportedResults.length === 0) {
+        supportedResults = muhurtaResults.filter(r => r.restrictions.length === 0);
+      }
+      const supported = supportedResults.slice(0, 4).map(r => ({ key: r.actionKey, label: r.label, icon: ACTION_ICONS[r.actionKey] || '✅' }));
+      const postpone = muhurtaResults.filter(r => r.restrictions.length > 0).slice(0, 4).map(r => ({ key: r.actionKey, label: r.label, icon: ACTION_ICONS[r.actionKey] || '⚠' }));
 
       // 8. Астрологические события — сегодняшние и ближайшие предстоящие
       const events = getEventsForDate(now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate(), todayPanchanga.tithi.number);
@@ -416,14 +426,14 @@ function startWebApp() {
         return pp.tithi.number;
       }).filter(e => e.daysAhead > 0).slice(0, 3);
 
-      // 9. Заголовок дня («Совет дня») — синтез по приоритету сигналов
+      // 9. Заголовок дня + индикатор энергии — единая логика тона (не должны противоречить друг другу)
       const hasEclipse = events.some(ev => ev.type === 'Затмение (лунное)' || ev.type === 'Затмение (солнечное)');
-      const daySummary = buildDaySummary({
+      const dayTier = computeDayTier({
         dateISO: now.toISOString().slice(0, 10),
         hasEclipse,
         tithiName: todayPanchanga.tithi.name,
         dashaChangeToday,
-        supportedCount: supported.length,
+        supportedCount: strictSupportedCount,
         postponeCount: postpone.length,
       });
       const moonHouseMeaning = houseMeaningPhrase(moonTransitHouse);
@@ -437,13 +447,14 @@ function startWebApp() {
         rahuKalam: todayPanchanga.rahuKalam,
         moonTransitHouse,
         moonHouseMeaning,
-        notableTransits: notableTransits.slice(0, 3),
+        notableTransits: notableTransits.slice(0, 2),
         dashaChangeToday,
         supported,
         postpone,
         events,
         upcomingEvents,
-        daySummary,
+        daySummary: dayTier.headline,
+        dayEnergy: { emoji: dayTier.emoji, label: dayTier.energyLabel, stars: dayTier.stars },
       });
     } catch (e) {
       console.error(e);
