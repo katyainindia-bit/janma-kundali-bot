@@ -49,6 +49,17 @@ const EVENT_ICONS = {
   [EVENT_TYPES.SPECIAL]: '✨',
 };
 
+// Короткие описания под каждый тип события — черновик, ожидает правки
+// под голос бренда (см. /preferences и /topics/voice-and-writing-style).
+const EVENT_DESCRIPTIONS = {
+  [EVENT_TYPES.EKADASHI]: 'Хороший день для практик и внутренней дисциплины. Новые начинания лучше отложить.',
+  [EVENT_TYPES.PURNIMA]: 'Пик лунного месяца. Эмоции ощущаются острее — время для завершения дел и благодарности.',
+  [EVENT_TYPES.AMAVASYA]: 'Новолуние. Энергия направлена внутрь — не лучшее время для активных стартов.',
+  [EVENT_TYPES.SANKRANTI]: 'Солнце переходит в новый знак. День перехода — не самый устойчивый для важных решений.',
+  [EVENT_TYPES.ECLIPSE_LUNAR]: 'Затмение снижает предсказуемость дня. Важные решения лучше перенести на несколько дней.',
+  [EVENT_TYPES.ECLIPSE_SOLAR]: 'Затмение снижает предсказуемость дня. Важные решения лучше перенести на несколько дней.',
+};
+
 // --- События, выводимые из номера титхи (1-30) ---
 function tithiEvents(tithiNumber) {
   const events = [];
@@ -112,7 +123,7 @@ function getEventsForDate(year, month, day, tithiNumber) {
   if (eclipse) events.push(eclipse);
   const festival = festivalEventForDate(dateISO);
   if (festival) events.push(festival);
-  return events;
+  return events.map(ev => ({ ...ev, description: EVENT_DESCRIPTIONS[ev.type] || null }));
 }
 
 // --- Ближайшие события: сканирует вперёд от даты, ищет первое

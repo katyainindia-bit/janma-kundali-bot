@@ -9,6 +9,7 @@ const { computePanchanga, computeTaraBala } = require('./panchanga.js');
 const { computeCurrentTransits } = require('./transits.js');
 const { ACTIONS, evaluateAction } = require('./muhurta.js');
 const { getEventsForDate } = require('./calendar-events.js');
+const { houseMeaningPhrase, buildDaySummary } = require('./day-summary.js');
 
 const SIGN_LORDS = ['Марс','Венера','Меркурий','Луна','Солнце','Меркурий','Венера','Марс','Юпитер','Сатурн','Сатурн','Юпитер'];
 
@@ -150,6 +151,16 @@ function computeDayDetail(chart, birthDateUTC, year, month, day, lat, lon, utcOf
   const postpone = muhurtaResults.filter(r => r.restrictions.length > 0).map(r => r.label).slice(0, 4);
 
   const events = getEventsForDate(year, month, day, panchanga.tithi.number);
+  const hasEclipse = events.some(ev => ev.type === 'Затмение (лунное)' || ev.type === 'Затмение (солнечное)');
+  const daySummary = buildDaySummary({
+    dateISO: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+    hasEclipse,
+    tithiName: panchanga.tithi.name,
+    dashaChangeToday,
+    supportedCount: supported.length,
+    postponeCount: postpone.length,
+  });
+  const moonHouseMeaning = houseMeaningPhrase(moonTransitHouse);
 
   return {
     date: `${String(day).padStart(2, '0')}.${String(month).padStart(2, '0')}.${year}`,
@@ -158,9 +169,11 @@ function computeDayDetail(chart, birthDateUTC, year, month, day, lat, lon, utcOf
     chain,
     dashaChangeToday,
     moonTransitHouse,
+    moonHouseMeaning,
     supported,
     postpone,
     events,
+    daySummary,
   };
 }
 

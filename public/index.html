@@ -548,6 +548,9 @@
         <button class="btn-primary" id="today-upgrade-btn">Оформить Premium</button>
       </div>
       <div id="today-content" style="display:none;">
+        <div class="form-card" id="today-summary-card" style="padding:18px;text-align:center;">
+          <div id="today-summary-text" style="font-family:'Playfair Display',serif;font-size:17px;line-height:1.4;"></div>
+        </div>
         <div class="info-card" id="today-events-card" style="display:none;">
           <div class="name" style="margin-bottom:6px;">События сегодня</div>
           <div id="today-events"></div>
@@ -2415,12 +2418,6 @@
   }
   document.getElementById('today-upgrade-btn').addEventListener('click', showUpgradePrompt);
 
-  const MOON_HOUSE_HINT = {
-    1:'начало нового цикла', 2:'ресурсы и речь', 3:'усилия и общение', 4:'дом и внутреннее состояние',
-    5:'идеи и творчество', 6:'рутина и трудности', 7:'отношения и партнёрства', 8:'кризисы и трансформация',
-    9:'удача и мировоззрение', 10:'дела и статус', 11:'доходы и связи', 12:'уединение и потери',
-  };
-
   async function renderTodayTab() {
     const errorEl = document.getElementById('today-error-msg');
     const lockedEl = document.getElementById('today-locked');
@@ -2468,12 +2465,16 @@
       document.getElementById('today-tara').innerHTML = `${data.taraBala.name} <span class="sub">(${data.taraBala.quality})</span>`;
       document.getElementById('today-tithi').textContent = `${data.tithi.name} (№${data.tithi.number}, ${data.tithi.paksha})`;
       document.getElementById('today-nak').textContent = data.nakshatraOfDay;
-      const hint = MOON_HOUSE_HINT[data.moonTransitHouse] || '';
-      document.getElementById('today-moon-house').textContent = `${data.moonTransitHouse}-й дом${hint ? ' — ' + hint : ''}`;
+      document.getElementById('today-moon-house').textContent = data.moonHouseMeaning || `${data.moonTransitHouse}-й дом`;
+
+      document.getElementById('today-summary-text').textContent = data.daySummary || '';
 
       const eventsCard = document.getElementById('today-events-card');
       if (data.events && data.events.length > 0) {
-        document.getElementById('today-events').innerHTML = data.events.map(ev => `<div class="note-item"><div class="note-text">${escapeHtml(ev.label)}</div></div>`).join('');
+        document.getElementById('today-events').innerHTML = data.events.map(ev => `
+          <div class="note-item">
+            <div class="note-text"><b>${escapeHtml(ev.label)}</b>${ev.description ? '<br><span style="color:var(--taupe);font-size:12px;">' + escapeHtml(ev.description) + '</span>' : ''}</div>
+          </div>`).join('');
         eventsCard.style.display = 'block';
       } else {
         eventsCard.style.display = 'none';

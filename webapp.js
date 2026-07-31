@@ -17,6 +17,7 @@ const { calculateVarga: calculateOtherVarga, VARGA_DEFS } = require('./divisiona
 const { computeCalendarMonth, computeDateSearch, computeDayDetail, computeActionDateSearch, GOALS } = require('./date-tools.js');
 const { ACTIONS, evaluateAction } = require('./muhurta.js');
 const { getEventsForDate, findUpcomingEvents } = require('./calendar-events.js');
+const { houseMeaningPhrase, buildDaySummary } = require('./day-summary.js');
 const { buildChartExportPDF } = require('./chart-export-pdf.js');
 const { resolveCity } = require('./ru-timezone.js');
 const { resolveWorldCity } = require('./world-geocoding.js');
@@ -415,6 +416,18 @@ function startWebApp() {
         return pp.tithi.number;
       }).filter(e => e.daysAhead > 0).slice(0, 3);
 
+      // 9. Заголовок дня («Совет дня») — синтез по приоритету сигналов
+      const hasEclipse = events.some(ev => ev.type === 'Затмение (лунное)' || ev.type === 'Затмение (солнечное)');
+      const daySummary = buildDaySummary({
+        dateISO: now.toISOString().slice(0, 10),
+        hasEclipse,
+        tithiName: todayPanchanga.tithi.name,
+        dashaChangeToday,
+        supportedCount: supported.length,
+        postponeCount: postpone.length,
+      });
+      const moonHouseMeaning = houseMeaningPhrase(moonTransitHouse);
+
       res.json({
         asOf: now.toISOString(),
         chain,
@@ -422,12 +435,14 @@ function startWebApp() {
         nakshatraOfDay: todayPanchanga.nakshatraOfDay,
         tithi: todayPanchanga.tithi,
         moonTransitHouse,
-        notableTransits,
+        moonHouseMeaning,
+        notableTransits: notableTransits.slice(0, 3),
         dashaChangeToday,
         supported,
         postpone,
         events,
         upcomingEvents,
+        daySummary,
       });
     } catch (e) {
       console.error(e);
