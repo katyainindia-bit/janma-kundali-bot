@@ -377,6 +377,10 @@ function startWebApp() {
           notableTransits.push({ planet: planetName, house: t.transitHouse, hits, dignity, phrase: transitPhrase(planetName, t.transitHouse, dignity) });
         }
       }
+      // Соединение с чувствительной точкой карты (Асцендент/натальная Луна/Солнце/лорд антардаши)
+      // важнее и персональнее, чем просто "сильная позиция" — при ограничении в 2 карточки
+      // такие транзиты не должны вытесняться менее личными сигналами
+      notableTransits.sort((a, b) => (a.hits.length > 0 ? 0 : 1) - (b.hits.length > 0 ? 0 : 1));
       // Соединение с личной точкой карты — более персональный сигнал, чем просто
       // сила планеты по достоинству — при капе в 2 карточки не должно вытесняться
       notableTransits.sort((a, b) => (b.hits.length > 0 ? 1 : 0) - (a.hits.length > 0 ? 1 : 0));

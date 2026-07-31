@@ -45,14 +45,17 @@ const PLANET_THEMES = {
   'Кету': 'отпускание и уход внутрь',
 };
 
-// Смысл-сначала: «Сатурн сейчас акцентирует тему X (дом Y)», технический
-// список конкретных точек-целей передаётся отдельно (hits), не сюда.
+// Смысл-сначала: «Меркурий — 9 дом (общение и дела) · сильная позиция: ...»
+// Дом указывается явно (не только через смысл дома), чтобы было понятно, о чём речь.
 function transitPhrase(planetName, house, dignity) {
   const theme = PLANET_THEMES[planetName] || null;
   const houseMeaning = HOUSE_MEANINGS[house] || null;
-  const strength = dignity ? ` (сильная позиция — ${dignity})` : '';
-  if (!houseMeaning) return `${planetName} сейчас в ${house} доме${strength}.`;
-  return `${planetName}${theme ? ' (' + theme + ')' : ''} сейчас акцентирует${strength}: ${houseMeaning}.`;
+  const parts = [`${planetName} — ${house} дом`];
+  if (theme) parts.push(theme);
+  if (dignity) parts.push(`сильная позиция: ${dignity}`);
+  const head = parts.join(' · ');
+  if (!houseMeaning) return `${head}.`;
+  return `${head}. Акцентирует: ${houseMeaning}.`;
 }
 
 // --- Тир дня: единая точка правды для заголовка И индикатора энергии ---
