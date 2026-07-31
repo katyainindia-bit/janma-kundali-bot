@@ -17,7 +17,7 @@ const { calculateVarga: calculateOtherVarga, VARGA_DEFS } = require('./divisiona
 const { computeCalendarMonth, computeDateSearch, computeDayDetail, computeActionDateSearch, GOALS } = require('./date-tools.js');
 const { ACTIONS, evaluateAction } = require('./muhurta.js');
 const { getEventsForDate, findUpcomingEvents } = require('./calendar-events.js');
-const { houseMeaningPhrase, buildDaySummary } = require('./day-summary.js');
+const { houseMeaningPhrase, buildDaySummary, transitPhrase } = require('./day-summary.js');
 const { buildChartExportPDF } = require('./chart-export-pdf.js');
 const { resolveCity } = require('./ru-timezone.js');
 const { resolveWorldCity } = require('./world-geocoding.js');
@@ -373,7 +373,7 @@ function startWebApp() {
       for (const [planetName, t] of Object.entries(transits.planets)) {
         const hits = sensitivePoints.filter(sp => sp.house === t.transitHouse).map(sp => sp.key);
         if (hits.length > 0) {
-          notableTransits.push({ planet: planetName, house: t.transitHouse, hits });
+          notableTransits.push({ planet: planetName, house: t.transitHouse, hits, phrase: transitPhrase(planetName, t.transitHouse) });
         }
       }
 
@@ -434,6 +434,7 @@ function startWebApp() {
         taraBala,
         nakshatraOfDay: todayPanchanga.nakshatraOfDay,
         tithi: todayPanchanga.tithi,
+        rahuKalam: todayPanchanga.rahuKalam,
         moonTransitHouse,
         moonHouseMeaning,
         notableTransits: notableTransits.slice(0, 3),

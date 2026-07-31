@@ -563,26 +563,27 @@
           <div class="name" style="margin-bottom:6px;">⚠ Что лучше отложить</div>
           <div id="today-postpone"></div>
         </div>
-        <div class="info-card" style="display:block;">
-          <div class="name" style="margin-bottom:6px;">Сейчас действует</div>
-          <div class="current-period-row"><span class="label">Махадаша</span><span class="value" id="today-maha">—</span></div>
-          <div class="current-period-row"><span class="label">Антардаша</span><span class="value" id="today-antar">—</span></div>
-          <div class="current-period-row"><span class="label">Пратьянтардаша</span><span class="value" id="today-pratyantar">—</span></div>
+        <div class="form-card" style="padding:16px;" id="today-upcoming-card">
+          <h2 style="font-size:15px;margin-bottom:10px;">Ближайшие события</h2>
+          <div id="today-upcoming"></div>
         </div>
         <div class="info-card" style="display:block;">
           <div class="name" style="margin-bottom:6px;">Качество дня</div>
           <div class="current-period-row"><span class="label">Тара-бала</span><span class="value" id="today-tara">—</span></div>
           <div class="current-period-row"><span class="label">Титхи</span><span class="value" id="today-tithi">—</span></div>
           <div class="current-period-row"><span class="label">Накшатра дня</span><span class="value" id="today-nak">—</span></div>
-          <div class="current-period-row"><span class="label">Транзитная Луна</span><span class="value" id="today-moon-house">—</span></div>
+          <div class="current-period-row"><span class="label">Луна сегодня</span><span class="value" id="today-moon-house">—</span></div>
+          <div class="current-period-row" id="today-rahukalam-row" style="display:none;color:#a8654a;"><span class="label">⚠️ Раху-калам</span><span class="value" id="today-rahukalam">—</span></div>
+        </div>
+        <div class="info-card" style="display:block;">
+          <div class="name" style="margin-bottom:6px;">Сейчас действует</div>
+          <div class="current-period-row"><span class="label">Махадаша</span><span class="value" id="today-maha">—</span></div>
+          <div class="current-period-row"><span class="label">Антардаша</span><span class="value" id="today-antar">—</span></div>
+          <div class="current-period-row"><span class="label">Пратьянтардаша</span><span class="value" id="today-pratyantar">—</span></div>
         </div>
         <div class="form-card" style="padding:16px;">
           <h2 style="font-size:15px;margin-bottom:10px;">Заметные транзиты сегодня</h2>
           <div id="today-notable"></div>
-        </div>
-        <div class="form-card" style="padding:16px;" id="today-upcoming-card">
-          <h2 style="font-size:15px;margin-bottom:10px;">Ближайшие события</h2>
-          <div id="today-upcoming"></div>
         </div>
       </div>
       <div class="error-msg" id="today-error-msg"></div>
@@ -2505,13 +2506,21 @@
         upcomingEl.innerHTML = '<div style="font-size:13px;color:var(--taupe);">В ближайшее время особых дат не найдено.</div>';
       }
 
+      const rkRow = document.getElementById('today-rahukalam-row');
+      if (data.rahuKalam) {
+        document.getElementById('today-rahukalam').textContent = `${data.rahuKalam.start}–${data.rahuKalam.end}`;
+        rkRow.style.display = 'flex';
+      } else {
+        rkRow.style.display = 'none';
+      }
+
       const notableEl = document.getElementById('today-notable');
       if (data.notableTransits.length === 0) {
         notableEl.innerHTML = '<div style="font-size:13px;color:var(--taupe);">Сегодня нет транзитов к чувствительным точкам карты.</div>';
       } else {
         notableEl.innerHTML = data.notableTransits.map(nt => `
           <div class="note-item">
-            <div class="note-text"><b>${escapeHtml(nt.planet)}</b> сейчас в ${nt.house}-м доме — рядом с: ${nt.hits.map(escapeHtml).join(', ')}</div>
+            <div class="note-text">${escapeHtml(nt.phrase)}<br><span style="color:var(--taupe);font-size:12px;">Рядом с: ${nt.hits.map(escapeHtml).join(', ')}</span></div>
           </div>
         `).join('');
       }

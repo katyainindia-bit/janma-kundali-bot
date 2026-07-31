@@ -32,6 +32,28 @@ function houseMeaningPhrase(house) {
   return `Луна в ${house} доме — внимание естественным образом направлено на: ${m}.`;
 }
 
+// Общая тема транзитной планеты — для смысл-сначала в «Заметных транзитах»
+const PLANET_THEMES = {
+  'Солнце': 'воля и авторитет',
+  'Луна': 'эмоции и повседневность',
+  'Меркурий': 'общение и дела',
+  'Венера': 'отношения и удовольствия',
+  'Марс': 'энергия и действия',
+  'Юпитер': 'рост и удача',
+  'Сатурн': 'ограничения и дисциплина',
+  'Раху': 'желания и нестандартные ситуации',
+  'Кету': 'отпускание и уход внутрь',
+};
+
+// Смысл-сначала: «Сатурн сейчас акцентирует тему X (дом Y)», технический
+// список конкретных точек-целей передаётся отдельно (hits), не сюда.
+function transitPhrase(planetName, house) {
+  const theme = PLANET_THEMES[planetName] || null;
+  const houseMeaning = HOUSE_MEANINGS[house] || null;
+  if (!houseMeaning) return `${planetName} сейчас в ${house} доме.`;
+  return `${planetName}${theme ? ' (' + theme + ')' : ''} сейчас акцентирует: ${houseMeaning}.`;
+}
+
 // --- Синтез заголовка дня («Совет дня») ---
 // Приоритет сигналов (сверху вниз, первый сработавший — главный):
 // 1. Затмение сегодня
@@ -84,4 +106,4 @@ function buildDaySummary({ dateISO, hasEclipse, tithiName, dashaChangeToday, sup
   return pick(TEMPLATES.neutral, dateISO);
 }
 
-module.exports = { HOUSE_MEANINGS, houseMeaningPhrase, buildDaySummary };
+module.exports = { HOUSE_MEANINGS, houseMeaningPhrase, transitPhrase, buildDaySummary };
