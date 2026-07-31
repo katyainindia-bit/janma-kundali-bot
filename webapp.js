@@ -9,13 +9,13 @@ const crypto = require('crypto');
 
 const { calculateChart } = require('./engine.js');
 const { computeVimshottariDasha, findCurrentDashaChain } = require('./dasha.js');
-const { computeCurrentTransits } = require('./transits.js');
+const { computeCurrentTransits, transitDignity } = require('./transits.js');
 const { computePanchanga, computeTaraBala } = require('./panchanga.js');
 const { calculateNavamsha } = require('./navamsha.js');
 const { calculateDashamsha } = require('./dashamsha.js');
 const { calculateVarga: calculateOtherVarga, VARGA_DEFS } = require('./divisional-charts.js');
 const { computeCalendarMonth, computeDateSearch, computeDayDetail, computeActionDateSearch, GOALS } = require('./date-tools.js');
-const { ACTIONS, ACTION_ICONS, evaluateAction } = require('./muhurta.js');
+const { ACTIONS, ACTION_ICONS, NICHE_ACTION_KEYS, evaluateAction } = require('./muhurta.js');
 const { getEventsForDate, findUpcomingEvents } = require('./calendar-events.js');
 const { houseMeaningPhrase, computeDayTier, transitPhrase } = require('./day-summary.js');
 const { buildChartExportPDF } = require('./chart-export-pdf.js');
@@ -372,8 +372,9 @@ function startWebApp() {
       const notableTransits = [];
       for (const [planetName, t] of Object.entries(transits.planets)) {
         const hits = sensitivePoints.filter(sp => sp.house === t.transitHouse).map(sp => sp.key);
-        if (hits.length > 0) {
-          notableTransits.push({ planet: planetName, house: t.transitHouse, hits, phrase: transitPhrase(planetName, t.transitHouse) });
+        const dignity = transitDignity(planetName, t.sign.index);
+        if (hits.length > 0 || dignity) {
+          notableTransits.push({ planet: planetName, house: t.transitHouse, hits, dignity, phrase: transitPhrase(planetName, t.transitHouse, dignity) });
         }
       }
 
@@ -416,6 +417,12 @@ function startWebApp() {
       if (supportedResults.length === 0) {
         supportedResults = muhurtaResults.filter(r => r.restrictions.length === 0);
       }
+      // Повседневные действия — вперёд, нишевые (мед./посвящения/стрижка/финдень) — только если места хватает
+      supportedResults = supportedResults.slice().sort((a, b) => {
+        const an = NICHE_ACTION_KEYS.includes(a.actionKey) ? 1 : 0;
+        const bn = NICHE_ACTION_KEYS.includes(b.actionKey) ? 1 : 0;
+        return an - bn;
+      });
       const supported = supportedResults.slice(0, 4).map(r => ({ key: r.actionKey, label: r.label, icon: ACTION_ICONS[r.actionKey] || '✅' }));
       const postpone = muhurtaResults.filter(r => r.restrictions.length > 0).slice(0, 4).map(r => ({ key: r.actionKey, label: r.label, icon: ACTION_ICONS[r.actionKey] || '⚠' }));
 
@@ -454,7 +461,8 @@ function startWebApp() {
         events,
         upcomingEvents,
         daySummary: dayTier.headline,
-        dayEnergy: { emoji: dayTier.emoji, label: dayTier.energyLabel, stars: dayTier.stars },
+        dayEnergy: { emoji: dayTier.emoji, label: dayTier.energyLabel },
+        energyDescriptor: dayTier.energyDescriptor,
       });
     } catch (e) {
       console.error(e);

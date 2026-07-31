@@ -549,6 +549,7 @@
       </div>
       <div id="today-content" style="display:none;">
         <div class="form-card" id="today-summary-card" style="padding:18px;text-align:center;">
+          <div style="font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--gold);margin-bottom:8px;">Главное сегодня</div>
           <div id="today-summary-text" style="font-family:'Playfair Display',serif;font-size:17px;line-height:1.4;"></div>
         </div>
         <div class="info-card" id="today-events-card" style="display:none;">
@@ -569,6 +570,7 @@
         </div>
         <div class="info-card" style="display:block;">
           <div class="name" style="margin-bottom:6px;">Качество дня</div>
+          <div id="today-energy-descriptor" style="font-size:13px;color:var(--taupe);margin-bottom:8px;"></div>
           <div class="current-period-row"><span class="label">Тара-бала</span><span class="value" id="today-tara">—</span></div>
           <div class="current-period-row"><span class="label">Титхи</span><span class="value" id="today-tithi">—</span></div>
           <div class="current-period-row"><span class="label">Накшатра дня</span><span class="value" id="today-nak">—</span></div>
@@ -1014,6 +1016,32 @@
     'Экадаши': '🌙',
     'Особый день': '✨',
   };
+
+  // Монохромные линейные иконки для действий (взамен смайликов) — единый стиль
+  // с остальными иконками приложения (calendar-note-marker, нижнее меню).
+  const ACTION_ICON_SVGS = {
+    education: '<path d="M3 5.5C5 4.3 8 4.3 10.3 6V19c-2.3-1.7-5.3-1.7-7.3-.5V5.5Z"/><path d="M21 5.5C19 4.3 16 4.3 13.7 6V19c2.3-1.7 5.3-1.7 7.3-.5V5.5Z"/>',
+    travel: '<path d="M21 3 3 10.2l7 1.8 2 7L21 3Z"/>',
+    relocation: '<rect x="4" y="10" width="16" height="10" rx="1"/><path d="M4 10 12 4l8 6"/><path d="M12 10v10"/>',
+    realestate: '<path d="M4 11 12 4l8 7"/><path d="M6 10.5V20h12v-9.5"/>',
+    construction: '<rect x="4.5" y="12" width="4.5" height="8"/><rect x="10" y="7" width="4.5" height="13"/><rect x="15.5" y="14.5" width="4" height="5.5"/>',
+    wedding: '<circle cx="9" cy="14.5" r="4"/><circle cx="15" cy="14.5" r="4"/>',
+    medicalProcedure: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v9M7.5 12h9"/>',
+    spiritualPractice: '<path d="M12 20c-4-2-6-6-6-9.5 2 1 4 3 6 6 2-3 4-5 6-6 0 3.5-2 7.5-6 9.5Z"/><circle cx="12" cy="5.5" r="2"/>',
+    initiation: '<path d="M12 3.5c2 2.7 3.7 4.7 3.7 7.3a3.7 3.7 0 1 1-7.4 0c0-.9.4-1.8.9-2.6.5.9 1 1.3 1 1.3-.4-2.3.6-4.2 1.8-6Z"/>',
+    contract: '<rect x="5.5" y="3.5" width="11" height="15" rx="1"/><path d="M8.3 8h5.4M8.3 11.5h5.4M8.3 15h3.4"/><path d="M15.5 15.3l3-3 1.2 1.2-3 3-1.7.5.5-1.7Z"/>',
+    business: '<rect x="4" y="9" width="16" height="10.5" rx="1"/><path d="M9 9V6.3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1V9"/>',
+    project: '<path d="M12 3c3 2.2 5 6 4 12.5l-4 2.7-4-2.7C7 9 9 5.2 12 3Z"/><circle cx="12" cy="10.5" r="1.6"/>',
+    bigPurchase: '<path d="M6.5 8h11l-1 12h-9L6.5 8Z"/><path d="M9.3 8V6.2a2.7 2.7 0 0 1 5.4 0V8"/>',
+    investment: '<path d="M4 18l5-6 4 3 7-9.3"/><path d="M15 5.7h5v5"/>',
+    financialDay: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v9"/><path d="M9.5 9.7c0-1.2 1-2 2.5-2s2.5.8 2.5 2c0 2.4-5 1.4-5 3.8 0 1.2 1 2 2.5 2s2.5-.8 2.5-2"/>',
+    haircut: '<circle cx="6.3" cy="6.3" r="2.2"/><circle cx="6.3" cy="17.7" r="2.2"/><path d="M8.3 7.5 20 18M8.3 16.5 20 6"/>',
+  };
+  function actionIconSvg(key) {
+    const path = ACTION_ICON_SVGS[key];
+    if (!path) return '';
+    return `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-3px;margin-right:4px;">${path}</svg>`;
+  }
 
   const PLANET_SYMBOLS = {
     'Солнце':'Su','Луна':'Mo','Меркурий':'Me','Венера':'Ve','Марс':'Ma',
@@ -2464,13 +2492,14 @@
       document.getElementById('today-pratyantar').innerHTML = chain && chain.pratyantardasha
         ? `${chain.pratyantardasha.lord}<br><span class="sub">до ${fmtDate(chain.pratyantardasha.end)}</span>` : '—';
 
+      document.getElementById('today-energy-descriptor').textContent = data.energyDescriptor || '';
       document.getElementById('today-tara').innerHTML = `${data.taraBala.name} <span class="sub">(${data.taraBala.quality})</span>`;
       document.getElementById('today-tithi').textContent = `${data.tithi.name} (№${data.tithi.number}, ${data.tithi.paksha})`;
       document.getElementById('today-nak').textContent = data.nakshatraOfDay;
       document.getElementById('today-moon-house').textContent = data.moonHouseMeaning || `${data.moonTransitHouse}-й дом`;
 
       document.getElementById('today-summary-text').innerHTML = data.dayEnergy
-        ? `<div style="font-size:22px;margin-bottom:6px;">${data.dayEnergy.emoji} ${'★'.repeat(data.dayEnergy.stars)}${'☆'.repeat(5 - data.dayEnergy.stars)}</div>${escapeHtml(data.daySummary || '')}`
+        ? `<div style="font-size:15px;margin-bottom:6px;">${data.dayEnergy.emoji} ${escapeHtml(data.dayEnergy.label)}</div>${escapeHtml(data.daySummary || '')}`
         : escapeHtml(data.daySummary || '');
 
       const eventsCard = document.getElementById('today-events-card');
@@ -2486,7 +2515,7 @@
 
       const supportedCard = document.getElementById('today-supported-card');
       if (data.supported && data.supported.length > 0) {
-        document.getElementById('today-supported').innerHTML = `<div class="chip-row">${data.supported.map(a => `<span class="chip" style="cursor:default;">${a.icon} ${escapeHtml(a.label)}</span>`).join('')}</div>`;
+        document.getElementById('today-supported').innerHTML = `<div class="chip-row">${data.supported.map(a => `<span class="chip" style="cursor:default;">${actionIconSvg(a.key)}${escapeHtml(a.label)}</span>`).join('')}</div>`;
         supportedCard.style.display = 'block';
       } else {
         supportedCard.style.display = 'none';
@@ -2494,7 +2523,7 @@
 
       const postponeCard = document.getElementById('today-postpone-card');
       if (data.postpone && data.postpone.length > 0) {
-        document.getElementById('today-postpone').innerHTML = `<div class="chip-row">${data.postpone.map(a => `<span class="chip" style="cursor:default;">${a.icon} ${escapeHtml(a.label)}</span>`).join('')}</div>`;
+        document.getElementById('today-postpone').innerHTML = `<div class="chip-row">${data.postpone.map(a => `<span class="chip" style="cursor:default;">${actionIconSvg(a.key)}${escapeHtml(a.label)}</span>`).join('')}</div>`;
         postponeCard.style.display = 'block';
       } else {
         postponeCard.style.display = 'none';
@@ -2523,7 +2552,7 @@
       } else {
         notableEl.innerHTML = data.notableTransits.map(nt => `
           <div class="note-item">
-            <div class="note-text">${escapeHtml(nt.phrase)}<br><span style="color:var(--taupe);font-size:12px;">Рядом с: ${nt.hits.map(escapeHtml).join(', ')}</span></div>
+            <div class="note-text">${escapeHtml(nt.phrase)}${nt.hits.length ? '<br><span style="color:var(--taupe);font-size:12px;">Рядом с: ' + nt.hits.map(escapeHtml).join(', ') + '</span>' : ''}</div>
           </div>
         `).join('');
       }

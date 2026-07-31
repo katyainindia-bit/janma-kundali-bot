@@ -130,6 +130,10 @@ const ACTION_ICONS = {
   haircut: '💇',
 };
 
+// Нишевые действия — не должны вытеснять повседневные категории (работа/учёба/
+// практики и т.п.) из блока «поддержано», если только сами не особенно сильны в этот день
+const NICHE_ACTION_KEYS = ['medicalProcedure', 'initiation', 'haircut', 'financialDay'];
+
 const ACTIONS = {
   education: {
     label: 'Начало обучения',
@@ -365,6 +369,7 @@ function evaluateAction(actionKey, dayCtx) {
 module.exports = {
   ACTIONS,
   ACTION_ICONS,
+  NICHE_ACTION_KEYS,
   TITHI_PANCHAKA,
   NAKSHATRA_GANA,
   tithiPanchaka,

@@ -7,7 +7,7 @@
 const { computeVimshottariDasha, findCurrentDashaChain } = require('./dasha.js');
 const { computePanchanga, computeTaraBala } = require('./panchanga.js');
 const { computeCurrentTransits } = require('./transits.js');
-const { ACTIONS, ACTION_ICONS, evaluateAction } = require('./muhurta.js');
+const { ACTIONS, ACTION_ICONS, NICHE_ACTION_KEYS, evaluateAction } = require('./muhurta.js');
 const { getEventsForDate } = require('./calendar-events.js');
 const { houseMeaningPhrase, computeDayTier } = require('./day-summary.js');
 
@@ -152,6 +152,11 @@ function computeDayDetail(chart, birthDateUTC, year, month, day, lat, lon, utcOf
   if (supportedResults.length === 0) {
     supportedResults = muhurtaResults.filter(r => r.restrictions.length === 0);
   }
+  supportedResults = supportedResults.slice().sort((a, b) => {
+    const an = NICHE_ACTION_KEYS.includes(a.actionKey) ? 1 : 0;
+    const bn = NICHE_ACTION_KEYS.includes(b.actionKey) ? 1 : 0;
+    return an - bn;
+  });
   const supported = supportedResults.slice(0, 4).map(r => ({ key: r.actionKey, label: r.label, icon: ACTION_ICONS[r.actionKey] || '✅' }));
   const postpone = muhurtaResults.filter(r => r.restrictions.length > 0).slice(0, 4).map(r => ({ key: r.actionKey, label: r.label, icon: ACTION_ICONS[r.actionKey] || '⚠' }));
 
@@ -179,7 +184,8 @@ function computeDayDetail(chart, birthDateUTC, year, month, day, lat, lon, utcOf
     postpone,
     events,
     daySummary: dayTier.headline,
-    dayEnergy: { emoji: dayTier.emoji, label: dayTier.energyLabel, stars: dayTier.stars },
+    dayEnergy: { emoji: dayTier.emoji, label: dayTier.energyLabel },
+    energyDescriptor: dayTier.energyDescriptor,
   };
 }
 
