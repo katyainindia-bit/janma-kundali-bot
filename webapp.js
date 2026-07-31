@@ -377,6 +377,9 @@ function startWebApp() {
           notableTransits.push({ planet: planetName, house: t.transitHouse, hits, dignity, phrase: transitPhrase(planetName, t.transitHouse, dignity) });
         }
       }
+      // Соединение с личной точкой карты — более персональный сигнал, чем просто
+      // сила планеты по достоинству — при капе в 2 карточки не должно вытесняться
+      notableTransits.sort((a, b) => (b.hits.length > 0 ? 1 : 0) - (a.hits.length > 0 ? 1 : 0));
 
       // 6. Смена периода даши именно сегодня (по календарной дате, не только по времени)
       function isSameUTCDate(d1, d2) {

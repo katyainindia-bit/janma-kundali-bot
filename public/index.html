@@ -1010,7 +1010,7 @@
     'Праздник': '🕉️',
     'Затмение (лунное)': '🌘',
     'Затмение (солнечное)': '🌞',
-    'Санкранти': '🪐',
+    'Санкранти': '🧭',
     'Пурнима': '🌕',
     'Амавасья': '🌑',
     'Экадаши': '🌙',
@@ -2552,7 +2552,10 @@
       } else {
         notableEl.innerHTML = data.notableTransits.map(nt => `
           <div class="note-item">
-            <div class="note-text">${escapeHtml(nt.phrase)}${nt.hits.length ? '<br><span style="color:var(--taupe);font-size:12px;">Рядом с: ' + nt.hits.map(escapeHtml).join(', ') + '</span>' : ''}</div>
+            <div class="note-text">
+              <span style="display:inline-block;background:var(--card);border-radius:6px;padding:1px 7px;font-size:11px;color:var(--gold);font-weight:600;margin-right:6px;">${nt.house} дом</span>
+              ${escapeHtml(nt.phrase)}${nt.hits.length ? '<br><span style="color:var(--taupe);font-size:12px;">Рядом с: ' + nt.hits.map(escapeHtml).join(', ') + '</span>' : ''}
+            </div>
           </div>
         `).join('');
       }
