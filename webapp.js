@@ -461,7 +461,7 @@ function startWebApp() {
         rahuKalam: todayPanchanga.rahuKalam,
         moonTransitHouse,
         moonHouseMeaning,
-        notableTransits: notableTransits.slice(0, 2),
+        notableTransits: notableTransits.slice(0, 3),
         dashaChangeToday,
         supported,
         postpone,

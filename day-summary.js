@@ -45,12 +45,12 @@ const PLANET_THEMES = {
   'Кету': 'отпускание и уход внутрь',
 };
 
-// Смысл-сначала: «Меркурий — 9 дом (общение и дела) · сильная позиция: ...»
-// Дом указывается явно (не только через смысл дома), чтобы было понятно, о чём речь.
+// Смысл-сначала: «Меркурий (общение и дела) · сильная позиция: ...» — номер дома
+// показывается отдельным бейджем на фронтенде (один раз), сюда его не дублируем.
 function transitPhrase(planetName, house, dignity) {
   const theme = PLANET_THEMES[planetName] || null;
   const houseMeaning = HOUSE_MEANINGS[house] || null;
-  const parts = [`${planetName} — ${house} дом`];
+  const parts = [planetName];
   if (theme) parts.push(theme);
   if (dignity) parts.push(`сильная позиция: ${dignity}`);
   const head = parts.join(' · ');

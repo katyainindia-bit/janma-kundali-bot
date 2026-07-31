@@ -243,7 +243,8 @@
   }
   .cal-day.good { background: #E3F0E0; color: #3f6b3a; }
   .cal-day.bad { background: #F5E3E0; color: #a8654a; }
-  .cal-event-icon { position: absolute; top: 1px; right: 2px; font-size: 9px; line-height: 1; }
+  .cal-event-icon { position: absolute; top: 1px; right: 2px; line-height: 1; }
+  .cal-event-icon svg { width: 9px; height: 9px; margin-right: 0; vertical-align: baseline; }
   .cal-day .dot-change {
     position: absolute; top: 3px; right: 3px; width: 5px; height: 5px;
     border-radius: 50%; background: var(--gold);
@@ -1006,17 +1007,6 @@
 
   // Соответствует EVENT_TYPES/EVENT_ICONS в calendar-events.js на сервере
   // (отдельная копия — серверный модуль напрямую в браузер не попадает)
-  const EVENT_ICONS = {
-    'Праздник': '🕉️',
-    'Затмение (лунное)': '🌘',
-    'Затмение (солнечное)': '🌞',
-    'Санкранти': '🧭',
-    'Пурнима': '🌕',
-    'Амавасья': '🌑',
-    'Экадаши': '🌙',
-    'Особый день': '✨',
-  };
-
   // Монохромные линейные иконки для действий (взамен смайликов) — единый стиль
   // с остальными иконками приложения (calendar-note-marker, нижнее меню).
   const ACTION_ICON_SVGS = {
@@ -1041,6 +1031,23 @@
     const path = ACTION_ICON_SVGS[key];
     if (!path) return '';
     return `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-3px;margin-right:4px;">${path}</svg>`;
+  }
+
+  // Монохромные иконки для календарных событий — в стиле приложения, не смайлики
+  const EVENT_ICON_SVGS = {
+    'Праздник': '<path d="M12 21c-3 0-5-2-5-5 0-3 2-5 5-9 3 4 5 6 5 9 0 3-2 5-5 5Z"/><path d="M9 20.3h6"/>',
+    'Затмение (лунное)': '<circle cx="10" cy="12" r="6"/><circle cx="14.3" cy="12" r="6"/>',
+    'Затмение (солнечное)': '<circle cx="10" cy="12" r="6"/><circle cx="14.3" cy="12" r="6"/>',
+    'Санкранти': '<circle cx="12" cy="12" r="4.3"/><path d="M12 3v2.3M12 18.7V21M4.2 12h2.3M17.5 12h2.3M6.3 6.3l1.6 1.6M16.1 16.1l1.6 1.6M6.3 17.7l1.6-1.6M16.1 7.9l1.6-1.6"/>',
+    'Пурнима': '<circle cx="12" cy="12" r="7.5"/>',
+    'Амавасья': '<path d="M15.5 5a7.5 7.5 0 1 0 0 14 9 9 0 0 1 0-14Z"/>',
+    'Экадаши': '<path d="M12 3.5c5 3 7 8 4 13-5 3-9 1-9-4.5 0-3.7 2-6.7 5-8.5Z"/>',
+    'Особый день': '<path d="M12 3v18M4.5 7.5l15 9M19.5 7.5l-15 9"/>',
+  };
+  function eventIconSvg(type) {
+    const path = EVENT_ICON_SVGS[type];
+    if (!path) return '';
+    return `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2.5px;margin-right:3px;color:var(--gold);">${path}</svg>`;
   }
 
   const PLANET_SYMBOLS = {
@@ -2506,7 +2513,7 @@
       if (data.events && data.events.length > 0) {
         document.getElementById('today-events').innerHTML = data.events.map(ev => `
           <div class="note-item">
-            <div class="note-text"><b>${EVENT_ICONS[ev.type] || ''} ${escapeHtml(ev.label)}</b>${ev.description ? '<br><span style="color:var(--taupe);font-size:12px;">' + escapeHtml(ev.description) + '</span>' : ''}</div>
+            <div class="note-text"><b>${eventIconSvg(ev.type)}${escapeHtml(ev.label)}</b>${ev.description ? '<br><span style="color:var(--taupe);font-size:12px;">' + escapeHtml(ev.description) + '</span>' : ''}</div>
           </div>`).join('');
         eventsCard.style.display = 'block';
       } else {
@@ -2532,7 +2539,7 @@
       const upcomingEl = document.getElementById('today-upcoming');
       if (data.upcomingEvents && data.upcomingEvents.length > 0) {
         upcomingEl.innerHTML = data.upcomingEvents.map(ev => `
-          <div class="note-item"><div class="note-text">${EVENT_ICONS[ev.type] || ''} ${escapeHtml(ev.label)} <span class="sub">— через ${ev.daysAhead} дн. (${fmtDate(ev.date)})</span></div></div>
+          <div class="note-item"><div class="note-text">${eventIconSvg(ev.type)}${escapeHtml(ev.label)} <span class="sub">— через ${ev.daysAhead} дн. (${fmtDate(ev.date)})</span></div></div>
         `).join('');
       } else {
         upcomingEl.innerHTML = '<div style="font-size:13px;color:var(--taupe);">В ближайшее время особых дат не найдено.</div>';
@@ -2553,7 +2560,7 @@
         notableEl.innerHTML = data.notableTransits.map(nt => `
           <div class="note-item">
             <div class="note-text">
-              <span style="display:inline-block;background:var(--card);border-radius:6px;padding:1px 7px;font-size:11px;color:var(--gold);font-weight:600;margin-right:6px;">${nt.house} дом</span>
+              <span style="display:block;background:var(--card);border-radius:6px;padding:1px 7px;font-size:11px;color:var(--gold);font-weight:600;margin-bottom:4px;width:fit-content;">${nt.house} дом</span>
               ${escapeHtml(nt.phrase)}${nt.hits.length ? '<br><span style="color:var(--taupe);font-size:12px;">Рядом с: ' + nt.hits.map(escapeHtml).join(', ') + '</span>' : ''}
             </div>
           </div>
@@ -2651,7 +2658,7 @@
       data.days.forEach(d => {
         const cls = d.taraQuality.includes('наименее') || d.taraQuality === 'неблагоприятно' ? 'bad'
           : (d.taraQuality.includes('наиболее') || d.taraQuality === 'благоприятно') ? 'good' : '';
-        const eventIcon = (d.events && d.events[0]) ? `<span class="cal-event-icon">${EVENT_ICONS[d.events[0].type] || '✨'}</span>` : '';
+        const eventIcon = (d.events && d.events[0]) ? `<span class="cal-event-icon">${eventIconSvg(d.events[0].type)}</span>` : '';
         html += `<div class="cal-day ${cls}" data-day="${d.day}">${d.day}${d.dashaChange ? '<span class="dot-change"></span>' : ''}${eventIcon}</div>`;
       });
       grid.innerHTML = html;
@@ -2675,7 +2682,7 @@
             const pn = dd.panchanga;
             detail.innerHTML = `
               <div class="name" style="margin-bottom:8px;">${dd.date}</div>
-              ${dd.events.length ? `<div style="margin-bottom:8px;">${dd.events.map(ev => `<div class="note-item"><div class="note-text">${escapeHtml(EVENT_ICONS[ev.type]||'')} ${escapeHtml(ev.label)}</div></div>`).join('')}</div>` : ''}
+              ${dd.events.length ? `<div style="margin-bottom:8px;">${dd.events.map(ev => `<div class="note-item"><div class="note-text">${eventIconSvg(ev.type)}${escapeHtml(ev.label)}</div></div>`).join('')}</div>` : ''}
               <div class="current-period-row"><span class="label">Вара</span><span class="value">${pn.vara}</span></div>
               <div class="current-period-row"><span class="label">Титхи</span><span class="value">${pn.tithi.name} (${pn.tithi.paksha})</span></div>
               <div class="current-period-row"><span class="label">Накшатра дня</span><span class="value">${pn.nakshatraOfDay}</span></div>
