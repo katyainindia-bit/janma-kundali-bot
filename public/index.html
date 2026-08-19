@@ -1381,6 +1381,15 @@
         const dt = el('text', {x:px,y:py+fs*1.2,'text-anchor':'middle','font-family':'Inter, sans-serif','font-size':9,fill:'#7A6B5A'});
         dt.textContent = dms(item.p.sign.degInSign);
         svg.appendChild(dt);
+
+        // Кликабельная/наводимая область вокруг символа планеты — на самой карте,
+        // не только в списке планет под ней. Прозрачный круг шире самого текста,
+        // чтобы было проще попасть пальцем на мобильном.
+        const hit = el('circle', {cx:px, cy:py, r:16, fill:'transparent', style:'cursor:pointer;'});
+        const openDetail = () => showPlanetDetail(item.name, item.p.sign.index, item.p.retrograde, item.p.house, item.p.nakshatra.name, item.p.nakshatra.pada);
+        hit.addEventListener('click', openDetail);
+        hit.addEventListener('mouseenter', openDetail);
+        svg.appendChild(hit);
       });
 
       // Слой транзитов — компактно рядом с натальными планетами, приглушённым цветом.
