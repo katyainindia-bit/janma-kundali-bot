@@ -150,11 +150,14 @@
     color: var(--taupe);
   }
   .info-card .bookmark {
-    font-size: 20px;
     color: var(--gold);
     background: none;
     border: none;
     cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2px 4px;
   }
 
   /* ---------- Архив ---------- */
@@ -488,9 +491,17 @@
 <main>
 
 <div id="page-home">
-  <button class="btn-secondary" id="form-collapsed-btn" style="display:none;width:100%;margin-bottom:14px;">+ Построить новую карту</button>
+  <button class="btn-secondary" id="form-collapsed-btn" style="display:none;width:100%;margin-bottom:14px;justify-content:center;align-items:center;gap:6px;">
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+    Построить новую карту
+  </button>
   <div class="form-card" id="form-card">
-    <h2>Построить натальную карту</h2>
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <h2 style="margin-bottom:0;">Построить натальную карту</h2>
+      <button id="form-collapse-btn" style="display:none;background:none;border:none;cursor:pointer;color:var(--gold);padding:4px;">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>
+      </button>
+    </div>
     <div class="field">
       <label for="f-name">Имя (для подписи)</label>
       <input type="text" id="f-name" placeholder="Например: Иван Иванов">
@@ -529,7 +540,10 @@
         <div class="name" id="res-name">—</div>
         <div class="meta" id="res-meta">—</div>
       </div>
-      <button class="bookmark" id="bookmark-btn">🔖</button>
+      <button class="bookmark" id="bookmark-btn">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="display:block;margin:0 auto 2px;"><path d="M6 3.5h12v17l-6-4-6 4v-17Z"/></svg>
+        <span style="font-size:10px;">В архив</span>
+      </button>
     </div>
 
     <div class="tabs" id="home-tabs">
@@ -606,6 +620,26 @@
           <span><i class="dot" style="background:#b23b2e"></i>падение</span>
         </div>
       </div>
+
+      <div class="chip-row" id="chart-extras-row" style="justify-content:center;gap:10px;margin:14px 0;">
+        <button class="chip" data-extra="yogas" style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 12px;">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="7" r="2.3"/><circle cx="18" cy="7" r="2.3"/><circle cx="12" cy="18" r="2.3"/><path d="M8 8.3 10.3 16M16 8.3 13.7 16M8.3 6.5h7.4"/></svg>
+          <span style="font-size:10px;">Йоги</span>
+        </button>
+        <button class="chip" data-extra="aspects" style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 12px;">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l16 16M20 4 4 20"/></svg>
+          <span style="font-size:10px;">Аспекты</span>
+        </button>
+        <button class="chip" data-extra="gochara" style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 12px;">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><ellipse cx="12" cy="12" rx="9" ry="4"/></svg>
+          <span style="font-size:10px;">Гочара</span>
+        </button>
+        <button class="chip" data-extra="lords" style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 12px;">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="1"/><path d="M4 10 12 4l8 6"/><path d="M9 20v-5h6v5"/></svg>
+          <span style="font-size:10px;">Управители</span>
+        </button>
+      </div>
+      <div id="chart-extras-panel" class="form-card" style="padding:16px;display:none;"></div>
 
       <div class="form-card" id="lagna-scrub-card" style="padding:16px;">
         <div class="varga-chart-label" style="margin-bottom:6px;">Диапазон действия Лагны</div>
@@ -700,6 +734,12 @@
       </div>
 
       <div id="varga-chart-wrap">
+        <div id="varga-d1-compare" style="display:none;margin-bottom:14px;">
+          <div class="varga-chart-label">Раши (D1) — для сравнения</div>
+          <div class="chart-wrap">
+            <svg class="chart-svg" id="varga-svg-d1" viewBox="0 0 400 400"></svg>
+          </div>
+        </div>
         <div class="varga-chart-label" id="varga-single-label">Раши (D1)</div>
         <div class="chart-wrap">
           <svg class="chart-svg" id="varga-svg" viewBox="0 0 400 400"></svg>
@@ -740,8 +780,7 @@
 
       <div id="lagna-ref-controls" style="display:none;margin:12px 0;">
         <div class="chip-row" id="lagna-ref-chips">
-          <button class="chip active" data-lref="asc">Асцендент</button>
-          <button class="chip" data-lref="moon">Луна</button>
+          <button class="chip active" data-lref="moon">Луна</button>
           <button class="chip" data-lref="sun">Солнце</button>
         </div>
         <div class="field" style="margin-top:10px;margin-bottom:0;">
@@ -1794,6 +1833,8 @@
     const { chart } = await chartRes.json();
 
     document.getElementById('results').style.display = 'block';
+    collapseChartForm();
+    document.getElementById('form-collapse-btn').style.display = 'inline-flex';
 
     const timeStr = String(hour).padStart(2,'0') + ':' + String(minute).padStart(2,'0');
     document.getElementById('res-name').textContent = name;
@@ -2108,7 +2149,73 @@
     return { planets };
   }
 
-  // Масштабы бегунка: сколько часов влево/вправо от центра он охватывает.
+  let activeExtraPanel = null;
+  document.querySelectorAll('#chart-extras-row [data-extra]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const type = btn.dataset.extra;
+      const panel = document.getElementById('chart-extras-panel');
+      if (activeExtraPanel === type) {
+        // повторный клик по уже открытой панели — закрываем
+        panel.style.display = 'none';
+        activeExtraPanel = null;
+        document.querySelectorAll('#chart-extras-row [data-extra]').forEach(b => b.classList.remove('active'));
+        return;
+      }
+      activeExtraPanel = type;
+      document.querySelectorAll('#chart-extras-row [data-extra]').forEach(b => b.classList.toggle('active', b.dataset.extra === type));
+      panel.style.display = 'block';
+      renderChartExtraPanel(type);
+    });
+  });
+
+  function renderChartExtraPanel(type) {
+    const panel = document.getElementById('chart-extras-panel');
+    if (!currentChart) { panel.innerHTML = '<div style="font-size:13px;color:var(--taupe);">Сначала постройте карту.</div>'; return; }
+
+    if (type === 'lords') {
+      const ascIdx = currentChart.ascendant.sign.index;
+      let html = '<div class="name" style="margin-bottom:10px;">Управители домов</div>';
+      for (let house = 1; house <= 12; house++) {
+        const signIdx = (ascIdx + house - 1) % 12;
+        const lord = SIGN_LORDS_D1[signIdx];
+        const lordHouse = currentChart.planets[lord] ? currentChart.planets[lord].house : null;
+        html += `<div class="current-period-row">
+          <span class="label">${house} дом (${SIGN_NAMES_D1[signIdx]})</span>
+          <span class="value">${lord}${lordHouse ? ` → стои́т в ${lordHouse} доме` : ''}</span>
+        </div>`;
+      }
+      panel.innerHTML = html;
+      return;
+    }
+
+    if (type === 'gochara') {
+      const transits = computeTransitsClientSide(new Date());
+      const order = ['Солнце','Луна','Меркурий','Венера','Марс','Юпитер','Сатурн','Раху','Кету'];
+      let html = '<div class="name" style="margin-bottom:10px;">Текущие транзиты (гочара)</div>';
+      order.forEach(name => {
+        const t = transits.planets[name];
+        if (!t) return;
+        html += `<div class="current-period-row">
+          <span class="label">${name}</span>
+          <span class="value">${t.sign.name} · ${t.transitHouse} дом от Лагны</span>
+        </div>`;
+      });
+      panel.innerHTML = html;
+      return;
+    }
+
+    if (type === 'yogas') {
+      panel.innerHTML = '<div style="font-size:13px;color:var(--taupe);">Определение йог — в разработке, скоро появится здесь.</div>';
+      return;
+    }
+
+    if (type === 'aspects') {
+      panel.innerHTML = '<div style="font-size:13px;color:var(--taupe);">Аспекты между планетами — в разработке, скоро появятся здесь.</div>';
+      return;
+    }
+  }
+
+
   // Чем меньше масштаб — тем чувствительнее бегунок (тот же ход пальцем
   // соответствует меньшему промежутку времени).
   const SCALES = {
@@ -2266,7 +2373,7 @@
   // ============================================================
   let vargaCache = { forChart: null, data: {} };
   let currentVargaType = 'd1';
-  let currentLagnaRef = { type: 'asc' };
+  let currentLagnaRef = { type: 'moon' };
 
   const VARGA_LABELS = {
     d9: 'Навамша (D9)', d10: 'Дашамша (D10)',
@@ -2317,6 +2424,7 @@
     const errorEl = document.getElementById('varga-error-msg');
     const lockedEl = document.getElementById('varga-locked');
     const chartWrapEl = document.getElementById('varga-chart-wrap');
+    const d1CompareEl = document.getElementById('varga-d1-compare');
     errorEl.style.display = 'none';
     lockedEl.style.display = 'none';
     chartWrapEl.style.display = 'block';
@@ -2327,6 +2435,14 @@
       errorEl.style.display = 'block';
       chartWrapEl.style.display = 'none';
       return;
+    }
+
+    // D1 сверху для сравнения — всегда, кроме случая, когда выбрана сама D1 (не дублируем)
+    if (currentVargaType === 'd1') {
+      d1CompareEl.style.display = 'none';
+    } else {
+      d1CompareEl.style.display = 'block';
+      renderChartSVG(currentChart, 'varga-svg-d1');
     }
 
     if (currentVargaType === 'lagna') {
@@ -3146,15 +3262,23 @@
   });
 
   // ============================================================
-  // Автозагрузка основной карты при входе: если у пользователя уже есть
-  // сохранённая карта (основная для уведомлений — Premium, либо единственная
-  // в архиве — доступно и на free), сразу показываем её вместо пустой формы,
-  // а форму сворачиваем в кнопку "+ Построить новую карту".
+  // Сворачивание формы построения карты: происходит автоматически всегда,
+  // когда где-либо показывается карта (обычная постройка, открытие из
+  // архива, автозагрузка основной карты при входе — всё идёт через
+  // displayChartResults, там и вызывается collapseChartForm). Плюс есть
+  // ручной переключатель — стрелочка в шапке формы (свернуть) и кнопка
+  // со стрелочкой вниз (развернуть), можно использовать в любой момент.
   // ============================================================
-  document.getElementById('form-collapsed-btn').addEventListener('click', () => {
+  function collapseChartForm() {
+    document.getElementById('form-card').style.display = 'none';
+    document.getElementById('form-collapsed-btn').style.display = 'flex';
+  }
+  function expandChartForm() {
     document.getElementById('form-card').style.display = 'block';
     document.getElementById('form-collapsed-btn').style.display = 'none';
-  });
+  }
+  document.getElementById('form-collapsed-btn').addEventListener('click', expandChartForm);
+  document.getElementById('form-collapse-btn').addEventListener('click', collapseChartForm);
 
   document.getElementById('brand-logo').addEventListener('click', () => {
     document.querySelector('.nav-item[data-nav="home"]').click();
@@ -3176,9 +3300,6 @@
       let row = charts.find(c => c.id === tierData.primaryChartId);
       if (!row && charts.length === 1) row = charts[0]; // единственная карта — разумный дефолт и для free
       if (!row) return; // несколько карт, основная не выбрана — не гадаем, оставляем форму разворачиваемой
-
-      document.getElementById('form-card').style.display = 'none';
-      document.getElementById('form-collapsed-btn').style.display = 'block';
 
       await displayChartResults({
         name: row.label, day: row.day, month: row.month, year: row.year,
