@@ -1180,18 +1180,50 @@
 
   const SIGN_NAMES_D1 = ['Овен','Телец','Близнецы','Рак','Лев','Дева','Весы','Скорпион','Стрелец','Козерог','Водолей','Рыбы'];
 
-  async function showPlanetDetail(planetName, signIndex, isRetrograde, house) {
+  const NAKSHATRA_MEANINGS_D1 = {
+    'Ашвини': 'Быстрая, целительная энергия — инициатива, скорость, новые начинания.',
+    'Бхарани': 'Сдерживание и трансформация — ответственность, интенсивность, испытания.',
+    'Криттика': 'Режущая, очищающая сила — решительность, критичность, амбиции.',
+    'Рохини': 'Рост и плодородие — красота, чувственность, притягательность.',
+    'Мригашира': 'Поиск и любопытство — мягкость, стремление к новому.',
+    'Ардра': 'Буря и обновление через кризис — интенсивные перемены, трансформация через трудности.',
+    'Пунарвасу': 'Возвращение и восстановление — оптимизм, забота, новый цикл после потерь.',
+    'Пушья': 'Питание и забота — духовность, стабильность, покровительство.',
+    'Ашлеша': 'Проницающая, гипнотическая сила — интуиция, скрытность, глубина.',
+    'Магха': 'Власть предков и традиция — авторитет, наследие, гордость.',
+    'Пурва Пхалгуни': 'Удовольствие и творчество — отдых, романтика, наслаждение жизнью.',
+    'Уттара Пхалгуни': 'Партнёрство и великодушие — дружба, помощь другим, стабильность в отношениях.',
+    'Хаста': 'Умелые руки — мастерство, ловкость, практичность.',
+    'Читра': 'Блеск и мастерство формы — творчество, эстетика, харизма.',
+    'Свати': 'Независимость и движение — гибкость, дипломатия, самостоятельность.',
+    'Вишакха': 'Целеустремлённость через выбор — решимость, амбиции, достижение цели.',
+    'Анурадха': 'Преданность и дружба — сотрудничество, дисциплина в отношениях.',
+    'Джьештха': 'Старшинство и защита — ответственность, авторитет, внутренняя борьба за первенство.',
+    'Мула': 'Вырывание корней — поиск истины, разрушение старого ради нового начала.',
+    'Пурва Ашадха': 'Непобедимость — сила убеждения, упорство, ранняя победа.',
+    'Уттара Ашадха': 'Окончательная победа — долгосрочный успех, принципиальность, устойчивость.',
+    'Шравана': 'Слушание и обучение — связь, коммуникация, накопление знаний.',
+    'Дханишта': 'Богатство и ритм — музыкальность, амбициозность, коллективный успех.',
+    'Шатабхиша': 'Исцеление через уединение — независимость, мистика, врачевание.',
+    'Пурва Бхадрапада': 'Интенсивность и трансформация — духовный поиск, огненная энергия перемен.',
+    'Уттара Бхадрапада': 'Глубина и покой — мудрость, спокойная сила, духовная зрелость.',
+    'Ревати': 'Завершение пути — забота, сострадание, мягкий переход к новому этапу.',
+  };
+
+  async function showPlanetDetail(planetName, signIndex, isRetrograde, house, nakName, nakPada) {
     const status = getDignityStatusD1(planetName, signIndex);
     const detail = document.getElementById('planet-detail');
     detail.style.display = 'block';
     const hasDigBala = DIG_BALA_HOUSE[planetName] === house;
+    const nakMeaning = NAKSHATRA_MEANINGS_D1[nakName] || '';
     detail.innerHTML = `
-      <div class="name" style="margin-bottom:4px;">${planetName} в ${SIGN_NAMES_D1[signIndex]}</div>
+      <div class="name" style="margin-bottom:4px;">${planetName} в ${house} доме, в ${SIGN_NAMES_D1[signIndex]}</div>
       <div style="font-size:12px;color:var(--gold);font-weight:600;margin-bottom:10px;text-transform:uppercase;letter-spacing:.03em;">${DIGNITY_LABELS_D1[status]}${isRetrograde ? ' · Ретроградна' : ''}</div>
       <p style="font-size:13px;line-height:1.5;margin-bottom:10px;">${DIGNITY_TEXTS_D1[status]}</p>
       ${hasDigBala ? '<p style="font-size:13px;line-height:1.5;margin-bottom:10px;">◈ <b>Есть диг-бала</b> — планета находится в доме своей направленной силы, это дополнительно усиливает её.</p>' : ''}
       ${isRetrograde ? '<p style="font-size:13px;line-height:1.5;color:#a8654a;margin-bottom:10px;">Ретроградность: планета движется по знаку в обратном направлении относительно Земли — её темы разворачиваются внутрь, требуют пересмотра или возвращения к уже пройденному, вместо прямого внешнего движения вперёд.</p>' : ''}
-      <p style="font-size:13px;line-height:1.5;color:var(--taupe);margin-bottom:14px;">${PLANET_SIGNIFICATIONS_D1[planetName]}</p>
+      <p style="font-size:13px;line-height:1.5;color:var(--taupe);margin-bottom:10px;">${PLANET_SIGNIFICATIONS_D1[planetName]}</p>
+      ${nakName ? `<p style="font-size:13px;line-height:1.5;margin-bottom:14px;"><b>Накшатра: ${nakName}</b> (пада ${nakPada})<br><span style="color:var(--taupe);">${nakMeaning}</span></p>` : ''}
       <button class="btn-secondary" id="planet-premium-teaser" style="margin-bottom:0;">✨ Узнать, что это значит именно для вашей карты</button>
     `;
     document.getElementById('planet-premium-teaser').addEventListener('click', async () => {
@@ -1391,7 +1423,7 @@
       const p = chart.planets[name];
       const color = dignityColor(name, p.sign.index);
       const hasDigBala = DIG_BALA_HOUSE[name] === p.house;
-      return `<div class="planet-row" data-planet="${name}" data-signidx="${p.sign.index}" data-retro="${p.retrograde ? '1' : '0'}" data-house="${p.house}">
+      return `<div class="planet-row" data-planet="${name}" data-signidx="${p.sign.index}" data-retro="${p.retrograde ? '1' : '0'}" data-house="${p.house}" data-nak="${p.nakshatra.name}" data-pada="${p.nakshatra.pada}">
         <div class="sym" style="color:${color}">${p.retrograde ? `<span style="display:inline-block;border-top:2px solid currentColor;padding-top:3px;">${PLANET_SYMBOLS[name]}</span>` : PLANET_SYMBOLS[name]}</div>
         <div class="pname">${name}${hasDigBala ? ' <span title="Диг-бала — направленная сила" style="color:var(--gold);font-size:11px;">◈</span>' : ''}</div>
         <div class="pdeg">${dms(p.sign.degInSign)}</div>
@@ -1401,7 +1433,9 @@
     container.innerHTML = html;
 
     container.querySelectorAll('.planet-row[data-planet]').forEach(row => {
-      row.addEventListener('click', () => showPlanetDetail(row.dataset.planet, Number(row.dataset.signidx), row.dataset.retro === '1', Number(row.dataset.house)));
+      const trigger = () => showPlanetDetail(row.dataset.planet, Number(row.dataset.signidx), row.dataset.retro === '1', Number(row.dataset.house), row.dataset.nak, row.dataset.pada);
+      row.addEventListener('click', trigger);
+      row.addEventListener('mouseenter', trigger);
     });
   }
 
