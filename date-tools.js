@@ -136,6 +136,8 @@ function computeDayDetail(chart, birthDateUTC, year, month, day, lat, lon, utcOf
   const transits = computeCurrentTransits(chart, dateAtNoonUTC);
   const moonTransitHouse = transits.planets['Луна'].transitHouse;
 
+  const events = getEventsForDate(year, month, day, panchanga.tithi.number);
+
   const dayCtx = {
     tithiNumber: panchanga.tithi.number,
     nakshatraIdx: panchanga.nakshatraOfDayIdx,
@@ -143,6 +145,7 @@ function computeDayDetail(chart, birthDateUTC, year, month, day, lat, lon, utcOf
     taraBala,
     dashaChangeToday,
     moonHouseFromLagna: moonTransitHouse,
+    calendarEvents: events,
   };
   const muhurtaResults = Object.keys(ACTIONS)
     .filter(key => ACTIONS[key].roles && Object.keys(ACTIONS[key].roles).length > 0)
@@ -160,7 +163,6 @@ function computeDayDetail(chart, birthDateUTC, year, month, day, lat, lon, utcOf
   const supported = supportedResults.slice(0, 4).map(r => ({ key: r.actionKey, label: r.label, icon: ACTION_ICONS[r.actionKey] || '✅' }));
   const postpone = muhurtaResults.filter(r => r.restrictions.length > 0).slice(0, 4).map(r => ({ key: r.actionKey, label: r.label, icon: ACTION_ICONS[r.actionKey] || '⚠' }));
 
-  const events = getEventsForDate(year, month, day, panchanga.tithi.number);
   const hasEclipse = events.some(ev => ev.type === 'Затмение (лунное)' || ev.type === 'Затмение (солнечное)');
   const dayTier = computeDayTier({
     dateISO: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
@@ -318,6 +320,7 @@ function computeActionDateSearch(chart, birthDateUTC, lat, lon, utcOffset, actio
       taraBala,
       dashaChangeToday,
       moonHouseFromLagna,
+      calendarEvents: getEventsForDate(dateUTC.getUTCFullYear(), dateUTC.getUTCMonth() + 1, dateUTC.getUTCDate(), p.tithi.number),
     };
     const result = evaluateAction(actionKey, dayCtx);
     const quality = result.restrictions.length > 0 ? 'bad' : (result.favorable.length > 0 ? 'good' : 'neutral');

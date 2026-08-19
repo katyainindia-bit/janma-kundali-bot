@@ -168,7 +168,32 @@ function findUpcomingEvents(fromDate, daysAhead, tithiNumberForDate) {
       if (!found[key]) found[key] = { ...ev, daysAhead: i, date: `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}` };
     }
   }
-  return Object.values(found).sort((a, b) => a.daysAhead - b.daysAhead);
+  let list = Object.values(found).sort((a, b) => a.daysAhead - b.daysAhead);
+
+  // Одна и та же дата иногда даёт два события (Гуру Пурнима = Пурнима, Дивали = Амавасья).
+  // Именованный праздник конкретнее и важнее общего титхи-события в тот же день —
+  // оставляем только его, чтобы он не терял место в топе из-за "дубля".
+  const byDate = {};
+  list.forEach(ev => { (byDate[ev.date] = byDate[ev.date] || []).push(ev); });
+  list = list.filter(ev => {
+    const sameDay = byDate[ev.date];
+    if (sameDay.length <= 1) return true;
+    const festival = sameDay.find(e => e.type === EVENT_TYPES.FESTIVAL);
+    return festival ? ev.type === EVENT_TYPES.FESTIVAL : true;
+  });
+
+  return list;
+}
+
+// Праздники + затмения за конкретный год, отсортированные по дате —
+// для отдельного экрана «Праздники и затмения на год».
+function getYearEvents(year) {
+  const items = [
+    ...ECLIPSES.map(e => ({ date: e.date, label: e.label, type: e.type })),
+    ...NAMED_FESTIVALS.map(f => ({ date: f.date, label: f.label, type: EVENT_TYPES.FESTIVAL, description: f.description })),
+  ].filter(e => e.date.startsWith(String(year)));
+  items.sort((a, b) => a.date.localeCompare(b.date));
+  return items;
 }
 
 module.exports = {
@@ -180,7 +205,9 @@ module.exports = {
   festivalEventForDate,
   getEventsForDate,
   findUpcomingEvents,
+  getYearEvents,
   ECLIPSES,
+  NAMED_FESTIVALS,
 };
 
 // ============================================================

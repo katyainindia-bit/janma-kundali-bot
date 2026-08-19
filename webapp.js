@@ -16,7 +16,8 @@ const { calculateDashamsha } = require('./dashamsha.js');
 const { calculateVarga: calculateOtherVarga, VARGA_DEFS } = require('./divisional-charts.js');
 const { computeCalendarMonth, computeDateSearch, computeDayDetail, computeActionDateSearch, GOALS } = require('./date-tools.js');
 const { ACTIONS, ACTION_ICONS, NICHE_ACTION_KEYS, evaluateAction } = require('./muhurta.js');
-const { getEventsForDate, findUpcomingEvents } = require('./calendar-events.js');
+const { getEventsForDate, findUpcomingEvents, getYearEvents } = require('./calendar-events.js');
+const { computeSadeSati } = require('./sade-sati.js');
 const { houseMeaningPhrase, computeDayTier, transitPhrase } = require('./day-summary.js');
 const { buildChartExportPDF } = require('./chart-export-pdf.js');
 const { resolveCity } = require('./ru-timezone.js');
@@ -356,13 +357,13 @@ function startWebApp() {
       // 4. Транзитная Луна сегодня — в каком натальном доме
       const moonTransitHouse = transits.planets['Луна'].transitHouse;
 
-      // 5. "Заметные" транзиты сегодня: транзитная планета в том же знаке (доме от асцендента),
-      // что и натальный Асцендент, натальная Луна, натальное Солнце или лорд текущей антардаши.
-      const sensitivePoints = [
-        { key: 'Асцендент', house: 1 },
-        { key: 'Луна (натал.)', house: chart.planets['Луна'].house },
-        { key: 'Солнце (натал.)', house: chart.planets['Солнце'].house },
-      ];
+      // 5. "Заметные" транзиты сегодня: транзитная планета в том же доме, что натальный
+      // Асцендент, лорд текущей антардаши, ИЛИ любая другая натальная планета (включая Луну/Солнце) —
+      // раньше список был из 4 фиксированных точек, теперь включены все натальные планеты.
+      const sensitivePoints = [{ key: 'Асцендент', house: 1 }];
+      for (const [natalPlanetName, natalP] of Object.entries(chart.planets)) {
+        sensitivePoints.push({ key: `${natalPlanetName} (натал.)`, house: natalP.house });
+      }
       if (chain && chain.antardasha) {
         const lordName = chain.antardasha.lord;
         if (chart.planets[lordName]) {
@@ -371,19 +372,21 @@ function startWebApp() {
       }
       const notableTransits = [];
       for (const [planetName, t] of Object.entries(transits.planets)) {
-        const hits = sensitivePoints.filter(sp => sp.house === t.transitHouse).map(sp => sp.key);
+        const sensitiveHits = sensitivePoints.filter(sp => sp.house === t.transitHouse).map(sp => sp.key);
+        // Другие планеты, которые СЕЙЧАС транзитом проходят тот же дом — не только натальные точки
+        const coTransits = Object.entries(transits.planets)
+          .filter(([otherName, ot]) => otherName !== planetName && ot.transitHouse === t.transitHouse)
+          .map(([otherName]) => `${otherName} (транзит)`);
+        const allHits = [...sensitiveHits, ...coTransits];
         const dignity = transitDignity(planetName, t.sign.index);
-        if (hits.length > 0 || dignity) {
-          notableTransits.push({ planet: planetName, house: t.transitHouse, hits, dignity, phrase: transitPhrase(planetName, t.transitHouse, dignity) });
+        if (allHits.length > 0 || dignity) {
+          notableTransits.push({ planet: planetName, house: t.transitHouse, hits: allHits, sensitiveHitCount: sensitiveHits.length, dignity, phrase: transitPhrase(planetName, t.transitHouse, dignity) });
         }
       }
       // Соединение с чувствительной точкой карты (Асцендент/натальная Луна/Солнце/лорд антардаши)
-      // важнее и персональнее, чем просто "сильная позиция" — при ограничении в 2 карточки
-      // такие транзиты не должны вытесняться менее личными сигналами
-      notableTransits.sort((a, b) => (a.hits.length > 0 ? 0 : 1) - (b.hits.length > 0 ? 0 : 1));
-      // Соединение с личной точкой карты — более персональный сигнал, чем просто
-      // сила планеты по достоинству — при капе в 2 карточки не должно вытесняться
-      notableTransits.sort((a, b) => (b.hits.length > 0 ? 1 : 0) - (a.hits.length > 0 ? 1 : 0));
+      // важнее и персональнее, чем просто "рядом с другой транзитной планетой" или "сильная позиция" —
+      // именно оно должно выживать при обрезке до 3 карточек
+      notableTransits.sort((a, b) => (a.sensitiveHitCount > 0 ? 0 : 1) - (b.sensitiveHitCount > 0 ? 0 : 1));
 
       // 6. Смена периода даши именно сегодня (по календарной дате, не только по времени)
       function isSameUTCDate(d1, d2) {
@@ -400,7 +403,11 @@ function startWebApp() {
         }
       }
 
-      // 7. Движок мухурты: прогоняем сегодняшний день по всем настроенным действиям,
+      // 7. Астрологические события сегодня (нужны заранее — движок мухурты учитывает
+      // Санкранти/затмения как «особые дни», не только Экадаши/Пурниму/Амавасью из титхи)
+      const events = getEventsForDate(now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate(), todayPanchanga.tithi.number);
+
+      // 8. Движок мухурты: прогоняем сегодняшний день по всем настроенным действиям,
       // делим на «что поддержано» / «что лучше отложить». Действия с пустыми roles
       // (пока не заполненные — например, Посвящения) пропускаем.
       const dayCtx = {
@@ -410,6 +417,7 @@ function startWebApp() {
         taraBala,
         dashaChangeToday,
         moonHouseFromLagna: moonTransitHouse,
+        calendarEvents: events,
       };
       const muhurtaResults = Object.keys(ACTIONS)
         .filter(key => ACTIONS[key].roles && Object.keys(ACTIONS[key].roles).length > 0)
@@ -433,12 +441,18 @@ function startWebApp() {
       const supported = supportedResults.slice(0, 4).map(r => ({ key: r.actionKey, label: r.label, icon: ACTION_ICONS[r.actionKey] || '✅' }));
       const postpone = muhurtaResults.filter(r => r.restrictions.length > 0).slice(0, 4).map(r => ({ key: r.actionKey, label: r.label, icon: ACTION_ICONS[r.actionKey] || '⚠' }));
 
-      // 8. Астрологические события — сегодняшние и ближайшие предстоящие
-      const events = getEventsForDate(now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate(), todayPanchanga.tithi.number);
-      const upcomingEvents = findUpcomingEvents(now, 120, (d) => {
+      // 9. Ближайшие предстоящие события
+      const allUpcoming = findUpcomingEvents(now, 120, (d) => {
         const pp = computePanchanga(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(), 12, 0, lat, lon, utcOffset);
         return pp.tithi.number;
-      }).filter(e => e.daysAhead > 0).slice(0, 3);
+      }).filter(e => e.daysAhead > 0);
+      let upcomingEvents = allUpcoming.slice(0, 4);
+      // Праздники редки по сравнению с Пурнимой/Экадаши/Санкранти — гарантируем,
+      // что ближайший праздник всегда виден, даже если формально не попал в топ-4
+      const nearestFestival = allUpcoming.find(e => e.type === 'Праздник');
+      if (nearestFestival && !upcomingEvents.some(e => e.type === 'Праздник')) {
+        upcomingEvents = [...upcomingEvents.slice(0, 3), nearestFestival];
+      }
 
       // 9. Заголовок дня + индикатор энергии — единая логика тона (не должны противоречить друг другу)
       const hasEclipse = events.some(ev => ev.type === 'Затмение (лунное)' || ev.type === 'Затмение (солнечное)');
@@ -571,6 +585,27 @@ function startWebApp() {
       const { chart, birthDateUTC, year, month, lat, lon, utcOffset } = req.body;
       const days = computeCalendarMonth(chart, new Date(birthDateUTC), year, month, lat, lon, utcOffset);
       res.json({ days });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/year-events', requireTelegramUser, (req, res) => {
+    try {
+      const { year } = req.body;
+      res.json({ events: getYearEvents(year) });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/sade-sati', requireTelegramUser, requirePremium, (req, res) => {
+    try {
+      const { chart, lat, lon, utcOffset } = req.body;
+      const result = computeSadeSati(chart, new Date(), lat, lon, utcOffset);
+      res.json(result);
     } catch (e) {
       console.error(e);
       res.status(500).json({ error: e.message });

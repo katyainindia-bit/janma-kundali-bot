@@ -475,7 +475,7 @@
 <body>
 
 <header>
-  <div class="brand">
+  <div class="brand" id="brand-logo" style="cursor:pointer;">
     <img src="/assets/janma-icon.png" alt="">
     <div>
       <div class="brand-name">Janma Kundali</div>
@@ -488,6 +488,7 @@
 <main>
 
 <div id="page-home">
+  <button class="btn-secondary" id="form-collapsed-btn" style="display:none;width:100%;margin-bottom:14px;">+ Построить новую карту</button>
   <div class="form-card" id="form-card">
     <h2>Построить натальную карту</h2>
     <div class="field">
@@ -558,11 +559,11 @@
           <div id="today-events"></div>
         </div>
         <div class="info-card" id="today-supported-card" style="display:none;">
-          <div class="name" style="margin-bottom:6px;">✅ Что сегодня поддержано</div>
+          <div class="name" style="margin-bottom:6px;"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="#4f7a52" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-4px;margin-right:5px;"><circle cx="12" cy="12" r="9"/><path d="M8 12.3l2.6 2.6L16.3 9"/></svg>Благоприятно сегодня</div>
           <div id="today-supported"></div>
         </div>
         <div class="info-card" id="today-postpone-card" style="display:none;">
-          <div class="name" style="margin-bottom:6px;">⚠ Что лучше отложить</div>
+          <div class="name" style="margin-bottom:6px;"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="#a8654a" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-4px;margin-right:5px;"><path d="M12 3.5 21 19H3L12 3.5Z"/><path d="M12 9.7v4.3M12 16.9h.01"/></svg>Что лучше отложить</div>
           <div id="today-postpone"></div>
         </div>
         <div class="form-card" style="padding:16px;" id="today-upcoming-card">
@@ -583,6 +584,10 @@
           <div class="current-period-row"><span class="label">Махадаша</span><span class="value" id="today-maha">—</span></div>
           <div class="current-period-row"><span class="label">Антардаша</span><span class="value" id="today-antar">—</span></div>
           <div class="current-period-row"><span class="label">Пратьянтардаша</span><span class="value" id="today-pratyantar">—</span></div>
+        </div>
+        <div class="info-card" id="today-sadesati-card" style="display:none;">
+          <div class="name" style="margin-bottom:6px;">Саде Сати</div>
+          <div id="today-sadesati-body" style="font-size:13px;line-height:1.5;"></div>
         </div>
         <div class="form-card" style="padding:16px;">
           <h2 style="font-size:15px;margin-bottom:10px;">Заметные транзиты сегодня</h2>
@@ -685,10 +690,32 @@
     </div>
 
     <div class="tab-content" id="tab-vargas">
-      <div class="field" style="margin-bottom:12px;">
+      <div id="varga-locked" class="form-card" style="padding:20px;text-align:center;display:none;">
+        <div style="font-size:32px;margin-bottom:8px;">🔒</div>
+        <h2 style="margin-bottom:8px;">Доступно в Premium</h2>
+        <p style="font-size:13px;color:var(--taupe);margin-bottom:16px;line-height:1.5;">
+          Все дробные карты, кроме Навамши и Дашамши, открываются в Premium.
+        </p>
+        <button class="btn-primary" id="varga-upgrade-btn">Оформить Premium</button>
+      </div>
+
+      <div id="varga-chart-wrap">
+        <div class="varga-chart-label" id="varga-single-label">Раши (D1)</div>
+        <div class="chart-wrap">
+          <svg class="chart-svg" id="varga-svg" viewBox="0 0 400 400"></svg>
+          <div class="legend">
+            <span><i class="dot" style="background:#4f7a52"></i>экзальтация</span>
+            <span><i class="dot" style="background:#4a6d8c"></i>своя обитель</span>
+            <span><i class="dot" style="background:#b23b2e"></i>падение</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="field" style="margin-top:14px;margin-bottom:12px;">
         <label for="varga-select">Дробная карта</label>
         <select id="varga-select">
           <optgroup label="Бесплатно">
+            <option value="d1">Раши (D1) — основная карта</option>
             <option value="d9">Навамша (D9)</option>
             <option value="d10">Дашамша (D10)</option>
             <option value="lagna">От Лагны</option>
@@ -736,26 +763,6 @@
         </div>
       </div>
 
-      <div id="varga-locked" class="form-card" style="padding:20px;text-align:center;display:none;">
-        <div style="font-size:32px;margin-bottom:8px;">🔒</div>
-        <h2 style="margin-bottom:8px;">Доступно в Premium</h2>
-        <p style="font-size:13px;color:var(--taupe);margin-bottom:16px;line-height:1.5;">
-          Все дробные карты, кроме Навамши и Дашамши, открываются в Premium.
-        </p>
-        <button class="btn-primary" id="varga-upgrade-btn">Оформить Premium</button>
-      </div>
-
-      <div id="varga-chart-wrap">
-        <div class="varga-chart-label" id="varga-single-label">Навамша (D9)</div>
-        <div class="chart-wrap">
-          <svg class="chart-svg" id="varga-svg" viewBox="0 0 400 400"></svg>
-          <div class="legend">
-            <span><i class="dot" style="background:#4f7a52"></i>экзальтация</span>
-            <span><i class="dot" style="background:#4a6d8c"></i>своя обитель</span>
-            <span><i class="dot" style="background:#b23b2e"></i>падение</span>
-          </div>
-        </div>
-      </div>
       <div class="error-msg" id="varga-error-msg"></div>
     </div>
   </div>
@@ -797,6 +804,17 @@
       <div class="current-period-row"><span class="label">Ямаганда</span><span class="value" id="p-yama">—</span></div>
       <div class="current-period-row"><span class="label">Гулика-калам</span><span class="value" id="p-gulika">—</span></div>
     </div>
+    <details class="form-card" style="padding:14px 16px;">
+      <summary style="cursor:pointer;font-size:13px;color:var(--gold);font-weight:600;">Что означают эти термины?</summary>
+      <div style="margin-top:10px;font-size:13px;line-height:1.6;color:var(--ink);">
+        <p style="margin-bottom:8px;"><b>Вара</b> — день недели, у каждого свой планетный управитель.</p>
+        <p style="margin-bottom:8px;"><b>Титхи</b> — лунные сутки: фаза Луны относительно Солнца (всего 30 за лунный месяц), влияет на общий характер дня.</p>
+        <p style="margin-bottom:8px;"><b>Накшатра дня</b> — созвездие (одно из 27), в котором сегодня находится Луна — у каждой своя природа.</p>
+        <p style="margin-bottom:8px;"><b>Йога</b> — сочетание положений Солнца и Луны, ещё один самостоятельный слой качества дня.</p>
+        <p style="margin-bottom:8px;"><b>Карана</b> — половина титхи, более короткий цикл внутри лунных суток.</p>
+        <p style="margin-bottom:0;"><b>Раху-калам / Ямаганда / Гулика-калам</b> — три периода внутри дня (разные для каждого дня недели), которые традиционно считаются менее благоприятными для важных начинаний.</p>
+      </div>
+    </details>
   </div>
 </div>
 
@@ -819,6 +837,7 @@
     <div class="tabs" id="days-tabs">
       <button class="tab-btn active" data-daystab="calendar">Календарь</button>
       <button class="tab-btn" data-daystab="search">Поиск по цели</button>
+      <button class="tab-btn" data-daystab="year">Праздники года</button>
     </div>
 
     <div class="tab-content active" id="daystab-calendar">
@@ -864,6 +883,17 @@
       </div>
       <div id="search-day-detail" class="form-card" style="padding:16px;display:none;"></div>
       <div id="search-results"></div>
+    </div>
+
+    <div class="tab-content" id="daystab-year">
+      <div class="form-card" style="padding:16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <button class="btn-secondary" id="year-prev-btn" style="width:auto;margin-bottom:0;padding:8px 14px;">←</button>
+          <div class="name" id="year-label" style="margin-bottom:0;">—</div>
+          <button class="btn-secondary" id="year-next-btn" style="width:auto;margin-bottom:0;padding:8px 14px;">→</button>
+        </div>
+      </div>
+      <div id="year-events-list"></div>
     </div>
   </div>
 
@@ -1050,6 +1080,11 @@
     return `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2.5px;margin-right:3px;color:var(--gold);">${path}</svg>`;
   }
 
+  // Иконки для заголовков блоков «Благоприятно/Отложить» — вместо смайликов ✅/⚠,
+  // цвета — уже используемые в приложении приглушённые тона (не неоновые)
+  const HEADER_ICON_FAVORABLE = '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="#4f7a52" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-4px;margin-right:5px;"><circle cx="12" cy="12" r="9"/><path d="M8 12.3l2.6 2.6L16.3 9"/></svg>';
+  const HEADER_ICON_POSTPONE = '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="#a8654a" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-4px;margin-right:5px;"><path d="M12 3.5 21 19H3L12 3.5Z"/><path d="M12 9.7v4.3M12 16.9h.01"/></svg>';
+
   const PLANET_SYMBOLS = {
     'Солнце':'Su','Луна':'Mo','Меркурий':'Me','Венера':'Ve','Марс':'Ma',
     'Юпитер':'Ju','Сатурн':'Sa','Раху':'Ra','Кету':'Ke'
@@ -1108,14 +1143,16 @@
 
   const SIGN_NAMES_D1 = ['Овен','Телец','Близнецы','Рак','Лев','Дева','Весы','Скорпион','Стрелец','Козерог','Водолей','Рыбы'];
 
-  async function showPlanetDetail(planetName, signIndex, isRetrograde) {
+  async function showPlanetDetail(planetName, signIndex, isRetrograde, house) {
     const status = getDignityStatusD1(planetName, signIndex);
     const detail = document.getElementById('planet-detail');
     detail.style.display = 'block';
+    const hasDigBala = DIG_BALA_HOUSE[planetName] === house;
     detail.innerHTML = `
       <div class="name" style="margin-bottom:4px;">${planetName} в ${SIGN_NAMES_D1[signIndex]}</div>
       <div style="font-size:12px;color:var(--gold);font-weight:600;margin-bottom:10px;text-transform:uppercase;letter-spacing:.03em;">${DIGNITY_LABELS_D1[status]}${isRetrograde ? ' · Ретроградна' : ''}</div>
       <p style="font-size:13px;line-height:1.5;margin-bottom:10px;">${DIGNITY_TEXTS_D1[status]}</p>
+      ${hasDigBala ? '<p style="font-size:13px;line-height:1.5;margin-bottom:10px;">◈ <b>Есть диг-бала</b> — планета находится в доме своей направленной силы, это дополнительно усиливает её.</p>' : ''}
       ${isRetrograde ? '<p style="font-size:13px;line-height:1.5;color:#a8654a;margin-bottom:10px;">Ретроградность: планета движется по знаку в обратном направлении относительно Земли — её темы разворачиваются внутрь, требуют пересмотра или возвращения к уже пройденному, вместо прямого внешнего движения вперёд.</p>' : ''}
       <p style="font-size:13px;line-height:1.5;color:var(--taupe);margin-bottom:14px;">${PLANET_SIGNIFICATIONS_D1[planetName]}</p>
       <button class="btn-secondary" id="planet-premium-teaser" style="margin-bottom:0;">✨ Узнать, что это значит именно для вашей карты</button>
@@ -1166,6 +1203,11 @@
     for (const k in attrs) line.setAttribute(k, attrs[k]);
     svg.appendChild(line);
   }
+
+  // Диг-бала — направленная сила планеты по дому. Классическое правило:
+  // Юпитер/Меркурий сильны в 1 доме, Солнце/Марс — в 10, Сатурн — в 7, Луна/Венера — в 4.
+  // У Раху/Кету дигбала классически не определяется (нет в большинстве текстов).
+  const DIG_BALA_HOUSE = { 'Юпитер': 1, 'Меркурий': 1, 'Солнце': 10, 'Марс': 10, 'Сатурн': 7, 'Луна': 4, 'Венера': 4 };
 
   function dignityColor(name, signIdx) {
     if (EXALTATION[name] === signIdx) return '#4f7a52';
@@ -1312,9 +1354,10 @@
     html += order.map(name => {
       const p = chart.planets[name];
       const color = dignityColor(name, p.sign.index);
-      return `<div class="planet-row" data-planet="${name}" data-signidx="${p.sign.index}" data-retro="${p.retrograde ? '1' : '0'}">
+      const hasDigBala = DIG_BALA_HOUSE[name] === p.house;
+      return `<div class="planet-row" data-planet="${name}" data-signidx="${p.sign.index}" data-retro="${p.retrograde ? '1' : '0'}" data-house="${p.house}">
         <div class="sym" style="color:${color}">${p.retrograde ? `<span style="display:inline-block;border-top:2px solid currentColor;padding-top:3px;">${PLANET_SYMBOLS[name]}</span>` : PLANET_SYMBOLS[name]}</div>
-        <div class="pname">${name}</div>
+        <div class="pname">${name}${hasDigBala ? ' <span title="Диг-бала — направленная сила" style="color:var(--gold);font-size:11px;">◈</span>' : ''}</div>
         <div class="pdeg">${dms(p.sign.degInSign)}</div>
         <div class="psign">${p.sign.name}<br><span style="font-size:11px;">${p.nakshatra.name} (пада ${p.nakshatra.pada})</span></div>
       </div>`;
@@ -1322,7 +1365,7 @@
     container.innerHTML = html;
 
     container.querySelectorAll('.planet-row[data-planet]').forEach(row => {
-      row.addEventListener('click', () => showPlanetDetail(row.dataset.planet, Number(row.dataset.signidx), row.dataset.retro === '1'));
+      row.addEventListener('click', () => showPlanetDetail(row.dataset.planet, Number(row.dataset.signidx), row.dataset.retro === '1', Number(row.dataset.house)));
     });
   }
 
@@ -2222,7 +2265,7 @@
   // либо любой дом от асцендента) — сравнение идёт с лагной D1.
   // ============================================================
   let vargaCache = { forChart: null, data: {} };
-  let currentVargaType = 'd9';
+  let currentVargaType = 'd1';
   let currentLagnaRef = { type: 'asc' };
 
   const VARGA_LABELS = {
@@ -2290,6 +2333,12 @@
       const refIdx = lagnaReferenceSignIndex(currentLagnaRef);
       renderChartSVG({ ascendant: { sign: { index: refIdx } }, planets: currentChart.planets }, 'varga-svg');
       document.getElementById('varga-single-label').textContent = lagnaReferenceLabel(currentLagnaRef);
+      return;
+    }
+
+    if (currentVargaType === 'd1') {
+      renderChartSVG(currentChart, 'varga-svg');
+      document.getElementById('varga-single-label').textContent = 'Раши (D1)';
       return;
     }
 
@@ -2505,8 +2554,12 @@
       document.getElementById('today-nak').textContent = data.nakshatraOfDay;
       document.getElementById('today-moon-house').textContent = data.moonHouseMeaning || `${data.moonTransitHouse}-й дом`;
 
+      const ENERGY_TONE = { 'Благоприятный': '#4f7a52', 'Нейтральный': '#C8A26B', 'Напряжённый': '#a8654a' };
       document.getElementById('today-summary-text').innerHTML = data.dayEnergy
-        ? `<div style="font-size:15px;margin-bottom:6px;">${data.dayEnergy.emoji} ${escapeHtml(data.dayEnergy.label)}</div>${escapeHtml(data.daySummary || '')}`
+        ? `<div style="display:flex;align-items:center;justify-content:center;gap:7px;margin-bottom:6px;">
+             <span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${ENERGY_TONE[data.dayEnergy.label] || 'var(--gold)'};"></span>
+             <span style="font-size:15px;">${escapeHtml(data.dayEnergy.label)}</span>
+           </div>${escapeHtml(data.daySummary || '')}`
         : escapeHtml(data.daySummary || '');
 
       const eventsCard = document.getElementById('today-events-card');
@@ -2557,20 +2610,38 @@
       if (data.notableTransits.length === 0) {
         notableEl.innerHTML = '<div style="font-size:13px;color:var(--taupe);">Сегодня нет транзитов к чувствительным точкам карты.</div>';
       } else {
-        notableEl.innerHTML = data.notableTransits.map(nt => `
-          <div class="note-item">
-            <div class="note-text">
-              <span style="display:block;background:var(--card);border-radius:6px;padding:1px 7px;font-size:11px;color:var(--gold);font-weight:600;margin-bottom:4px;width:fit-content;">${nt.house} дом</span>
-              ${escapeHtml(nt.phrase)}${nt.hits.length ? '<br><span style="color:var(--taupe);font-size:12px;">Рядом с: ' + nt.hits.map(escapeHtml).join(', ') + '</span>' : ''}
-            </div>
-          </div>
-        `).join('');
+        notableEl.innerHTML = data.notableTransits.map(nt => `<div class="note-item"><div class="note-text"><span style="display:block;background:var(--bg);border-radius:6px;padding:1px 7px;font-size:11px;color:var(--gold);font-weight:600;margin-bottom:4px;width:fit-content;">${nt.house} дом</span>${escapeHtml(nt.phrase)}${nt.hits.length ? '<br><span style="color:var(--taupe);font-size:12px;">Рядом с: ' + nt.hits.map(escapeHtml).join(', ') + '</span>' : ''}</div></div>`).join('');
       }
 
       contentEl.style.display = 'block';
+      loadSadeSati(); // отдельный, более медленный запрос — не ждём его, чтобы не тормозить остальной экран
     } catch (e) {
       errorEl.textContent = 'Не удалось загрузить: ' + e.message;
       errorEl.style.display = 'block';
+    }
+  }
+
+  async function loadSadeSati() {
+    const card = document.getElementById('today-sadesati-card');
+    try {
+      const p = currentChartMeta.params;
+      const res = await fetch('/api/sade-sati', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: getInitData(), chart: currentChart, lat: p.lat, lon: p.lon, utcOffset: p.utcOffset })
+      });
+      const data = await res.json();
+      if (!res.ok) return; // тихо — это не критичный блок, не мешаем остальному экрану
+      const body = document.getElementById('today-sadesati-body');
+      if (data.active) {
+        body.innerHTML = `<b>Сейчас идёт</b> — ${escapeHtml(data.phase)}.<br>Завершится примерно через ${data.daysAheadToChange} дн.`;
+      } else if (data.daysAheadToChange != null) {
+        body.innerHTML = `Сейчас не идёт. Следующая начнётся примерно через ${data.daysAheadToChange} дн.`;
+      } else {
+        body.innerHTML = `Сейчас не идёт, и в обозримые годы не начнётся.`;
+      }
+      card.style.display = 'block';
+    } catch (e) {
+      // тихо игнорируем — карточка просто не появится
     }
   }
 
@@ -2628,8 +2699,46 @@
       btn.classList.add('active');
       document.getElementById('daystab-calendar').classList.toggle('active', btn.dataset.daystab === 'calendar');
       document.getElementById('daystab-search').classList.toggle('active', btn.dataset.daystab === 'search');
+      document.getElementById('daystab-year').classList.toggle('active', btn.dataset.daystab === 'year');
+      if (btn.dataset.daystab === 'year') renderYearEvents();
     });
   });
+
+  let yearEventsYear = new Date().getUTCFullYear();
+  async function renderYearEvents() {
+    const errorEl = document.getElementById('days-error-msg');
+    errorEl.style.display = 'none';
+    document.getElementById('year-label').textContent = yearEventsYear;
+    const listEl = document.getElementById('year-events-list');
+    listEl.innerHTML = '<div style="font-size:13px;color:var(--taupe);text-align:center;">Загрузка…</div>';
+    try {
+      const res = await fetch('/api/year-events', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: getInitData(), year: yearEventsYear })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Ошибка');
+      if (data.events.length === 0) {
+        listEl.innerHTML = '<div class="form-card" style="padding:16px;font-size:13px;color:var(--taupe);text-align:center;">На этот год пока нет данных в таблице — она заполнена на 2026 (и частично 2027).</div>';
+        return;
+      }
+      listEl.innerHTML = data.events.map(ev => `
+        <div class="note-item">
+          <div class="note-text">
+            <span style="color:var(--gold);font-weight:600;">${ev.date.split('-').reverse().join('.')}</span><br>
+            <b>${eventIconSvg(ev.type)}${escapeHtml(ev.label)}</b>
+            ${ev.description ? '<br><span style="color:var(--taupe);font-size:12px;">' + escapeHtml(ev.description) + '</span>' : ''}
+          </div>
+        </div>
+      `).join('');
+    } catch (e) {
+      errorEl.textContent = 'Не удалось загрузить: ' + e.message;
+      errorEl.style.display = 'block';
+      listEl.innerHTML = '';
+    }
+  }
+  document.getElementById('year-prev-btn').addEventListener('click', () => { yearEventsYear--; renderYearEvents(); });
+  document.getElementById('year-next-btn').addEventListener('click', () => { yearEventsYear++; renderYearEvents(); });
 
   const MONTH_NAMES = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
 
@@ -2693,8 +2802,8 @@
               <div class="current-period-row"><span class="label">🌅 Восход</span><span class="value">${pn.sunrise||'—'}</span></div>
               <div class="current-period-row"><span class="label">🌇 Закат</span><span class="value">${pn.sunset||'—'}</span></div>
               ${pn.rahuKalam ? `<div class="current-period-row" style="color:#a8654a;"><span class="label">⚠️ Раху-калам</span><span class="value">${pn.rahuKalam.start}–${pn.rahuKalam.end}</span></div>` : ''}
-              ${dd.supported.length ? `<div style="margin-top:10px;font-size:13px;"><b>✅ Поддержано:</b> ${dd.supported.map(escapeHtml).join(', ')}</div>` : ''}
-              ${dd.postpone.length ? `<div style="margin-top:6px;font-size:13px;"><b>⚠ Лучше отложить:</b> ${dd.postpone.map(escapeHtml).join(', ')}</div>` : ''}
+              ${dd.supported.length ? `<div style="margin-top:10px;"><b style="font-size:13px;">Благоприятно:</b><div class="chip-row" style="margin-top:6px;">${dd.supported.map(a => `<span class="chip" style="cursor:default;">${actionIconSvg(a.key)}${escapeHtml(a.label)}</span>`).join('')}</div></div>` : ''}
+              ${dd.postpone.length ? `<div style="margin-top:10px;"><b style="font-size:13px;">Лучше отложить:</b><div class="chip-row" style="margin-top:6px;">${dd.postpone.map(a => `<span class="chip" style="cursor:default;">${actionIconSvg(a.key)}${escapeHtml(a.label)}</span>`).join('')}</div></div>` : ''}
             `;
           } catch (e) {
             detail.innerHTML = `<div class="error-msg" style="display:block;">Не удалось загрузить: ${escapeHtml(e.message)}</div>`;
@@ -3035,6 +3144,53 @@
       errorEl.style.display = 'block';
     }
   });
+
+  // ============================================================
+  // Автозагрузка основной карты при входе: если у пользователя уже есть
+  // сохранённая карта (основная для уведомлений — Premium, либо единственная
+  // в архиве — доступно и на free), сразу показываем её вместо пустой формы,
+  // а форму сворачиваем в кнопку "+ Построить новую карту".
+  // ============================================================
+  document.getElementById('form-collapsed-btn').addEventListener('click', () => {
+    document.getElementById('form-card').style.display = 'block';
+    document.getElementById('form-collapsed-btn').style.display = 'none';
+  });
+
+  document.getElementById('brand-logo').addEventListener('click', () => {
+    document.querySelector('.nav-item[data-nav="home"]').click();
+  });
+
+  async function autoLoadPrimaryChart() {
+    try {
+      const tierRes = await fetch('/api/tier', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: getInitData() })
+      });
+      if (!tierRes.ok) return;
+      const tierData = await tierRes.json();
+
+      const listRes = await archiveApi('list', {});
+      const charts = listRes.charts || [];
+      if (charts.length === 0) return; // ничего не сохранено — оставляем форму как есть
+
+      let row = charts.find(c => c.id === tierData.primaryChartId);
+      if (!row && charts.length === 1) row = charts[0]; // единственная карта — разумный дефолт и для free
+      if (!row) return; // несколько карт, основная не выбрана — не гадаем, оставляем форму разворачиваемой
+
+      document.getElementById('form-card').style.display = 'none';
+      document.getElementById('form-collapsed-btn').style.display = 'block';
+
+      await displayChartResults({
+        name: row.label, day: row.day, month: row.month, year: row.year,
+        hour: row.hour, minute: row.minute, lat: row.lat, lon: row.lon,
+        utcOffset: row.utc_offset, placeLabel: row.place_label,
+      });
+      currentArchiveChartId = row.id;
+    } catch (e) {
+      // тихо игнорируем — просто останется обычная развёрнутая форма
+    }
+  }
+  autoLoadPrimaryChart();
 </script>
 </body>
 </html>

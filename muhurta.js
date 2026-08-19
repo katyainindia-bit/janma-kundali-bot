@@ -268,7 +268,20 @@ function evaluateAction(actionKey, dayCtx) {
     : null;
   const gana = dayCtx.nakshatraIdx != null ? nakshatraGana(dayCtx.nakshatraIdx) : null;
   const varaGen = dayCtx.weekdayIdx != null ? varaGeneral(dayCtx.weekdayIdx) : null;
-  const specialDay = dayCtx.tithiNumber != null ? specialDayFromTithi(dayCtx.tithiNumber) : null;
+  // Особый день: берём из полного списка календарных событий (Экадаши/Пурнима/Амавасья/
+  // Санкранти/затмения — всё, что уже посчитано в calendar-events.js), а не только из титхи —
+  // иначе Санкранти и затмения вообще не участвуют в оценке действий (реальный пробел, был найден
+  // и закрыт). Если передан только tithiNumber без dayCtx.calendarEvents — используем старый способ.
+  const SPECIAL_DAY_TYPES = ['Затмение (лунное)', 'Затмение (солнечное)', 'Санкранти', 'Экадаши', 'Пурнима', 'Амавасья'];
+  let specialDay = null;
+  if (dayCtx.calendarEvents && dayCtx.calendarEvents.length > 0) {
+    // Затмение — самый значимый сигнал, если есть — берём его; иначе первое подходящее
+    const eclipse = dayCtx.calendarEvents.find(ev => ev.type === 'Затмение (лунное)' || ev.type === 'Затмение (солнечное)');
+    const other = dayCtx.calendarEvents.find(ev => SPECIAL_DAY_TYPES.includes(ev.type));
+    specialDay = (eclipse || other) ? (eclipse || other).label : null;
+  } else if (dayCtx.tithiNumber != null) {
+    specialDay = specialDayFromTithi(dayCtx.tithiNumber);
+  }
 
   // Титхи
   if (roles.tithi === 'Ограничение' && panchaka === 'Рикта') {
