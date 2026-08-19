@@ -320,6 +320,14 @@
     padding: 16px;
     margin-bottom: 16px;
   }
+  .chart-extra-row { display: flex; justify-content: center; gap: 12px; margin-top: 14px; }
+  .chart-extra-btn {
+    width: 34px; height: 34px; border-radius: 50%;
+    border: 1px solid var(--line); background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--taupe); cursor: pointer; padding: 0; flex-shrink: 0;
+  }
+  .chart-extra-btn.active { background: var(--gold); border-color: var(--gold); color: #fff; }
   .chart-svg { width: 100%; height: auto; display: block; }
 
   .legend {
@@ -614,32 +622,22 @@
     <div class="tab-content active" id="tab-chart">
       <div class="chart-wrap">
         <svg class="chart-svg" id="chart-svg" viewBox="0 0 400 400"></svg>
-        <div class="legend">
-          <span><i class="dot" style="background:#4f7a52"></i>экзальтация</span>
-          <span><i class="dot" style="background:#4a6d8c"></i>своя обитель</span>
-          <span><i class="dot" style="background:#b23b2e"></i>падение</span>
+        <div class="chart-extra-row" id="chart-extras-row">
+          <button class="chart-extra-btn" data-extra="yogas" title="Йоги">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="7" r="2.3"/><circle cx="18" cy="7" r="2.3"/><circle cx="12" cy="18" r="2.3"/><path d="M8 8.3 10.3 16M16 8.3 13.7 16M8.3 6.5h7.4"/></svg>
+          </button>
+          <button class="chart-extra-btn" data-extra="aspects" title="Аспекты">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l16 16M20 4 4 20"/></svg>
+          </button>
+          <button class="chart-extra-btn" data-extra="gochara" title="Гочара (транзиты)">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><ellipse cx="12" cy="12" rx="9" ry="4"/></svg>
+          </button>
+          <button class="chart-extra-btn" data-extra="lords" title="Управители домов">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="1"/><path d="M4 10 12 4l8 6"/><path d="M9 20v-5h6v5"/></svg>
+          </button>
         </div>
+        <div id="chart-extras-panel" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--line);"></div>
       </div>
-
-      <div class="chip-row" id="chart-extras-row" style="justify-content:center;gap:10px;margin:14px 0;">
-        <button class="chip" data-extra="yogas" style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 12px;">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="7" r="2.3"/><circle cx="18" cy="7" r="2.3"/><circle cx="12" cy="18" r="2.3"/><path d="M8 8.3 10.3 16M16 8.3 13.7 16M8.3 6.5h7.4"/></svg>
-          <span style="font-size:10px;">Йоги</span>
-        </button>
-        <button class="chip" data-extra="aspects" style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 12px;">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l16 16M20 4 4 20"/></svg>
-          <span style="font-size:10px;">Аспекты</span>
-        </button>
-        <button class="chip" data-extra="gochara" style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 12px;">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><ellipse cx="12" cy="12" rx="9" ry="4"/></svg>
-          <span style="font-size:10px;">Гочара</span>
-        </button>
-        <button class="chip" data-extra="lords" style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 12px;">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="1"/><path d="M4 10 12 4l8 6"/><path d="M9 20v-5h6v5"/></svg>
-          <span style="font-size:10px;">Управители</span>
-        </button>
-      </div>
-      <div id="chart-extras-panel" class="form-card" style="padding:16px;display:none;"></div>
 
       <div class="form-card" id="lagna-scrub-card" style="padding:16px;">
         <div class="varga-chart-label" style="margin-bottom:6px;">Диапазон действия Лагны</div>
@@ -2154,19 +2152,156 @@
     btn.addEventListener('click', () => {
       const type = btn.dataset.extra;
       const panel = document.getElementById('chart-extras-panel');
+      const wasGochara = activeExtraPanel === 'gochara';
       if (activeExtraPanel === type) {
         // повторный клик по уже открытой панели — закрываем
         panel.style.display = 'none';
         activeExtraPanel = null;
         document.querySelectorAll('#chart-extras-row [data-extra]').forEach(b => b.classList.remove('active'));
+        if (wasGochara && currentChart) renderChartSVG(currentChart, 'chart-svg'); // снять наложение транзитов
         return;
       }
       activeExtraPanel = type;
       document.querySelectorAll('#chart-extras-row [data-extra]').forEach(b => b.classList.toggle('active', b.dataset.extra === type));
       panel.style.display = 'block';
+      if (wasGochara && currentChart && type !== 'gochara') renderChartSVG(currentChart, 'chart-svg'); // переключились с Гочары на другое — снять наложение
       renderChartExtraPanel(type);
     });
   });
+  // --- Аспекты (переиспользуется и в панели "Аспекты", и в детекторе йог) ---
+  function computeAspectsClient(chart) {
+    const order = ['Солнце','Луна','Меркурий','Венера','Марс','Юпитер','Сатурн','Раху','Кету'];
+    const SPECIAL_ASPECTS = { 'Марс': [4,8], 'Юпитер': [5,9], 'Сатурн': [3,10] };
+    function houseDistance(fromHouse, toHouse) { return ((toHouse - fromHouse + 12) % 12) + 1; }
+    function aspectsAt(name, distance) {
+      if (distance === 7) return true;
+      return !!(SPECIAL_ASPECTS[name] && SPECIAL_ASPECTS[name].includes(distance));
+    }
+    const result = [];
+    order.forEach(from => {
+      const fromP = chart.planets[from];
+      order.forEach(to => {
+        if (from === to) return;
+        const toP = chart.planets[to];
+        const d = houseDistance(fromP.house, toP.house);
+        if (aspectsAt(from, d)) result.push({ from, to, houseDiff: d });
+      });
+    });
+    return result;
+  }
+
+  function planetsConjunctOrAspect(chart, aspectsList, a, b) {
+    if (chart.planets[a].house === chart.planets[b].house) return true;
+    return aspectsList.some(x => (x.from === a && x.to === b) || (x.from === b && x.to === a));
+  }
+
+  function houseLord(chart, houseNum) {
+    const ascIdx = chart.ascendant.sign.index;
+    const signIdx = (ascIdx + houseNum - 1) % 12;
+    return SIGN_LORDS_D1[signIdx];
+  }
+
+  // --- Йоги: базовый набор из 8, черновая версия без отмен/усилений (напр. дош-бханга) ---
+  function computeYogas(chart) {
+    const yogas = [];
+    const aspectsList = computeAspectsClient(chart);
+
+    const MAHAPURUSHA = {
+      'Марс': 'Рувака-йога', 'Меркурий': 'Бхадра-йога', 'Юпитер': 'Хамса-йога',
+      'Венера': 'Малавья-йога', 'Сатурн': 'Шаша-йога',
+    };
+    Object.keys(MAHAPURUSHA).forEach(planet => {
+      const p = chart.planets[planet];
+      const isKendra = [1,4,7,10].includes(p.house);
+      const isExalted = EXALTATION[planet] === p.sign.index;
+      const isOwn = OWN_SIGNS[planet] && OWN_SIGNS[planet].includes(p.sign.index);
+      if (isKendra && (isExalted || isOwn)) {
+        yogas.push({ name: MAHAPURUSHA[planet] + ' (Панча-Махапуруша)', detail: `${planet} в кендре (${p.house} дом), в ${isExalted ? 'экзальтации' : 'своём знаке'}.` });
+      }
+    });
+
+    {
+      const moonHouse = chart.planets['Луна'].house;
+      const jupHouse = chart.planets['Юпитер'].house;
+      const distFromMoon = ((jupHouse - moonHouse + 12) % 12) + 1;
+      if ([1,4,7,10].includes(distFromMoon)) {
+        yogas.push({ name: 'Гаджакесари-йога', detail: `Юпитер в ${distFromMoon} доме от Луны.` });
+      }
+    }
+
+    {
+      const moonHouse = chart.planets['Луна'].house;
+      const house2 = (moonHouse % 12) + 1;
+      const house12 = ((moonHouse - 2 + 12) % 12) + 1;
+      const others = Object.keys(chart.planets).filter(n => n !== 'Луна' && n !== 'Солнце');
+      const hasNeighbor = others.some(n => chart.planets[n].house === house2 || chart.planets[n].house === house12);
+      if (!hasNeighbor) {
+        yogas.push({ name: 'Кемадрума-йога', detail: 'У Луны нет планет в соседних домах (2-й и 12-й от Луны, без учёта Солнца). Классические отмены (напр. Юпитер аспектирует Луну) здесь не проверяются.', caution: true });
+      }
+    }
+
+    if (chart.planets['Луна'].house === chart.planets['Марс'].house) {
+      yogas.push({ name: 'Чандра-Мангала-йога', detail: `Луна и Марс в соединении (${chart.planets['Луна'].house} дом).` });
+    }
+
+    if (chart.planets['Солнце'].house === chart.planets['Меркурий'].house) {
+      yogas.push({ name: 'Буддха-Адитья-йога', detail: `Солнце и Меркурий в соединении (${chart.planets['Солнце'].house} дом).` });
+    }
+
+    {
+      const kendraLords = new Set([1,4,7,10].map(h => houseLord(chart, h)));
+      const trikonaLords = new Set([1,5,9].map(h => houseLord(chart, h)));
+      kendraLords.forEach(k => {
+        trikonaLords.forEach(t => {
+          if (k === t) return;
+          if (planetsConjunctOrAspect(chart, aspectsList, k, t)) {
+            const name = `Раджа-йога: ${k} и ${t}`;
+            if (!yogas.some(y => y.name === name)) {
+              yogas.push({ name, detail: `${k} (лорд кендры) и ${t} (лорд триконы) в соединении или аспекте друг с другом.` });
+            }
+          }
+        });
+      });
+    }
+
+    {
+      const l2 = houseLord(chart, 2), l11 = houseLord(chart, 11);
+      if (l2 !== l11 && planetsConjunctOrAspect(chart, aspectsList, l2, l11)) {
+        yogas.push({ name: 'Дхана-йога', detail: `Лорд 2 дома (${l2}) и лорд 11 дома (${l11}) в соединении или аспекте.` });
+      }
+    }
+
+    {
+      const dusthana = [6,8,12];
+      dusthana.forEach(h => {
+        const lord = houseLord(chart, h);
+        const lordHouse = chart.planets[lord].house;
+        if (dusthana.includes(lordHouse) && lordHouse !== h) {
+          const name = `Випарита Раджа-йога: лорд ${h} дома в ${lordHouse} доме`;
+          if (!yogas.some(y => y.name === name)) {
+            yogas.push({ name, detail: `Лорд ${h} дома (${lord}) находится в ${lordHouse} доме — тоже дом-дустхана (6/8/12).`, caution: true });
+          }
+        }
+      });
+    }
+
+    return yogas;
+  }
+
+  function renderYogasHTML(yogas) {
+    let html = '<div class="name" style="margin-bottom:10px;">Йоги в карте</div>';
+    if (yogas.length === 0) {
+      html += '<div style="font-size:13px;color:var(--taupe);">Ни одна из проверяемых базовых йог не найдена в этой карте.</div>';
+      return html;
+    }
+    html += yogas.map(y => `
+      <div class="note-item">
+        <div class="note-text"><b>${escapeHtml(y.name)}</b><br><span style="color:var(--taupe);font-size:12px;">${escapeHtml(y.detail)}</span></div>
+      </div>
+    `).join('');
+    html += '<div style="font-size:11px;color:var(--taupe);margin-top:10px;">Базовый набор из 8 йог, без учёта классических отмен/усилений — черновая версия.</div>';
+    return html;
+  }
 
   function renderChartExtraPanel(type) {
     const panel = document.getElementById('chart-extras-panel');
@@ -2190,27 +2325,23 @@
 
     if (type === 'gochara') {
       const transits = computeTransitsClientSide(new Date());
-      const order = ['Солнце','Луна','Меркурий','Венера','Марс','Юпитер','Сатурн','Раху','Кету'];
-      let html = '<div class="name" style="margin-bottom:10px;">Текущие транзиты (гочара)</div>';
-      order.forEach(name => {
-        const t = transits.planets[name];
-        if (!t) return;
-        html += `<div class="current-period-row">
-          <span class="label">${name}</span>
-          <span class="value">${t.sign.name} · ${t.transitHouse} дом от Лагны</span>
-        </div>`;
-      });
-      panel.innerHTML = html;
+      renderChartSVG(currentChart, 'chart-svg', transits);
+      panel.style.display = 'none'; // это наложение прямо на саму карту, отдельной панели не нужно
       return;
     }
 
     if (type === 'yogas') {
-      panel.innerHTML = '<div style="font-size:13px;color:var(--taupe);">Определение йог — в разработке, скоро появится здесь.</div>';
+      panel.innerHTML = renderYogasHTML(computeYogas(currentChart));
       return;
     }
 
     if (type === 'aspects') {
-      panel.innerHTML = '<div style="font-size:13px;color:var(--taupe);">Аспекты между планетами — в разработке, скоро появятся здесь.</div>';
+      const rows = computeAspectsClient(currentChart).map(a => `${a.from} → ${a.to} <span class="sub">(${a.houseDiff}-й дом от ${a.from})</span>`);
+      let html = '<div class="name" style="margin-bottom:10px;">Аспекты между планетами</div>';
+      html += rows.length
+        ? rows.map(r => `<div class="current-period-row"><span class="value" style="width:100%;">${r}</span></div>`).join('')
+        : '<div style="font-size:13px;color:var(--taupe);">Аспектов между планетами не найдено.</div>';
+      panel.innerHTML = html;
       return;
     }
   }
