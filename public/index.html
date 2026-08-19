@@ -1287,6 +1287,7 @@
     for (let i=0;i<12;i++) signPlanets[i]=[];
     for (const [name,p] of Object.entries(chart.planets)) signPlanets[p.sign.index].push({name,p});
     const planetPixelPos = {}; // имя планеты -> {x,y} на этом SVG — для линий аспектов/подсветки йог поверх карты
+    const housePixelPos = {}; // номер дома -> {x,y} центра дома — для линий аспектов на пустые дома
 
     const transitsByHouse = {};
     if (transitsData) {
@@ -1309,12 +1310,7 @@
       const poly = HP[h];
       const [cx,cy] = centroid(poly);
       const signIdx = (ascIdx + h - 1) % 12;
-
-      if (h === 1) {
-        const pts = poly.map(p=>p.join(',')).join(' ');
-        svg.appendChild(el('polygon', {points:pts, fill:'#FBF3DF'}));
-        svg.appendChild(el('polygon', {points:pts, fill:'none', stroke:'#C8A26B','stroke-width':1.5}));
-      }
+      housePixelPos[h] = { x: cx, y: cy };
 
       const [nx,ny] = signNumberPos(poly);
       const numText = el('text', {x:nx,y:ny,'text-anchor':'middle','font-family':'Playfair Display, serif','font-size':h===1?17:15,fill:h===1?'#C8A26B':'#7A6B5A','font-weight':h===1?700:400});
@@ -1378,7 +1374,7 @@
         }
       }
     }
-    return { planetPixelPos };
+    return { planetPixelPos, housePixelPos };
   }
 
   function renderPlanetList(chart) {
@@ -2212,13 +2208,20 @@
       'Марс': 'Рувака-йога', 'Меркурий': 'Бхадра-йога', 'Юпитер': 'Хамса-йога',
       'Венера': 'Малавья-йога', 'Сатурн': 'Шаша-йога',
     };
+    const MAHAPURUSHA_MEANING = {
+      'Марс': 'Смелость, лидерство, независимость, физическая и волевая сила.',
+      'Меркурий': 'Острый ум, красноречие, успех в коммерции и аналитике.',
+      'Юпитер': 'Мудрость, нравственный авторитет, благополучие, уважение.',
+      'Венера': 'Красота, комфорт, творческий и чувственный успех, обеспеченность.',
+      'Сатурн': 'Дисциплина, авторитет через упорство, административная сила.',
+    };
     Object.keys(MAHAPURUSHA).forEach(planet => {
       const p = chart.planets[planet];
       const isKendra = [1,4,7,10].includes(p.house);
       const isExalted = EXALTATION[planet] === p.sign.index;
       const isOwn = OWN_SIGNS[planet] && OWN_SIGNS[planet].includes(p.sign.index);
       if (isKendra && (isExalted || isOwn)) {
-        yogas.push({ name: MAHAPURUSHA[planet] + ' (Панча-Махапуруша)', detail: `${planet} в кендре (${p.house} дом), в ${isExalted ? 'экзальтации' : 'своём знаке'}.`, planets: [planet] });
+        yogas.push({ name: MAHAPURUSHA[planet] + ' (Панча-Махапуруша)', detail: `${planet} в кендре (${p.house} дом), в ${isExalted ? 'экзальтации' : 'своём знаке'}.`, meaning: MAHAPURUSHA_MEANING[planet], planets: [planet] });
       }
     });
 
@@ -2227,7 +2230,7 @@
       const jupHouse = chart.planets['Юпитер'].house;
       const distFromMoon = ((jupHouse - moonHouse + 12) % 12) + 1;
       if ([1,4,7,10].includes(distFromMoon)) {
-        yogas.push({ name: 'Гаджакесари-йога', detail: `Юпитер в ${distFromMoon} доме от Луны.`, planets: ['Юпитер','Луна'] });
+        yogas.push({ name: 'Гаджакесари-йога', detail: `Юпитер в ${distFromMoon} доме от Луны.`, meaning: 'Устойчивость, доверие окружающих, известность, защита и покровительство Юпитера в эмоциональной сфере.', planets: ['Юпитер','Луна'] });
       }
     }
 
@@ -2238,16 +2241,16 @@
       const others = Object.keys(chart.planets).filter(n => n !== 'Луна' && n !== 'Солнце');
       const hasNeighbor = others.some(n => chart.planets[n].house === house2 || chart.planets[n].house === house12);
       if (!hasNeighbor) {
-        yogas.push({ name: 'Кемадрума-йога', detail: 'У Луны нет планет в соседних домах (2-й и 12-й от Луны, без учёта Солнца). Классические отмены (напр. Юпитер аспектирует Луну) здесь не проверяются.', caution: true, planets: ['Луна'] });
+        yogas.push({ name: 'Кемадрума-йога', detail: 'У Луны нет планет в соседних домах (2-й и 12-й от Луны, без учёта Солнца). Классические отмены (напр. Юпитер аспектирует Луну) здесь не проверяются.', meaning: 'Классически считается неблагоприятной: нестабильность, недостаток поддержки, эмоциональные трудности — часто отменяется другими факторами карты.', caution: true, planets: ['Луна'] });
       }
     }
 
     if (chart.planets['Луна'].house === chart.planets['Марс'].house) {
-      yogas.push({ name: 'Чандра-Мангала-йога', detail: `Луна и Марс в соединении (${chart.planets['Луна'].house} дом).`, planets: ['Луна','Марс'] });
+      yogas.push({ name: 'Чандра-Мангала-йога', detail: `Луна и Марс в соединении (${chart.planets['Луна'].house} дом).`, meaning: 'Предприимчивость и энергичность в заработке, деловая хватка.', planets: ['Луна','Марс'] });
     }
 
     if (chart.planets['Солнце'].house === chart.planets['Меркурий'].house) {
-      yogas.push({ name: 'Буддха-Адитья-йога', detail: `Солнце и Меркурий в соединении (${chart.planets['Солнце'].house} дом).`, planets: ['Солнце','Меркурий'] });
+      yogas.push({ name: 'Буддха-Адитья-йога', detail: `Солнце и Меркурий в соединении (${chart.planets['Солнце'].house} дом).`, meaning: 'Интеллект, аналитические способности, успех в учёбе и административной работе.', planets: ['Солнце','Меркурий'] });
     }
 
     {
@@ -2259,7 +2262,7 @@
           if (planetsConjunctOrAspect(chart, aspectsList, k, t)) {
             const name = `Раджа-йога: ${k} и ${t}`;
             if (!yogas.some(y => y.name === name)) {
-              yogas.push({ name, detail: `${k} (лорд кендры) и ${t} (лорд триконы) в соединении или аспекте друг с другом.`, planets: [k, t] });
+              yogas.push({ name, detail: `${k} (лорд кендры) и ${t} (лорд триконы) в соединении или аспекте друг с другом.`, meaning: 'Власть, статус, заметное возвышение в жизни.', planets: [k, t] });
             }
           }
         });
@@ -2269,7 +2272,7 @@
     {
       const l2 = houseLord(chart, 2), l11 = houseLord(chart, 11);
       if (l2 !== l11 && planetsConjunctOrAspect(chart, aspectsList, l2, l11)) {
-        yogas.push({ name: 'Дхана-йога', detail: `Лорд 2 дома (${l2}) и лорд 11 дома (${l11}) в соединении или аспекте.`, planets: [l2, l11] });
+        yogas.push({ name: 'Дхана-йога', detail: `Лорд 2 дома (${l2}) и лорд 11 дома (${l11}) в соединении или аспекте.`, meaning: 'Финансовое благополучие, способность накапливать средства.', planets: [l2, l11] });
       }
     }
 
@@ -2281,7 +2284,7 @@
         if (dusthana.includes(lordHouse) && lordHouse !== h) {
           const name = `Випарита Раджа-йога: лорд ${h} дома в ${lordHouse} доме`;
           if (!yogas.some(y => y.name === name)) {
-            yogas.push({ name, detail: `Лорд ${h} дома (${lord}) находится в ${lordHouse} доме — тоже дом-дустхана (6/8/12).`, caution: true, planets: [lord] });
+            yogas.push({ name, detail: `Лорд ${h} дома (${lord}) находится в ${lordHouse} доме — тоже дом-дустхана (6/8/12).`, meaning: 'Неожиданный успех через трудности и кризисы — своего рода «выигрыш из поражения».', caution: true, planets: [lord] });
           }
         }
       });
@@ -2296,26 +2299,6 @@
     if (currentChart) renderChartSVG(currentChart, 'chart-svg');
   }
 
-  function drawAspectLinesOnChart(positions, aspectPairs) {
-    const svg = document.getElementById('chart-svg');
-    const ns = 'http://www.w3.org/2000/svg';
-    const drawn = new Set();
-    aspectPairs.forEach(a => {
-      const key = [a.from, a.to].sort().join('|');
-      if (drawn.has(key)) return;
-      drawn.add(key);
-      const p1 = positions[a.from], p2 = positions[a.to];
-      if (!p1 || !p2) return;
-      const line = document.createElementNS(ns, 'line');
-      line.setAttribute('x1', p1.x); line.setAttribute('y1', p1.y - 3);
-      line.setAttribute('x2', p2.x); line.setAttribute('y2', p2.y - 3);
-      line.setAttribute('stroke', '#C8A26B');
-      line.setAttribute('stroke-width', '1');
-      line.setAttribute('stroke-opacity', '0.6');
-      line.setAttribute('stroke-dasharray', '3,2');
-      svg.appendChild(line);
-    });
-  }
 
   function highlightYogaOnChart(positions, planetNames, color) {
     const svg = document.getElementById('chart-svg');
@@ -2331,19 +2314,38 @@
       circle.setAttribute('stroke-width', '2');
       svg.appendChild(circle);
     });
-    for (let i = 0; i < planetNames.length - 1; i++) {
-      for (let j = i + 1; j < planetNames.length; j++) {
-        const p1 = positions[planetNames[i]], p2 = positions[planetNames[j]];
-        if (!p1 || !p2) continue;
-        const line = document.createElementNS(ns, 'line');
-        line.setAttribute('x1', p1.x); line.setAttribute('y1', p1.y - 3);
-        line.setAttribute('x2', p2.x); line.setAttribute('y2', p2.y - 3);
-        line.setAttribute('stroke', color);
-        line.setAttribute('stroke-width', '2');
-        line.setAttribute('stroke-opacity', '0.75');
-        svg.appendChild(line);
-      }
-    }
+  }
+
+  function colorHousesOnChart(houseNumbers, color) {
+    const svg = document.getElementById('chart-svg');
+    const ns = 'http://www.w3.org/2000/svg';
+    houseNumbers.forEach(h => {
+      const poly = HP[h];
+      if (!poly) return;
+      const polygon = document.createElementNS(ns, 'polygon');
+      polygon.setAttribute('points', poly.map(p => p.join(',')).join(' '));
+      polygon.setAttribute('fill', color);
+      polygon.setAttribute('fill-opacity', '0.3');
+      svg.insertBefore(polygon, svg.firstChild);
+    });
+  }
+
+  function drawAspectLinesFromPlanet(planetPixelPos, housePixelPos, fromPlanet, targetHouses) {
+    const svg = document.getElementById('chart-svg');
+    const ns = 'http://www.w3.org/2000/svg';
+    const from = planetPixelPos[fromPlanet];
+    if (!from) return;
+    targetHouses.forEach(h => {
+      const to = housePixelPos[h];
+      if (!to) return;
+      const line = document.createElementNS(ns, 'line');
+      line.setAttribute('x1', from.x); line.setAttribute('y1', from.y - 3);
+      line.setAttribute('x2', to.x); line.setAttribute('y2', to.y);
+      line.setAttribute('stroke', '#C8A26B');
+      line.setAttribute('stroke-width', '1.6');
+      line.setAttribute('stroke-opacity', '0.85');
+      svg.appendChild(line);
+    });
   }
 
   function renderChartExtraPanel(type) {
@@ -2351,18 +2353,30 @@
     if (!currentChart) { panel.innerHTML = '<div style="font-size:13px;color:var(--taupe);">Сначала постройте карту.</div>'; return; }
 
     if (type === 'lords') {
-      const ascIdx = currentChart.ascendant.sign.index;
-      let html = '<div class="name" style="margin-bottom:10px;">Управители домов</div>';
-      for (let house = 1; house <= 12; house++) {
-        const signIdx = (ascIdx + house - 1) % 12;
-        const lord = SIGN_LORDS_D1[signIdx];
-        const lordHouse = currentChart.planets[lord] ? currentChart.planets[lord].house : null;
-        html += `<div class="current-period-row">
-          <span class="label">${house} дом (${SIGN_NAMES_D1[signIdx]})</span>
-          <span class="value">${lord}${lordHouse ? ` → стои́т в ${lordHouse} доме` : ''}</span>
-        </div>`;
+      function housesRuledBy(planetName) {
+        const ascIdx = currentChart.ascendant.sign.index;
+        const signs = OWN_SIGNS[planetName] || [];
+        return signs.map(signIdx => ((signIdx - ascIdx + 12) % 12) + 1);
       }
+      const order = ['Солнце','Луна','Меркурий','Венера','Марс','Юпитер','Сатурн'];
+      let html = '<div class="name" style="margin-bottom:6px;">Управители домов</div><div style="font-size:11px;color:var(--taupe);margin-bottom:10px;">Нажмите на планету — загорятся дома, которыми она управляет</div>';
+      html += '<div class="chip-row" id="lords-planet-row" style="justify-content:flex-start;">' + order.map(name => `<span class="chip" data-lord-planet="${name}" style="cursor:pointer;">${PLANET_SYMBOLS[name]}</span>`).join('') + '</div>';
+      html += '<div id="lords-detail" style="font-size:12px;color:var(--taupe);margin-top:10px;"></div>';
       panel.innerHTML = html;
+
+      panel.querySelectorAll('[data-lord-planet]').forEach(chip => {
+        chip.addEventListener('click', () => {
+          const name = chip.dataset.lordPlanet;
+          panel.querySelectorAll('[data-lord-planet]').forEach(c => c.classList.remove('active'));
+          chip.classList.add('active');
+          renderChartSVG(currentChart, 'chart-svg');
+          const houses = housesRuledBy(name);
+          colorHousesOnChart(houses, '#C8A26B');
+          document.getElementById('lords-detail').textContent = houses.length
+            ? `${name} управляет: ${houses.join(', ')} дом${houses.length > 1 ? 'ами' : 'ом'}.`
+            : `Не удалось определить дома для ${name}.`;
+        });
+      });
       return;
     }
 
@@ -2379,7 +2393,7 @@
       if (yogas.length === 0) {
         html += '<div style="font-size:13px;color:var(--taupe);">Ни одна из проверяемых базовых йог не найдена в этой карте.</div>';
       } else {
-        html += '<div class="chip-row" id="yoga-chip-list">' + yogas.map((y, i) => `<span class="chip" data-yoga-idx="${i}" style="cursor:pointer;">${escapeHtml(y.name)}</span>`).join('') + '</div>';
+        html += '<div class="chip-row" id="yoga-chip-list" style="justify-content:flex-start;">' + yogas.map((y, i) => `<span class="chip" data-yoga-idx="${i}" style="cursor:pointer;">${escapeHtml(y.name)}</span>`).join('') + '</div>';
         html += '<div id="yoga-detail" style="font-size:12px;color:var(--taupe);margin-top:10px;"></div>';
       }
       html += '<div style="font-size:11px;color:var(--taupe);margin-top:10px;">Базовый набор из 8 йог, без учёта классических отмен/усилений — черновая версия.</div>';
@@ -2392,22 +2406,41 @@
           chip.classList.add('active');
           const { planetPixelPos } = renderChartSVG(currentChart, 'chart-svg');
           highlightYogaOnChart(planetPixelPos, yoga.planets, yoga.caution ? '#a8654a' : '#4f7a52');
-          document.getElementById('yoga-detail').textContent = yoga.detail;
+          document.getElementById('yoga-detail').innerHTML = `<b>${escapeHtml(yoga.detail)}</b><br>${escapeHtml(yoga.meaning || '')}`;
         });
       });
       return;
     }
 
     if (type === 'aspects') {
-      const aspectPairs = computeAspectsClient(currentChart);
-      const { planetPixelPos } = renderChartSVG(currentChart, 'chart-svg');
-      drawAspectLinesOnChart(planetPixelPos, aspectPairs);
-      const rows = aspectPairs.map(a => `${a.from} → ${a.to} <span class="sub">(${a.houseDiff}-й дом от ${a.from})</span>`);
-      let html = '<div class="name" style="margin-bottom:10px;">Аспекты — показаны линиями на карте</div>';
-      html += rows.length
-        ? rows.map(r => `<div class="current-period-row"><span class="value" style="width:100%;">${r}</span></div>`).join('')
-        : '<div style="font-size:13px;color:var(--taupe);">Аспектов между планетами не найдено.</div>';
+      const SPECIAL_ASPECTS_LOCAL = { 'Марс': [4,8], 'Юпитер': [5,9], 'Сатурн': [3,10] };
+      function housesAspectedBy(planetName) {
+        const fromHouse = currentChart.planets[planetName].house;
+        const targets = [];
+        for (let h = 1; h <= 12; h++) {
+          const d = ((h - fromHouse + 12) % 12) + 1;
+          const special = SPECIAL_ASPECTS_LOCAL[planetName];
+          if (d === 7 || (special && special.includes(d))) targets.push(h);
+        }
+        return targets;
+      }
+      const order = ['Солнце','Луна','Меркурий','Венера','Марс','Юпитер','Сатурн','Раху','Кету'];
+      let html = '<div class="name" style="margin-bottom:6px;">Аспекты</div><div style="font-size:11px;color:var(--taupe);margin-bottom:10px;">Нажмите на планету — увидите, куда идут её аспекты</div>';
+      html += '<div class="chip-row" id="aspects-planet-row" style="justify-content:flex-start;">' + order.map(name => `<span class="chip" data-asp-planet="${name}" style="cursor:pointer;">${PLANET_SYMBOLS[name]}</span>`).join('') + '</div>';
+      html += '<div id="aspects-detail" style="font-size:12px;color:var(--taupe);margin-top:10px;"></div>';
       panel.innerHTML = html;
+
+      panel.querySelectorAll('[data-asp-planet]').forEach(chip => {
+        chip.addEventListener('click', () => {
+          const name = chip.dataset.aspPlanet;
+          panel.querySelectorAll('[data-asp-planet]').forEach(c => c.classList.remove('active'));
+          chip.classList.add('active');
+          const { planetPixelPos, housePixelPos } = renderChartSVG(currentChart, 'chart-svg');
+          const houses = housesAspectedBy(name);
+          drawAspectLinesFromPlanet(planetPixelPos, housePixelPos, name, houses);
+          document.getElementById('aspects-detail').textContent = `${name} аспектирует: ${houses.join(', ')} дом${houses.length > 1 ? 'а' : ''} от Лагны.`;
+        });
+      });
       return;
     }
   }
