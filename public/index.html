@@ -1286,6 +1286,7 @@
     const signPlanets = {};
     for (let i=0;i<12;i++) signPlanets[i]=[];
     for (const [name,p] of Object.entries(chart.planets)) signPlanets[p.sign.index].push({name,p});
+    const planetPixelPos = {}; // имя планеты -> {x,y} на этом SVG — для линий аспектов/подсветки йог поверх карты
 
     const transitsByHouse = {};
     if (transitsData) {
@@ -1343,6 +1344,7 @@
       planetsHere.forEach((item,i)=>{
         const col=i%cols, row=Math.floor(i/cols);
         const px=startX+col*colGap, py=startY+row*rowGap;
+        planetPixelPos[item.name] = { x: px, y: py };
         const color = dignityColor(item.name, item.p.sign.index);
         const t = el('text', {x:px,y:py,'text-anchor':'middle','dominant-baseline':'central','font-family':'Inter, sans-serif','font-size':fs,'font-weight':700,fill:color});
         t.textContent = PLANET_SYMBOLS[item.name];
@@ -1376,6 +1378,7 @@
         }
       }
     }
+    return { planetPixelPos };
   }
 
   function renderPlanetList(chart) {
@@ -2152,19 +2155,18 @@
     btn.addEventListener('click', () => {
       const type = btn.dataset.extra;
       const panel = document.getElementById('chart-extras-panel');
-      const wasGochara = activeExtraPanel === 'gochara';
       if (activeExtraPanel === type) {
-        // повторный клик по уже открытой панели — закрываем
+        // повторный клик по уже открытой панели — закрываем и убираем оверлей с карты
         panel.style.display = 'none';
         activeExtraPanel = null;
         document.querySelectorAll('#chart-extras-row [data-extra]').forEach(b => b.classList.remove('active'));
-        if (wasGochara && currentChart) renderChartSVG(currentChart, 'chart-svg'); // снять наложение транзитов
+        resetChartOverlay();
         return;
       }
       activeExtraPanel = type;
       document.querySelectorAll('#chart-extras-row [data-extra]').forEach(b => b.classList.toggle('active', b.dataset.extra === type));
-      panel.style.display = 'block';
-      if (wasGochara && currentChart && type !== 'gochara') renderChartSVG(currentChart, 'chart-svg'); // переключились с Гочары на другое — снять наложение
+      panel.style.display = type === 'gochara' ? 'none' : 'block';
+      resetChartOverlay(); // переключение между режимами — сначала чистая карта, потом уже свой оверлей
       renderChartExtraPanel(type);
     });
   });
@@ -2216,7 +2218,7 @@
       const isExalted = EXALTATION[planet] === p.sign.index;
       const isOwn = OWN_SIGNS[planet] && OWN_SIGNS[planet].includes(p.sign.index);
       if (isKendra && (isExalted || isOwn)) {
-        yogas.push({ name: MAHAPURUSHA[planet] + ' (Панча-Махапуруша)', detail: `${planet} в кендре (${p.house} дом), в ${isExalted ? 'экзальтации' : 'своём знаке'}.` });
+        yogas.push({ name: MAHAPURUSHA[planet] + ' (Панча-Махапуруша)', detail: `${planet} в кендре (${p.house} дом), в ${isExalted ? 'экзальтации' : 'своём знаке'}.`, planets: [planet] });
       }
     });
 
@@ -2225,7 +2227,7 @@
       const jupHouse = chart.planets['Юпитер'].house;
       const distFromMoon = ((jupHouse - moonHouse + 12) % 12) + 1;
       if ([1,4,7,10].includes(distFromMoon)) {
-        yogas.push({ name: 'Гаджакесари-йога', detail: `Юпитер в ${distFromMoon} доме от Луны.` });
+        yogas.push({ name: 'Гаджакесари-йога', detail: `Юпитер в ${distFromMoon} доме от Луны.`, planets: ['Юпитер','Луна'] });
       }
     }
 
@@ -2236,16 +2238,16 @@
       const others = Object.keys(chart.planets).filter(n => n !== 'Луна' && n !== 'Солнце');
       const hasNeighbor = others.some(n => chart.planets[n].house === house2 || chart.planets[n].house === house12);
       if (!hasNeighbor) {
-        yogas.push({ name: 'Кемадрума-йога', detail: 'У Луны нет планет в соседних домах (2-й и 12-й от Луны, без учёта Солнца). Классические отмены (напр. Юпитер аспектирует Луну) здесь не проверяются.', caution: true });
+        yogas.push({ name: 'Кемадрума-йога', detail: 'У Луны нет планет в соседних домах (2-й и 12-й от Луны, без учёта Солнца). Классические отмены (напр. Юпитер аспектирует Луну) здесь не проверяются.', caution: true, planets: ['Луна'] });
       }
     }
 
     if (chart.planets['Луна'].house === chart.planets['Марс'].house) {
-      yogas.push({ name: 'Чандра-Мангала-йога', detail: `Луна и Марс в соединении (${chart.planets['Луна'].house} дом).` });
+      yogas.push({ name: 'Чандра-Мангала-йога', detail: `Луна и Марс в соединении (${chart.planets['Луна'].house} дом).`, planets: ['Луна','Марс'] });
     }
 
     if (chart.planets['Солнце'].house === chart.planets['Меркурий'].house) {
-      yogas.push({ name: 'Буддха-Адитья-йога', detail: `Солнце и Меркурий в соединении (${chart.planets['Солнце'].house} дом).` });
+      yogas.push({ name: 'Буддха-Адитья-йога', detail: `Солнце и Меркурий в соединении (${chart.planets['Солнце'].house} дом).`, planets: ['Солнце','Меркурий'] });
     }
 
     {
@@ -2257,7 +2259,7 @@
           if (planetsConjunctOrAspect(chart, aspectsList, k, t)) {
             const name = `Раджа-йога: ${k} и ${t}`;
             if (!yogas.some(y => y.name === name)) {
-              yogas.push({ name, detail: `${k} (лорд кендры) и ${t} (лорд триконы) в соединении или аспекте друг с другом.` });
+              yogas.push({ name, detail: `${k} (лорд кендры) и ${t} (лорд триконы) в соединении или аспекте друг с другом.`, planets: [k, t] });
             }
           }
         });
@@ -2267,7 +2269,7 @@
     {
       const l2 = houseLord(chart, 2), l11 = houseLord(chart, 11);
       if (l2 !== l11 && planetsConjunctOrAspect(chart, aspectsList, l2, l11)) {
-        yogas.push({ name: 'Дхана-йога', detail: `Лорд 2 дома (${l2}) и лорд 11 дома (${l11}) в соединении или аспекте.` });
+        yogas.push({ name: 'Дхана-йога', detail: `Лорд 2 дома (${l2}) и лорд 11 дома (${l11}) в соединении или аспекте.`, planets: [l2, l11] });
       }
     }
 
@@ -2279,7 +2281,7 @@
         if (dusthana.includes(lordHouse) && lordHouse !== h) {
           const name = `Випарита Раджа-йога: лорд ${h} дома в ${lordHouse} доме`;
           if (!yogas.some(y => y.name === name)) {
-            yogas.push({ name, detail: `Лорд ${h} дома (${lord}) находится в ${lordHouse} доме — тоже дом-дустхана (6/8/12).`, caution: true });
+            yogas.push({ name, detail: `Лорд ${h} дома (${lord}) находится в ${lordHouse} доме — тоже дом-дустхана (6/8/12).`, caution: true, planets: [lord] });
           }
         }
       });
@@ -2288,19 +2290,60 @@
     return yogas;
   }
 
-  function renderYogasHTML(yogas) {
-    let html = '<div class="name" style="margin-bottom:10px;">Йоги в карте</div>';
-    if (yogas.length === 0) {
-      html += '<div style="font-size:13px;color:var(--taupe);">Ни одна из проверяемых базовых йог не найдена в этой карте.</div>';
-      return html;
+
+  // --- Оверлей поверх самой карты: линии аспектов / подсветка планет йоги ---
+  function resetChartOverlay() {
+    if (currentChart) renderChartSVG(currentChart, 'chart-svg');
+  }
+
+  function drawAspectLinesOnChart(positions, aspectPairs) {
+    const svg = document.getElementById('chart-svg');
+    const ns = 'http://www.w3.org/2000/svg';
+    const drawn = new Set();
+    aspectPairs.forEach(a => {
+      const key = [a.from, a.to].sort().join('|');
+      if (drawn.has(key)) return;
+      drawn.add(key);
+      const p1 = positions[a.from], p2 = positions[a.to];
+      if (!p1 || !p2) return;
+      const line = document.createElementNS(ns, 'line');
+      line.setAttribute('x1', p1.x); line.setAttribute('y1', p1.y - 3);
+      line.setAttribute('x2', p2.x); line.setAttribute('y2', p2.y - 3);
+      line.setAttribute('stroke', '#C8A26B');
+      line.setAttribute('stroke-width', '1');
+      line.setAttribute('stroke-opacity', '0.6');
+      line.setAttribute('stroke-dasharray', '3,2');
+      svg.appendChild(line);
+    });
+  }
+
+  function highlightYogaOnChart(positions, planetNames, color) {
+    const svg = document.getElementById('chart-svg');
+    const ns = 'http://www.w3.org/2000/svg';
+    planetNames.forEach(name => {
+      const pos = positions[name];
+      if (!pos) return;
+      const circle = document.createElementNS(ns, 'circle');
+      circle.setAttribute('cx', pos.x); circle.setAttribute('cy', pos.y - 3);
+      circle.setAttribute('r', 15);
+      circle.setAttribute('fill', 'none');
+      circle.setAttribute('stroke', color);
+      circle.setAttribute('stroke-width', '2');
+      svg.appendChild(circle);
+    });
+    for (let i = 0; i < planetNames.length - 1; i++) {
+      for (let j = i + 1; j < planetNames.length; j++) {
+        const p1 = positions[planetNames[i]], p2 = positions[planetNames[j]];
+        if (!p1 || !p2) continue;
+        const line = document.createElementNS(ns, 'line');
+        line.setAttribute('x1', p1.x); line.setAttribute('y1', p1.y - 3);
+        line.setAttribute('x2', p2.x); line.setAttribute('y2', p2.y - 3);
+        line.setAttribute('stroke', color);
+        line.setAttribute('stroke-width', '2');
+        line.setAttribute('stroke-opacity', '0.75');
+        svg.appendChild(line);
+      }
     }
-    html += yogas.map(y => `
-      <div class="note-item">
-        <div class="note-text"><b>${escapeHtml(y.name)}</b><br><span style="color:var(--taupe);font-size:12px;">${escapeHtml(y.detail)}</span></div>
-      </div>
-    `).join('');
-    html += '<div style="font-size:11px;color:var(--taupe);margin-top:10px;">Базовый набор из 8 йог, без учёта классических отмен/усилений — черновая версия.</div>';
-    return html;
   }
 
   function renderChartExtraPanel(type) {
@@ -2331,13 +2374,36 @@
     }
 
     if (type === 'yogas') {
-      panel.innerHTML = renderYogasHTML(computeYogas(currentChart));
+      const yogas = computeYogas(currentChart);
+      let html = '<div class="name" style="margin-bottom:6px;">Йоги в карте</div><div style="font-size:11px;color:var(--taupe);margin-bottom:10px;">Нажмите на йогу, чтобы увидеть её на карте</div>';
+      if (yogas.length === 0) {
+        html += '<div style="font-size:13px;color:var(--taupe);">Ни одна из проверяемых базовых йог не найдена в этой карте.</div>';
+      } else {
+        html += '<div class="chip-row" id="yoga-chip-list">' + yogas.map((y, i) => `<span class="chip" data-yoga-idx="${i}" style="cursor:pointer;">${escapeHtml(y.name)}</span>`).join('') + '</div>';
+        html += '<div id="yoga-detail" style="font-size:12px;color:var(--taupe);margin-top:10px;"></div>';
+      }
+      html += '<div style="font-size:11px;color:var(--taupe);margin-top:10px;">Базовый набор из 8 йог, без учёта классических отмен/усилений — черновая версия.</div>';
+      panel.innerHTML = html;
+
+      panel.querySelectorAll('[data-yoga-idx]').forEach(chip => {
+        chip.addEventListener('click', () => {
+          const yoga = yogas[Number(chip.dataset.yogaIdx)];
+          panel.querySelectorAll('[data-yoga-idx]').forEach(c => c.classList.remove('active'));
+          chip.classList.add('active');
+          const { planetPixelPos } = renderChartSVG(currentChart, 'chart-svg');
+          highlightYogaOnChart(planetPixelPos, yoga.planets, yoga.caution ? '#a8654a' : '#4f7a52');
+          document.getElementById('yoga-detail').textContent = yoga.detail;
+        });
+      });
       return;
     }
 
     if (type === 'aspects') {
-      const rows = computeAspectsClient(currentChart).map(a => `${a.from} → ${a.to} <span class="sub">(${a.houseDiff}-й дом от ${a.from})</span>`);
-      let html = '<div class="name" style="margin-bottom:10px;">Аспекты между планетами</div>';
+      const aspectPairs = computeAspectsClient(currentChart);
+      const { planetPixelPos } = renderChartSVG(currentChart, 'chart-svg');
+      drawAspectLinesOnChart(planetPixelPos, aspectPairs);
+      const rows = aspectPairs.map(a => `${a.from} → ${a.to} <span class="sub">(${a.houseDiff}-й дом от ${a.from})</span>`);
+      let html = '<div class="name" style="margin-bottom:10px;">Аспекты — показаны линиями на карте</div>';
       html += rows.length
         ? rows.map(r => `<div class="current-period-row"><span class="value" style="width:100%;">${r}</span></div>`).join('')
         : '<div style="font-size:13px;color:var(--taupe);">Аспектов между планетами не найдено.</div>';
