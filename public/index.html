@@ -2330,6 +2330,13 @@
     });
   }
 
+  function shortenedLine(x1, y1, x2, y2, padStart, padEnd) {
+    const dx = x2 - x1, dy = y2 - y1;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    const ux = dx / len, uy = dy / len;
+    return { x1: x1 + ux * padStart, y1: y1 + uy * padStart, x2: x2 - ux * padEnd, y2: y2 - uy * padEnd };
+  }
+
   function drawAspectLinesFromPlanet(planetPixelPos, housePixelPos, fromPlanet, targetHouses) {
     const svg = document.getElementById('chart-svg');
     const ns = 'http://www.w3.org/2000/svg';
@@ -2338,9 +2345,10 @@
     targetHouses.forEach(h => {
       const to = housePixelPos[h];
       if (!to) return;
+      const pts = shortenedLine(from.x, from.y - 3, to.x, to.y, 20, 16);
       const line = document.createElementNS(ns, 'line');
-      line.setAttribute('x1', from.x); line.setAttribute('y1', from.y - 3);
-      line.setAttribute('x2', to.x); line.setAttribute('y2', to.y);
+      line.setAttribute('x1', pts.x1); line.setAttribute('y1', pts.y1);
+      line.setAttribute('x2', pts.x2); line.setAttribute('y2', pts.y2);
       line.setAttribute('stroke', '#C8A26B');
       line.setAttribute('stroke-width', '1.6');
       line.setAttribute('stroke-opacity', '0.85');
@@ -2369,9 +2377,10 @@
           const name = chip.dataset.lordPlanet;
           panel.querySelectorAll('[data-lord-planet]').forEach(c => c.classList.remove('active'));
           chip.classList.add('active');
-          renderChartSVG(currentChart, 'chart-svg');
+          const { planetPixelPos } = renderChartSVG(currentChart, 'chart-svg');
           const houses = housesRuledBy(name);
           colorHousesOnChart(houses, '#C8A26B');
+          highlightYogaOnChart(planetPixelPos, [name], '#C8A26B');
           document.getElementById('lords-detail').textContent = houses.length
             ? `${name} управляет: ${houses.join(', ')} дом${houses.length > 1 ? 'ами' : 'ом'}.`
             : `Не удалось определить дома для ${name}.`;
