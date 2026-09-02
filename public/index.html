@@ -650,7 +650,6 @@
       </div>
 
       <div class="planet-list" id="planet-list"></div>
-      <div id="planet-detail" class="form-card" style="padding:16px;display:none;"></div>
 
       <button class="btn-secondary" id="export-open-btn">📄 Экспорт карты</button>
       <div class="form-card" id="export-panel" style="padding:16px;display:none;">
@@ -1210,41 +1209,55 @@
     'Ревати': 'Завершение пути — забота, сострадание, мягкий переход к новому этапу.',
   };
 
-  async function showPlanetDetail(planetName, signIndex, isRetrograde, house, nakName, nakPada) {
-    const status = getDignityStatusD1(planetName, signIndex);
-    const detail = document.getElementById('planet-detail');
-    detail.style.display = 'block';
-    const hasDigBala = DIG_BALA_HOUSE[planetName] === house;
-    const nakMeaning = NAKSHATRA_MEANINGS_D1[nakName] || '';
-    detail.innerHTML = `
-      <div class="name" style="margin-bottom:4px;">${planetName} в ${house} доме, в ${SIGN_NAMES_D1[signIndex]}</div>
-      <div style="font-size:12px;color:var(--gold);font-weight:600;margin-bottom:10px;text-transform:uppercase;letter-spacing:.03em;">${DIGNITY_LABELS_D1[status]}${isRetrograde ? ' · Ретроградна' : ''}</div>
-      <p style="font-size:13px;line-height:1.5;margin-bottom:10px;">${DIGNITY_TEXTS_D1[status]}</p>
-      ${hasDigBala ? '<p style="font-size:13px;line-height:1.5;margin-bottom:10px;">◈ <b>Есть диг-бала</b> — планета находится в доме своей направленной силы, это дополнительно усиливает её.</p>' : ''}
-      ${isRetrograde ? '<p style="font-size:13px;line-height:1.5;color:#a8654a;margin-bottom:10px;">Ретроградность: планета движется по знаку в обратном направлении относительно Земли — её темы разворачиваются внутрь, требуют пересмотра или возвращения к уже пройденному, вместо прямого внешнего движения вперёд.</p>' : ''}
-      <p style="font-size:13px;line-height:1.5;color:var(--taupe);margin-bottom:10px;">${PLANET_SIGNIFICATIONS_D1[planetName]}</p>
-      ${nakName ? `<p style="font-size:13px;line-height:1.5;margin-bottom:14px;"><b>Накшатра: ${nakName}</b> (пада ${nakPada})<br><span style="color:var(--taupe);">${nakMeaning}</span></p>` : ''}
-      <button class="btn-secondary" id="planet-premium-teaser" style="margin-bottom:0;">✨ Узнать, что это значит именно для вашей карты</button>
-    `;
-    document.getElementById('planet-premium-teaser').addEventListener('click', async () => {
-      try {
-        const res = await fetch('/api/tier', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ initData: getInitData() })
-        });
-        const data = await res.json();
-        if (data.isPremium) {
-          const msg = 'Персональный разбор этой планеты появится здесь одним из следующих обновлений.';
-          if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showAlert) window.Telegram.WebApp.showAlert(msg);
-          else alert(msg);
-        } else {
-          showUpgradePrompt();
-        }
-      } catch (e) {
-        showUpgradePrompt();
+  let planetTooltipEl = null;
+  function ensurePlanetTooltip() {
+    if (!planetTooltipEl) {
+      planetTooltipEl = document.createElement('div');
+      planetTooltipEl.className = 'period-tooltip';
+      planetTooltipEl.style.maxWidth = '300px';
+      document.body.appendChild(planetTooltipEl);
+    }
+    return planetTooltipEl;
+  }
+  function hidePlanetTooltip() {
+    if (planetTooltipEl) planetTooltipEl.classList.remove('visible');
+  }
+  function positionTooltipNear(tip, anchorEl) {
+    const rect = anchorEl.getBoundingClientRect();
+    const margin = 10;
+    let left = rect.left;
+    if (left + 300 > window.innerWidth - margin) left = window.innerWidth - 300 - margin;
+    if (left < margin) left = margin;
+    tip.style.left = left + 'px';
+    tip.style.top = (rect.bottom + 6) + 'px';
+    requestAnimationFrame(() => {
+      const th = tip.offsetHeight;
+      if (rect.bottom + th + 10 > window.innerHeight) {
+        tip.style.top = Math.max(margin, rect.top - th - 6) + 'px';
       }
     });
   }
+
+  async function showPlanetDetail(anchorEl, planetName, signIndex, isRetrograde, house, nakName, nakPada) {
+    const status = getDignityStatusD1(planetName, signIndex);
+    const hasDigBala = DIG_BALA_HOUSE[planetName] === house;
+    const nakMeaning = NAKSHATRA_MEANINGS_D1[nakName] || '';
+    const tip = ensurePlanetTooltip();
+    tip.innerHTML = `
+      <div style="font-weight:600;margin-bottom:4px;">${planetName} в ${house} доме, в ${SIGN_NAMES_D1[signIndex]}</div>
+      <div style="font-size:11px;color:var(--gold);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:.03em;">${DIGNITY_LABELS_D1[status]}${isRetrograde ? ' · Ретроградна' : ''}</div>
+      <p style="margin-bottom:8px;">${DIGNITY_TEXTS_D1[status]}</p>
+      ${hasDigBala ? '<p style="margin-bottom:8px;">◈ <b>Есть диг-бала</b> — планета в доме своей направленной силы, это усиливает её.</p>' : ''}
+      ${isRetrograde ? '<p style="color:#a8654a;margin-bottom:8px;">Ретроградность: темы этой планеты разворачиваются внутрь, требуют пересмотра, а не прямого движения вперёд.</p>' : ''}
+      <p style="color:var(--taupe);margin-bottom:8px;">${PLANET_SIGNIFICATIONS_D1[planetName]}</p>
+      ${nakName ? `<p style="margin-bottom:0;"><b>Накшатра: ${nakName}</b> (пада ${nakPada})<br><span style="color:var(--taupe);">${nakMeaning}</span></p>` : ''}
+    `;
+    tip.classList.add('visible');
+    positionTooltipNear(tip, anchorEl);
+  }
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('[data-planet]') && !e.target.closest('.period-tooltip')) hidePlanetTooltip();
+  });
   // Ретроградность показываем чёрточкой НАД символом планеты (как в
   // классических распечатках) — настоящей линией по замеренной ширине
   // текста, а не диакритиком (тот давал разрывы между буквами на iOS/Android).
@@ -1385,8 +1398,8 @@
         // Кликабельная/наводимая область вокруг символа планеты — на самой карте,
         // не только в списке планет под ней. Прозрачный круг шире самого текста,
         // чтобы было проще попасть пальцем на мобильном.
-        const hit = el('circle', {cx:px, cy:py, r:16, fill:'transparent', style:'cursor:pointer;'});
-        const openDetail = () => showPlanetDetail(item.name, item.p.sign.index, item.p.retrograde, item.p.house, item.p.nakshatra.name, item.p.nakshatra.pada);
+        const hit = el('circle', {cx:px, cy:py, r:16, fill:'transparent', style:'cursor:pointer;', 'data-planet':item.name});
+        const openDetail = () => showPlanetDetail(hit, item.name, item.p.sign.index, item.p.retrograde, item.p.house, item.p.nakshatra.name, item.p.nakshatra.pada);
         hit.addEventListener('click', openDetail);
         hit.addEventListener('mouseenter', openDetail);
         svg.appendChild(hit);
@@ -1442,7 +1455,7 @@
     container.innerHTML = html;
 
     container.querySelectorAll('.planet-row[data-planet]').forEach(row => {
-      const trigger = () => showPlanetDetail(row.dataset.planet, Number(row.dataset.signidx), row.dataset.retro === '1', Number(row.dataset.house), row.dataset.nak, row.dataset.pada);
+      const trigger = () => showPlanetDetail(row, row.dataset.planet, Number(row.dataset.signidx), row.dataset.retro === '1', Number(row.dataset.house), row.dataset.nak, row.dataset.pada);
       row.addEventListener('click', trigger);
       row.addEventListener('mouseenter', trigger);
     });
