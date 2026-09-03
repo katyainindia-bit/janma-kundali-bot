@@ -337,10 +337,12 @@ function signOf(siderealLon) {
 
 // --- Main chart calculation ---
 function calculateChartFallback(params) {
-  const { year, month, day, hour, minute, second, utcOffset, lat, lon, ayanamshaType } = params;
+  const { year, month, day, hour, minute, second, utcOffset, lat, lon, ayanamshaType, nodeType } = params;
   const jd = jdFromDate(year, month, day, hour, minute, second, utcOffset);
 
-  const ayanamsha = ayanamshaType === 'raman' ? ramanAyanamsha(jd) : lahiriAyanamsha(jd);
+  // Тропический зодиак = аянамша 0 (без поправки на прецессию) — та же формула
+  // "сидерическая = тропическая минус аянамша" работает и для него без изменений.
+  const ayanamsha = ayanamshaType === 'tropical' ? 0 : (ayanamshaType === 'raman' ? ramanAyanamsha(jd) : lahiriAyanamsha(jd));
 
   const tropicalPositions = {
     Солнце: sunLongitude(jd),
@@ -409,6 +411,7 @@ function calculateChartFallback(params) {
     ascendant: { siderealLon: ascSidereal, sign: ascSign, nakshatra: ascNak },
     planets,
     houses,
+    actualNodeType: 'mean', // резервный движок умеет только средний узел
   };
 }
 
@@ -421,14 +424,18 @@ function calculateChartFallback(params) {
 // получаем ТЕ ЖЕ числа, что и любая другая профессиональная программа на
 // Swiss Ephemeris, без собственной интерпретации этой тонкости.
 function calculateChartSwisseph(params) {
-  const { year, month, day, hour, minute, second, utcOffset, lat, lon, ayanamshaType } = params;
+  const { year, month, day, hour, minute, second, utcOffset, lat, lon, ayanamshaType, nodeType } = params;
   const jd = jdFromDate(year, month, day, hour, minute, second, utcOffset);
 
-  const sidMode = ayanamshaType === 'raman' ? swe.SE_SIDM_RAMAN : swe.SE_SIDM_LAHIRI;
-  swe.swe_set_sid_mode(sidMode, 0, 0);
-  const ayanamsha = swe.swe_get_ayanamsa_ut(jd);
+  const isTropical = ayanamshaType === 'tropical';
+  let ayanamsha = 0;
+  if (!isTropical) {
+    const sidMode = ayanamshaType === 'raman' ? swe.SE_SIDM_RAMAN : swe.SE_SIDM_LAHIRI;
+    swe.swe_set_sid_mode(sidMode, 0, 0);
+    ayanamsha = swe.swe_get_ayanamsa_ut(jd);
+  }
 
-  const flag = swe.SEFLG_MOSEPH | swe.SEFLG_SIDEREAL | swe.SEFLG_SPEED;
+  const flag = swe.SEFLG_MOSEPH | (isTropical ? 0 : swe.SEFLG_SIDEREAL) | swe.SEFLG_SPEED;
   const bodyCodes = {
     Солнце: swe.SE_SUN, Луна: swe.SE_MOON, Меркурий: swe.SE_MERCURY, Венера: swe.SE_VENUS,
     Марс: swe.SE_MARS, Юпитер: swe.SE_JUPITER, Сатурн: swe.SE_SATURN,
@@ -441,15 +448,27 @@ function calculateChartSwisseph(params) {
     siderealLons[name] = pmod(res.longitude, 360);
     retrogradeFlags[name] = !NEVER_RETROGRADE.has(name) && res.longitudeSpeed < 0;
   }
-  const rahuSid = pmod(swe.swe_calc_ut(jd, swe.SE_MEAN_NODE, swe.SEFLG_MOSEPH | swe.SEFLG_SIDEREAL).longitude, 360);
+  // Истинный узел (True Node) реально колеблется вокруг среднего и время от
+  // времени ненадолго идёт "вперёд" (не всегда ретрограден, в отличие от
+  // среднего) — поэтому для него ретроградность берём из скорости, как у
+  // обычных планет, а не считаем постоянной.
+  const nodeCode = nodeType === 'true' ? swe.SE_TRUE_NODE : swe.SE_MEAN_NODE;
+  const nodeFlag = swe.SEFLG_MOSEPH | (isTropical ? 0 : swe.SEFLG_SIDEREAL) | swe.SEFLG_SPEED;
+  const nodeRes = swe.swe_calc_ut(jd, nodeCode, nodeFlag);
+  const rahuSid = pmod(nodeRes.longitude, 360);
   siderealLons['Раху'] = rahuSid;
   siderealLons['Кету'] = pmod(rahuSid + 180, 360);
-  // Средний узел (Раху/Кету) по определению всегда движется в обратном направлении —
-  // традиционно считается постоянно ретроградным.
-  retrogradeFlags['Раху'] = true;
-  retrogradeFlags['Кету'] = true;
+  if (nodeType === 'true') {
+    retrogradeFlags['Раху'] = nodeRes.longitudeSpeed < 0;
+    retrogradeFlags['Кету'] = nodeRes.longitudeSpeed < 0;
+  } else {
+    // Средний узел (Раху/Кету) по определению всегда движется в обратном направлении —
+    // традиционно считается постоянно ретроградным.
+    retrogradeFlags['Раху'] = true;
+    retrogradeFlags['Кету'] = true;
+  }
 
-  const housesRes = swe.swe_houses_ex(jd, swe.SEFLG_MOSEPH | swe.SEFLG_SIDEREAL, lat, lon, 'P');
+  const housesRes = swe.swe_houses_ex(jd, swe.SEFLG_MOSEPH | (isTropical ? 0 : swe.SEFLG_SIDEREAL), lat, lon, 'P');
   const ascSidereal = pmod(housesRes.ascendant, 360);
 
   const planets = {};
@@ -477,6 +496,7 @@ function calculateChartSwisseph(params) {
     ascendant: { siderealLon: ascSidereal, sign: ascSign, nakshatra: ascNak },
     planets,
     houses,
+    actualNodeType: nodeType === 'true' ? 'true' : 'mean',
   };
 }
 
@@ -490,13 +510,16 @@ function calculateChart(params) {
 // Использует тот же путь, что и основной расчёт карты (Swiss Ephemeris
 // сидерически напрямую, либо резервный движок тропически минус аянамша).
 function ascendantSidereal(jd, latDeg, lonDeg, ayanamshaType) {
+  const isTropical = ayanamshaType === 'tropical';
   if (SWISSEPH_AVAILABLE) {
-    const sidMode = ayanamshaType === 'raman' ? swe.SE_SIDM_RAMAN : swe.SE_SIDM_LAHIRI;
-    swe.swe_set_sid_mode(sidMode, 0, 0);
-    const res = swe.swe_houses_ex(jd, swe.SEFLG_MOSEPH | swe.SEFLG_SIDEREAL, latDeg, lonDeg, 'P');
+    if (!isTropical) {
+      const sidMode = ayanamshaType === 'raman' ? swe.SE_SIDM_RAMAN : swe.SE_SIDM_LAHIRI;
+      swe.swe_set_sid_mode(sidMode, 0, 0);
+    }
+    const res = swe.swe_houses_ex(jd, swe.SEFLG_MOSEPH | (isTropical ? 0 : swe.SEFLG_SIDEREAL), latDeg, lonDeg, 'P');
     return pmod(res.ascendant, 360);
   }
-  const ayanamsha = ayanamshaType === 'raman' ? ramanAyanamshaFallback(jd) : lahiriAyanamshaFallback(jd);
+  const ayanamsha = isTropical ? 0 : (ayanamshaType === 'raman' ? ramanAyanamshaFallback(jd) : lahiriAyanamshaFallback(jd));
   return pmod(ascendantTropicalFallback(jd, latDeg, lonDeg) - ayanamsha, 360);
 }
 

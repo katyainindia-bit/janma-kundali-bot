@@ -27,7 +27,10 @@ db.exec(`
     primary_chart_id INTEGER,
     notify_state TEXT,
     first_seen TEXT NOT NULL,
-    last_seen TEXT NOT NULL
+    last_seen TEXT NOT NULL,
+    node_type TEXT NOT NULL DEFAULT 'true',
+    zodiac_type TEXT NOT NULL DEFAULT 'sidereal',
+    chart_style TEXT NOT NULL DEFAULT 'north'
   );
 
   CREATE TABLE IF NOT EXISTS charts (
@@ -100,6 +103,30 @@ try {
   // столбец уже есть — игнорируем
 }
 try {
+  db.exec("ALTER TABLE users ADD COLUMN node_type TEXT NOT NULL DEFAULT 'true'");
+} catch (e) {
+  // столбец уже есть — игнорируем
+}
+// Разовая правка: поле node_type только что появилось, и дефолтом был 'mean' —
+// то есть никто ещё не выбирал 'mean' осознанно, это было просто значение по
+// умолчанию. Меняем реальный дефолт методики на Истинный узел и для тех, у
+// кого уже сохранилось 'mean' от старого дефолта, — задним числом.
+try {
+  db.exec("UPDATE users SET node_type = 'true' WHERE node_type = 'mean'");
+} catch (e) {
+  // таблица могла быть только что создана без этого столбца в этот самый момент — игнорируем
+}
+try {
+  db.exec("ALTER TABLE users ADD COLUMN zodiac_type TEXT NOT NULL DEFAULT 'sidereal'");
+} catch (e) {
+  // столбец уже есть — игнорируем
+}
+try {
+  db.exec("ALTER TABLE users ADD COLUMN chart_style TEXT NOT NULL DEFAULT 'north'");
+} catch (e) {
+  // столбец уже есть — игнорируем
+}
+try {
   db.exec('ALTER TABLE chart_notes ADD COLUMN period_start TEXT');
 } catch (e) {
   // столбец уже есть — игнорируем
@@ -153,6 +180,15 @@ function setTier(telegramId, tier, untilISO) {
 // --- Уведомления ---
 function setNotifyEnabled(telegramId, enabled) {
   return db.prepare('UPDATE users SET notify_enabled = ? WHERE telegram_id = ?').run(enabled ? 1 : 0, telegramId);
+}
+
+// --- Астрологические настройки (узел/зодиак/стиль карты) ---
+function setAstroSettings(telegramId, { nodeType, zodiacType, chartStyle }) {
+  const row = getUser(telegramId);
+  if (!row) return false;
+  const info = db.prepare('UPDATE users SET node_type = ?, zodiac_type = ?, chart_style = ? WHERE telegram_id = ?')
+    .run(nodeType || row.node_type, zodiacType || row.zodiac_type, chartStyle || row.chart_style, telegramId);
+  return info.changes > 0;
 }
 
 function setPrimaryChart(telegramId, chartId) {
@@ -272,7 +308,7 @@ function deleteNote(noteId) {
 module.exports = {
   upsertUser, getAllUserIds, getUserCount,
   getUser, isPremium, setTier,
-  setNotifyEnabled, setPrimaryChart, listNotifiableUsers, saveNotifyState,
+  setNotifyEnabled, setPrimaryChart, listNotifiableUsers, saveNotifyState, setAstroSettings,
   saveChart, listCharts, countCharts, getChart, deleteChart, updateChart, renameChart, setFolder, toggleFavorite,
   addNote, listNotes, updateNote, deleteNote,
 };

@@ -1056,6 +1056,35 @@
     <div class="current-period-row"><span class="label">Язык</span><span class="value">Русский</span></div>
     <button class="btn-secondary" id="profile-support-btn" style="margin-top:10px;">Написать в поддержку</button>
   </div>
+
+  <div class="form-card" id="profile-astro-settings-card" style="padding:16px;">
+    <h2 style="margin-bottom:4px;">Настройки расчёта</h2>
+    <p style="font-size:12px;color:var(--taupe);margin-bottom:14px;">Влияет на все новые расчёты. Уже построенные карты не пересчитываются автоматически — откройте их заново после сохранения.</p>
+    <div class="field">
+      <label for="settings-node-type">Раху/Кету — узел</label>
+      <select id="settings-node-type">
+        <option value="true">Истинный (True Node)</option>
+        <option value="mean">Средний (Mean Node)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="settings-zodiac-type">Зодиак</label>
+      <select id="settings-zodiac-type">
+        <option value="sidereal">Сидерический (Лахири)</option>
+        <option value="tropical">Тропический</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="settings-chart-style">Стиль карты</label>
+      <select id="settings-chart-style">
+        <option value="north">Северо-индийский (ромб)</option>
+        <option value="south">Южно-индийский (квадрат)</option>
+      </select>
+    </div>
+    <div id="settings-node-note" style="display:none;font-size:12px;color:#a8654a;margin-bottom:10px;"></div>
+    <div id="settings-saved-note" style="display:none;font-size:12px;color:#4f7a52;margin-bottom:10px;">Сохранено.</div>
+    <button class="btn-primary" id="settings-save-btn" style="margin-bottom:0;">Сохранить</button>
+  </div>
 </div>
 
 </main>
@@ -1386,6 +1415,130 @@
     // к вершине (подальше от сетки) — иначе он наезжает на нижние ряды планет.
     const dist = rows >= 3 ? 4 : rows === 2 ? 10 : 30;
     return [nearest[0]+dx*dist, nearest[1]+dy*dist];
+  }
+
+  // Южно-индийский стиль: фиксированная сетка знаков 4×4 (центр 2×2 пустой),
+  // знаки идут по кругу вдоль края по часовой стрелке. В отличие от северного
+  // стиля, где по кругу двигаются ДОМА, здесь по кругу зафиксированы ЗНАКИ,
+  // а дома (и с ними Асцендент) "плавают" по этой фиксированной сетке.
+  const SOUTH_CELLS = [
+    { signIndex: 11, x: 0, y: 0 }, { signIndex: 0, x: 100, y: 0 }, { signIndex: 1, x: 200, y: 0 }, { signIndex: 2, x: 300, y: 0 },
+    { signIndex: 3, x: 300, y: 100 }, { signIndex: 4, x: 300, y: 200 }, { signIndex: 5, x: 300, y: 300 },
+    { signIndex: 6, x: 200, y: 300 }, { signIndex: 7, x: 100, y: 300 }, { signIndex: 8, x: 0, y: 300 },
+    { signIndex: 9, x: 0, y: 200 }, { signIndex: 10, x: 0, y: 100 },
+  ];
+
+  function renderChartSVGSouth(chart, svgId, transitsData) {
+    const svg = document.getElementById(svgId || 'chart-svg');
+    svg.innerHTML = '';
+    const ns = 'http://www.w3.org/2000/svg';
+    const ascIdx = chart.ascendant.sign.index;
+    const signPlanets = {};
+    for (let i = 0; i < 12; i++) signPlanets[i] = [];
+    for (const [name, p] of Object.entries(chart.planets)) signPlanets[p.sign.index].push({ name, p });
+    const planetPixelPos = {};
+    const housePixelPos = {};
+
+    const transitsBySign = {};
+    if (transitsData) {
+      for (let i = 0; i < 12; i++) transitsBySign[i] = [];
+      for (const [name, t] of Object.entries(transitsData.planets)) transitsBySign[t.sign.index].push({ name, t });
+    }
+
+    function el(tag, attrs) {
+      const e = document.createElementNS(ns, tag);
+      for (const k in attrs) e.setAttribute(k, attrs[k]);
+      return e;
+    }
+
+    // Внешний квадрат + внутренние линии сетки 4×4
+    svg.appendChild(el('rect', { x: 0, y: 0, width: 400, height: 400, fill: 'none', stroke: '#C8A26B', 'stroke-width': 1.5 }));
+    [100, 200, 300].forEach(v => {
+      svg.appendChild(el('line', { x1: v, y1: 0, x2: v, y2: 400, stroke: '#C8A26B', 'stroke-width': v === 200 ? 0 : 1 }));
+      svg.appendChild(el('line', { x1: 0, y1: v, x2: 400, y2: v, stroke: '#C8A26B', 'stroke-width': v === 200 ? 0 : 1 }));
+    });
+    // Рамка центрального пустого блока 2×2 отдельно (внутренние линии сетки на 200
+    // специально не рисуем выше — иначе они бы делили сам этот пустой блок пополам)
+    svg.appendChild(el('rect', { x: 100, y: 100, width: 200, height: 200, fill: 'none', stroke: '#C8A26B', 'stroke-width': 1 }));
+
+    SOUTH_CELLS.forEach(cell => {
+      const houseNum = (cell.signIndex - ascIdx + 12) % 12 + 1;
+      const cx = cell.x + 50, cy = cell.y + 50;
+      housePixelPos[houseNum] = { x: cx, y: cy };
+
+      // Номер дома — маленький, в углу ячейки (не мешает планетам по центру)
+      const numText = el('text', { x: cell.x + 10, y: cell.y + 16, 'text-anchor': 'start', 'font-family': 'Playfair Display, serif', 'font-size': houseNum === 1 ? 15 : 12, fill: houseNum === 1 ? '#C8A26B' : '#7A6B5A', 'font-weight': houseNum === 1 ? 700 : 400 });
+      numText.textContent = houseNum;
+      svg.appendChild(numText);
+
+      if (houseNum === 1) {
+        const badge = el('rect', { x: cell.x + 62, y: cell.y + 4, width: 34, height: 15, rx: 3, fill: '#C8A26B' });
+        svg.appendChild(badge);
+        const ascT = el('text', { x: cell.x + 79, y: cell.y + 14, 'text-anchor': 'middle', 'font-family': 'Inter, sans-serif', 'font-size': 8, fill: '#FBF8F3', 'font-weight': 700 });
+        ascT.textContent = 'ASC';
+        svg.appendChild(ascT);
+      }
+
+      const planetsHere = signPlanets[cell.signIndex] || [];
+      const count = planetsHere.length;
+      if (count > 0) {
+        const fs = count > 3 ? 11 : count > 1 ? 12.5 : 14;
+        const cols = count > 2 ? 2 : 1;
+        const rows = Math.ceil(count / cols);
+        const colGap = count > 3 ? fs * 2.1 : fs * 2.4;
+        const rowGap = fs * 2.5;
+        const degFs = count > 3 ? 7 : 8.5;
+        const gridW = (cols - 1) * colGap, gridH = (rows - 1) * rowGap;
+        const startX = cx - gridW / 2, startY = cy - gridH / 2 + 6;
+
+        planetsHere.forEach((item, i) => {
+          const col = i % cols, row = Math.floor(i / cols);
+          const px = startX + col * colGap, py = startY + row * rowGap;
+          planetPixelPos[item.name] = { x: px, y: py };
+          const color = dignityColor(item.name, item.p.sign.index);
+          const t = el('text', { x: px, y: py, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-family': 'Inter, sans-serif', 'font-size': fs, 'font-weight': 700, fill: color });
+          t.textContent = PLANET_SYMBOLS[item.name];
+          svg.appendChild(t);
+          if (item.p.retrograde) addRetroBar(svg, t, color);
+          const dt = el('text', { x: px, y: py + fs * 1.1, 'text-anchor': 'middle', 'font-family': 'Inter, sans-serif', 'font-size': degFs, fill: '#7A6B5A' });
+          dt.textContent = dms(item.p.sign.degInSign);
+          svg.appendChild(dt);
+
+          const hit = el('circle', { cx: px, cy: py, r: 14, fill: 'transparent', style: 'cursor:pointer;', 'data-planet': item.name });
+          const openDetail = () => showPlanetDetail(hit, item.name, item.p.sign.index, item.p.retrograde, houseNum, item.p.nakshatra ? item.p.nakshatra.name : null, item.p.nakshatra ? item.p.nakshatra.pada : null, chart);
+          hit.addEventListener('click', openDetail);
+          hit.addEventListener('mouseenter', openDetail);
+          svg.appendChild(hit);
+        });
+      }
+
+      if (transitsData) {
+        const tHere = transitsBySign[cell.signIndex] || [];
+        if (tHere.length) {
+          const tFs = tHere.length > 3 ? 7 : 8;
+          let ty = cell.y + 88;
+          tHere.forEach(({ name, t }) => {
+            const tt = el('text', { x: cell.x + 90, y: ty, 'text-anchor': 'end', 'font-family': 'Inter, sans-serif', 'font-size': tFs, fill: '#B5A88F', 'font-style': 'italic' });
+            tt.textContent = `${PLANET_SYMBOLS[name]} ${dms(t.sign.degInSign)}`;
+            svg.appendChild(tt);
+            ty -= tFs * 1.4;
+          });
+        }
+      }
+    });
+
+    return { planetPixelPos, housePixelPos };
+  }
+
+  // Единая точка входа: рисует карту в стиле, который выбрал пользователь
+  // (по умолчанию северный — сохранена обратная совместимость со всем,
+  // что уже вызывает renderChartSVGDispatch напрямую по имени "renderChartSVG").
+  let userChartStyle = 'north';
+  const renderChartSVGNorth = renderChartSVG;
+  function renderChartSVGDispatch(chart, svgId, transitsData) {
+    return userChartStyle === 'south'
+      ? renderChartSVGSouth(chart, svgId, transitsData)
+      : renderChartSVGNorth(chart, svgId, transitsData);
   }
 
   function renderChartSVG(chart, svgId, transitsData) {
@@ -1791,7 +1944,7 @@
         body: JSON.stringify({ day: row.day, month: row.month, year: row.year, hour: row.hour, minute: row.minute, lat: row.lat, lon: row.lon, utcOffset: row.utc_offset })
       });
       const { chart } = await res.json();
-      renderChartSVG(chart, 'archive-chart-svg');
+      renderChartSVGDispatch(chart, 'archive-chart-svg');
     } catch (e) {
       // тихо игнорируем — карта просто не отрисуется, остальная карточка всё равно рабочая
     }
@@ -2018,7 +2171,7 @@
     document.getElementById('res-meta').textContent =
       `${String(day).padStart(2,'0')}.${String(month).padStart(2,'0')}.${year} · ${timeStr}` + (placeLabel ? ` · ${placeLabel}` : '');
 
-    renderChartSVG(chart, 'chart-svg');
+    renderChartSVGDispatch(chart, 'chart-svg');
     renderPlanetList(chart);
     currentChart = chart;
     currentChartMeta = { name, params: { day, month, year, hour, minute, lat, lon, utcOffset }, placeLabel };
@@ -2472,7 +2625,7 @@
 
   // --- Оверлей поверх самой карты: линии аспектов / подсветка планет йоги ---
   function resetChartOverlay() {
-    if (currentChart) renderChartSVG(currentChart, 'chart-svg');
+    if (currentChart) renderChartSVGDispatch(currentChart, 'chart-svg');
   }
 
 
@@ -2492,10 +2645,20 @@
     });
   }
 
-  function colorHousesOnChart(houseNumbers, color) {
+  function colorHousesOnChart(houseNumbers, color, housePixelPos) {
     const svg = document.getElementById('chart-svg');
     const ns = 'http://www.w3.org/2000/svg';
     houseNumbers.forEach(h => {
+      if (userChartStyle === 'south' && housePixelPos && housePixelPos[h]) {
+        const { x, y } = housePixelPos[h];
+        const rect = document.createElementNS(ns, 'rect');
+        rect.setAttribute('x', x - 50); rect.setAttribute('y', y - 50);
+        rect.setAttribute('width', 100); rect.setAttribute('height', 100);
+        rect.setAttribute('fill', color);
+        rect.setAttribute('fill-opacity', '0.3');
+        svg.insertBefore(rect, svg.firstChild);
+        return;
+      }
       const poly = HP[h];
       if (!poly) return;
       const polygon = document.createElementNS(ns, 'polygon');
@@ -2567,9 +2730,9 @@
           const name = chip.dataset.lordPlanet;
           panel.querySelectorAll('[data-lord-planet]').forEach(c => c.classList.remove('active'));
           chip.classList.add('active');
-          const { planetPixelPos } = renderChartSVG(currentChart, 'chart-svg');
+          const { planetPixelPos, housePixelPos } = renderChartSVGDispatch(currentChart, 'chart-svg');
           const houses = housesRuledBy(name);
-          colorHousesOnChart(houses, '#C8A26B');
+          colorHousesOnChart(houses, '#C8A26B', housePixelPos);
           highlightYogaOnChart(planetPixelPos, [name], '#C8A26B');
           document.getElementById('lords-detail').textContent = houses.length
             ? `${name} управляет: ${houses.join(', ')} дом${houses.length > 1 ? 'ами' : 'ом'}.`
@@ -2581,7 +2744,7 @@
 
     if (type === 'gochara') {
       const transits = computeTransitsClientSide(new Date());
-      renderChartSVG(currentChart, 'chart-svg', transits);
+      renderChartSVGDispatch(currentChart, 'chart-svg', transits);
       panel.style.display = 'none'; // это наложение прямо на саму карту, отдельной панели не нужно
       return;
     }
@@ -2603,7 +2766,7 @@
           const yoga = yogas[Number(chip.dataset.yogaIdx)];
           panel.querySelectorAll('[data-yoga-idx]').forEach(c => c.classList.remove('active'));
           chip.classList.add('active');
-          const { planetPixelPos } = renderChartSVG(currentChart, 'chart-svg');
+          const { planetPixelPos } = renderChartSVGDispatch(currentChart, 'chart-svg');
           highlightYogaOnChart(planetPixelPos, yoga.planets, yoga.caution ? '#a8654a' : '#4f7a52');
           document.getElementById('yoga-detail').innerHTML = `<b>${escapeHtml(yoga.detail)}</b><br>${escapeHtml(yoga.meaning || '')}`;
         });
@@ -2634,7 +2797,7 @@
           const name = chip.dataset.aspPlanet;
           panel.querySelectorAll('[data-asp-planet]').forEach(c => c.classList.remove('active'));
           chip.classList.add('active');
-          const { planetPixelPos, housePixelPos } = renderChartSVG(currentChart, 'chart-svg');
+          const { planetPixelPos, housePixelPos } = renderChartSVGDispatch(currentChart, 'chart-svg');
           const houses = housesAspectedBy(name);
           drawAspectLinesFromPlanet(planetPixelPos, housePixelPos, name, houses);
           document.getElementById('aspects-detail').textContent = `${name} аспектирует: ${houses.join(', ')} дом${houses.length > 1 ? 'а' : ''} от Лагны.`;
@@ -2689,7 +2852,7 @@
   function renderTransitsAt(atDate) {
     if (!currentChart) return;
     const transits = computeTransitsClientSide(atDate);
-    renderChartSVG(currentChart, 'transit-svg', transits);
+    renderChartSVGDispatch(currentChart, 'transit-svg', transits);
     renderTransits(transits, currentChart);
     document.getElementById('t-slider-label').textContent =
       atDate.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
@@ -2822,9 +2985,10 @@
       vargaCache = { forChart: currentChart, data: {} };
     }
     if (!vargaCache.data[key]) {
+      const p = currentChartMeta.params;
       const res = await fetch('/api/varga', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData: getInitData(), chart: currentChart, key })
+        body: JSON.stringify({ initData: getInitData(), birthParams: p, key })
       });
       const data = await res.json();
       if (!res.ok) {
@@ -2875,18 +3039,18 @@
       d1CompareEl.style.display = 'none';
     } else {
       d1CompareEl.style.display = 'block';
-      renderChartSVG(currentChart, 'varga-svg-d1');
+      renderChartSVGDispatch(currentChart, 'varga-svg-d1');
     }
 
     if (currentVargaType === 'lagna') {
       const refIdx = lagnaReferenceSignIndex(currentLagnaRef);
-      renderChartSVG({ ascendant: { sign: { index: refIdx } }, planets: currentChart.planets }, 'varga-svg');
+      renderChartSVGDispatch({ ascendant: { sign: { index: refIdx } }, planets: currentChart.planets }, 'varga-svg');
       document.getElementById('varga-single-label').textContent = lagnaReferenceLabel(currentLagnaRef);
       return;
     }
 
     if (currentVargaType === 'd1') {
-      renderChartSVG(currentChart, 'varga-svg');
+      renderChartSVGDispatch(currentChart, 'varga-svg');
       document.getElementById('varga-single-label').textContent = 'Раши (D1)';
       return;
     }
@@ -2906,7 +3070,7 @@
       return;
     }
     if (!vargaChart) return;
-    renderChartSVG({ ascendant: vargaChart.ascendant, planets: vargaChart.planets }, 'varga-svg');
+    renderChartSVGDispatch({ ascendant: vargaChart.ascendant, planets: vargaChart.planets }, 'varga-svg');
     document.getElementById('varga-single-label').textContent = VARGA_LABELS[currentVargaType] || currentVargaType;
   }
 
@@ -2992,10 +3156,72 @@
           chartRow.style.display = 'none';
         }
       }
+      document.getElementById('settings-node-type').value = data.nodeType || 'true';
+      document.getElementById('settings-zodiac-type').value = data.zodiacType || 'sidereal';
+      document.getElementById('settings-chart-style').value = data.chartStyle || 'north';
+      userChartStyle = data.chartStyle || 'north';
+      if ((data.nodeType || 'true') === 'true') {
+        try {
+          const chartRes = await fetch('/api/chart', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ day:1, month:1, year:2000, hour:12, minute:0, lat:0, lon:0, utcOffset:0, initData: getInitData() })
+          });
+          const chartData = await chartRes.json();
+          if (chartData.chart && chartData.chart.actualNodeType === 'mean') {
+            const nodeNote = document.getElementById('settings-node-note');
+            nodeNote.textContent = 'На этом сервере точный движок эфемерид сейчас недоступен, поэтому применяется средний узел, даже если выбран истинный.';
+            nodeNote.style.display = 'block';
+          }
+        } catch (e) {}
+      }
     } catch (e) {
       tierLineEl.textContent = getInitData() ? 'Не удалось загрузить тариф' : 'Открой через Telegram, чтобы увидеть тариф';
     }
   }
+
+  document.getElementById('settings-save-btn').addEventListener('click', async () => {
+    const nodeType = document.getElementById('settings-node-type').value;
+    const zodiacType = document.getElementById('settings-zodiac-type').value;
+    const chartStyle = document.getElementById('settings-chart-style').value;
+    const savedNote = document.getElementById('settings-saved-note');
+    const nodeNote = document.getElementById('settings-node-note');
+    savedNote.style.display = 'none';
+    nodeNote.style.display = 'none';
+    try {
+      const res = await fetch('/api/settings/update', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: getInitData(), nodeType, zodiacType, chartStyle })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Ошибка');
+      savedNote.style.display = 'block';
+      userChartStyle = chartStyle;
+      if (currentChart) renderChartSVGDispatch(currentChart, 'chart-svg');
+      // Если сейчас открыта вкладка Варги — она рисует в отдельные svg
+      // (varga-svg / varga-svg-d1), их тоже надо перерисовать в новом стиле.
+      if (document.getElementById('tab-vargas') && document.getElementById('tab-vargas').classList.contains('active')) {
+        renderVargaSingle();
+      }
+      if (nodeType === 'true') {
+        // Истинный узел надёжно доступен только через точный движок эфемерид (swisseph);
+        // если он не установлен на сервере, расчёт молча вернётся к среднему узлу —
+        // предупреждаем об этом сразу, а не оставляем догадываться, почему нет разницы.
+        const chartRes = await fetch('/api/chart', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ day:1, month:1, year:2000, hour:12, minute:0, lat:0, lon:0, utcOffset:0, initData: getInitData() })
+        });
+        const chartData = await chartRes.json();
+        if (chartData.chart && chartData.chart.actualNodeType === 'mean') {
+          nodeNote.textContent = 'На этом сервере точный движок эфемерид сейчас недоступен, поэтому применяется средний узел, даже если выбран истинный.';
+          nodeNote.style.display = 'block';
+        }
+      }
+    } catch (e) {
+      savedNote.textContent = 'Не удалось сохранить: ' + e.message;
+      savedNote.style.color = '#a8654a';
+      savedNote.style.display = 'block';
+    }
+  });
 
   document.getElementById('profile-notify-checkbox').addEventListener('change', async (e) => {
     const enabled = e.target.checked;
@@ -3637,7 +3863,7 @@
       year: b.year, month: b.month, day: b.day, hour: b.hour, minute: b.minute, second: offsetMinutes * 60,
       utcOffset: b.utcOffset, lat: b.lat, lon: b.lon, ayanamshaType: 'lahiri',
     });
-    renderChartSVG(chartAtOffset, 'chart-svg');
+    renderChartSVGDispatch(chartAtOffset, 'chart-svg');
     renderPlanetList(chartAtOffset);
   }
 
@@ -3753,6 +3979,7 @@
       });
       if (!tierRes.ok) return;
       const tierData = await tierRes.json();
+      userChartStyle = tierData.chartStyle || 'north';
 
       const listRes = await archiveApi('list', {});
       const charts = listRes.charts || [];

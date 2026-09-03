@@ -113,8 +113,23 @@ function startWebApp() {
 
   app.post('/api/chart', (req, res) => {
     try {
-      const { day, month, year, hour, minute, lat, lon, utcOffset, ayanamshaType } = req.body;
-      const params = { day, month, year, hour, minute, second: 0, utcOffset, lat, lon, ayanamshaType: ayanamshaType || 'lahiri' };
+      const { day, month, year, hour, minute, lat, lon, utcOffset, ayanamshaType, nodeType, initData } = req.body;
+      // Настройки зодиака/узла берём из сохранённого профиля пользователя, если он
+      // авторизован через Telegram initData — иначе (или если явно передали
+      // параметром) используем классический дефолт: сидерический Лахири, средний узел.
+      let effectiveAyanamsha = ayanamshaType;
+      let effectiveNode = nodeType;
+      if (!effectiveAyanamsha || !effectiveNode) {
+        const tgUser = verifyInitData(initData);
+        if (tgUser) {
+          const row = db.getUser(tgUser.id);
+          if (row) {
+            if (!effectiveAyanamsha) effectiveAyanamsha = row.zodiac_type === 'tropical' ? 'tropical' : 'lahiri';
+            if (!effectiveNode) effectiveNode = row.node_type === 'true' ? 'true' : 'mean';
+          }
+        }
+      }
+      const params = { day, month, year, hour, minute, second: 0, utcOffset, lat, lon, ayanamshaType: effectiveAyanamsha || 'lahiri', nodeType: effectiveNode || 'true' };
       const chart = calculateChart(params);
       res.json({ chart, params });
     } catch (e) {
@@ -173,12 +188,23 @@ function startWebApp() {
   const FREE_VARGAS = ['d9', 'd10'];
   app.post('/api/varga', requireTelegramUser, (req, res) => {
     try {
-      const { chart, key } = req.body;
+      const { chart: clientChart, birthParams, key } = req.body;
       if (!FREE_VARGAS.includes(key) && !VARGA_DEFS[key]) {
         return res.status(400).json({ error: 'Неизвестная дробная карта' });
       }
       if (!FREE_VARGAS.includes(key) && !db.isPremium(req.tgUser.id)) {
         return res.status(403).json({ error: 'Эта дробная карта доступна только в Premium', premiumRequired: true });
+      }
+      // Дробные карты классически имеют смысл только от сидерических позиций —
+      // если основная карта построена в тропическом зодиаке (пользовательская
+      // настройка), берём НЕ её, а пересчитываем заново сидерически-Лахири здесь.
+      // Метод узла (средний/истинный) при этом сохраняем — это отдельный,
+      // ортогональный выбор, не связанный с зодиаком.
+      let chart = clientChart;
+      if (birthParams) {
+        const row = db.getUser(req.tgUser.id);
+        const nodeType = (row && row.node_type === 'true') ? 'true' : 'mean';
+        chart = calculateChart({ ...birthParams, second: 0, ayanamshaType: 'lahiri', nodeType });
       }
       let varga;
       if (key === 'd9') varga = calculateNavamsha(chart);
@@ -664,7 +690,25 @@ function startWebApp() {
       isPremium: db.isPremium(req.tgUser.id),
       notifyEnabled: !!row.notify_enabled,
       primaryChartId: row.primary_chart_id,
+      nodeType: row.node_type,
+      zodiacType: row.zodiac_type,
+      chartStyle: row.chart_style,
     });
+  });
+
+  app.post('/api/settings/update', requireTelegramUser, (req, res) => {
+    try {
+      const { nodeType, zodiacType, chartStyle } = req.body;
+      if (nodeType && !['mean', 'true'].includes(nodeType)) return res.status(400).json({ error: 'Некорректный тип узла' });
+      if (zodiacType && !['sidereal', 'tropical'].includes(zodiacType)) return res.status(400).json({ error: 'Некорректный тип зодиака' });
+      if (chartStyle && !['north', 'south'].includes(chartStyle)) return res.status(400).json({ error: 'Некорректный стиль карты' });
+      db.setAstroSettings(req.tgUser.id, { nodeType, zodiacType, chartStyle });
+      const row = db.getUser(req.tgUser.id);
+      res.json({ nodeType: row.node_type, zodiacType: row.zodiac_type, chartStyle: row.chart_style });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
   });
 
   app.post('/api/notify/toggle', requireTelegramUser, requirePremium, (req, res) => {
