@@ -292,13 +292,23 @@ function computePanchanga(year, month, day, hour, minute, lat, lon, utcOffset) {
   const yamaganda = segmentToTimeRange(YAMAGANDA_SEGMENT[dow], sunTimes.sunriseUTC, sunTimes.sunsetUTC, utcOffset);
   const gulikaKalam = segmentToTimeRange(GULIKA_KALAM_SEGMENT[dow], sunTimes.sunriseUTC, sunTimes.sunsetUTC, utcOffset);
 
+  // Абхиджит мухурта — 8-я из 15 равных долей дня (от восхода до заката),
+  // центрирована на истинный солнечный полдень.
+  const muhurtaLenMin = (sunTimes.sunsetUTC - sunTimes.sunriseUTC) / 15;
+  const abhijitStartUTC = sunTimes.solarNoonUTCmin - muhurtaLenMin / 2;
+  const abhijitEndUTC = sunTimes.solarNoonUTCmin + muhurtaLenMin / 2;
+  const abhijitMuhurta = {
+    start: minutesToLocalHHMM(abhijitStartUTC, utcOffset),
+    end: minutesToLocalHHMM(abhijitEndUTC, utcOffset),
+  };
+
   return {
     date: `${String(day).padStart(2,'0')}.${String(month).padStart(2,'0')}.${year}`,
     time: timeLabel,
     vara, tithi: tithiFull, yoga: yogaFull, karana: karanaFull,
     nakshatraOfDay: nakshatraFull.name, nakshatraOfDayIdx: moonNakSiderealIdx, nakshatra: nakshatraFull,
     sunrise: sunriseLocal, sunset: sunsetLocal,
-    rahuKalam, yamaganda, gulikaKalam,
+    rahuKalam, yamaganda, gulikaKalam, abhijitMuhurta,
   };
 }
 

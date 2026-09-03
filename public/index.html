@@ -248,8 +248,8 @@
   }
   .cal-day.good { background: #E3F0E0; color: #3f6b3a; }
   .cal-day.bad { background: #F5E3E0; color: #a8654a; }
-  .cal-event-icon { position: absolute; top: 1px; right: 2px; line-height: 1; }
-  .cal-event-icon svg { width: 9px; height: 9px; margin-right: 0; vertical-align: baseline; }
+  .cal-event-icon { position: absolute; top: 0px; right: 1px; line-height: 1; }
+  .cal-event-icon svg { width: 13px; height: 13px; margin-right: 0; vertical-align: baseline; }
   .cal-day .dot-change {
     position: absolute; top: 3px; right: 3px; width: 5px; height: 5px;
     border-radius: 50%; background: var(--gold);
@@ -429,7 +429,7 @@
     color: var(--taupe);
     border-bottom: 1px solid var(--line);
   }
-  .praty-row.current { color: var(--gold); font-weight: 600; }
+  .praty-row.current { background: #F1DFB0; color: var(--ink); font-weight: 700; border-radius: 8px; padding-left: 10px; }
   .note-marker { cursor: pointer; display: inline-flex; align-items: center; vertical-align: middle; margin-left: 4px; color: var(--gold); }
   .note-marker svg { display: block; }
   .praty-row.has-note, .current-period-row.has-note { background: #FBF3DF; border-radius: 8px; padding-left: 8px; }
@@ -637,6 +637,9 @@
           <button class="chart-extra-btn" data-extra="lords" title="Управители домов">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="1"/><path d="M4 10 12 4l8 6"/><path d="M9 20v-5h6v5"/></svg>
           </button>
+          <button class="chart-extra-btn" data-extra="karakas" title="Караки домов">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/></svg>
+          </button>
         </div>
         <div id="chart-extras-panel" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--line);"></div>
       </div>
@@ -651,6 +654,12 @@
         <button class="btn-secondary" id="lagna-reset-btn" style="margin-top:12px;margin-bottom:0;">Сбросить на время рождения</button>
       </div>
 
+      <div style="display:flex;align-items:center;gap:12px;padding:0 16px 6px;font-size:10px;color:var(--taupe);text-transform:uppercase;letter-spacing:.03em;">
+        <div style="width:28px;flex-shrink:0;"></div>
+        <div style="width:90px;flex-shrink:0;">Планета</div>
+        <div style="width:60px;flex-shrink:0;">Градус</div>
+        <div>Знак и накшатра</div>
+      </div>
       <div class="planet-list" id="planet-list"></div>
 
       <button class="btn-secondary" id="export-open-btn">📄 Экспорт карты</button>
@@ -709,6 +718,7 @@
           </div>
           <button class="btn-primary" id="t-jump-btn" style="margin-top:0;">Перейти</button>
         </div>
+        <button class="btn-secondary" id="t-now-btn" style="margin-top:8px;margin-bottom:0;">Сбросить на текущий момент</button>
       </div>
       <div class="chart-wrap">
         <svg class="chart-svg" id="transit-svg" viewBox="0 0 400 400"></svg>
@@ -810,6 +820,7 @@
 <div id="page-panchanga" style="display:none;">
   <div class="form-card">
     <h2>Панчанга дня</h2>
+    <p style="font-size:12px;color:var(--taupe);margin:-8px 0 14px;">Это общие рекомендации на день — без учёта твоей личной натальной карты.</p>
     <div class="field">
       <label for="p-date">Дата</label>
       <input type="date" id="p-date">
@@ -841,6 +852,7 @@
       <div class="current-period-row" style="color:#a8654a;"><span class="label">⚠️ Раху-калам</span><span class="value" id="p-rahu">—</span></div>
       <div class="current-period-row"><span class="label">Ямаганда</span><span class="value" id="p-yama">—</span></div>
       <div class="current-period-row"><span class="label">Гулика-калам</span><span class="value" id="p-gulika">—</span></div>
+      <div class="current-period-row" style="color:#4f7a52;"><span class="label">✦ Абхиджит мухурта</span><span class="value" id="p-abhijit">—</span></div>
     </div>
     <details class="form-card" style="padding:14px 16px;">
       <summary style="cursor:pointer;font-size:13px;color:var(--gold);font-weight:600;">Что означают эти термины?</summary>
@@ -850,7 +862,8 @@
         <p style="margin-bottom:8px;"><b>Накшатра дня</b> — созвездие (одно из 27), в котором сегодня находится Луна — у каждой своя природа.</p>
         <p style="margin-bottom:8px;"><b>Йога</b> — сочетание положений Солнца и Луны, ещё один самостоятельный слой качества дня.</p>
         <p style="margin-bottom:8px;"><b>Карана</b> — половина титхи, более короткий цикл внутри лунных суток.</p>
-        <p style="margin-bottom:0;"><b>Раху-калам / Ямаганда / Гулика-калам</b> — три периода внутри дня (разные для каждого дня недели), которые традиционно считаются менее благоприятными для важных начинаний.</p>
+        <p style="margin-bottom:8px;"><b>Раху-калам / Ямаганда / Гулика-калам</b> — три периода внутри дня (разные для каждого дня недели), которые традиционно считаются менее благоприятными для важных начинаний.</p>
+        <p style="margin-bottom:0;"><b>Абхиджит мухурта</b> — короткий период вокруг истинного солнечного полудня (8-я из 15 равных долей дня), классически считается благоприятным почти для любых начинаний — в отличие от трёх периодов выше.</p>
       </div>
     </details>
   </div>
@@ -885,12 +898,15 @@
           <div class="name" id="cal-month-label" style="margin-bottom:0;">—</div>
           <button class="btn-secondary" id="cal-next-btn" style="width:auto;margin-bottom:0;padding:8px 14px;">→</button>
         </div>
+        <p style="font-size:12px;color:var(--taupe);margin:0 0 12px;">Цвет дня — по твоей карте (тара-бала и даши). Значки событий (🌕🌑🌙 и т.п.) — общие, одинаковые для всех.</p>
         <div id="cal-grid" class="cal-grid"></div>
         <div class="chip-row" style="margin-top:14px;">
           <span class="chip" style="cursor:default;">🟢 благоприятно</span>
           <span class="chip" style="cursor:default;">🔴 неблагоприятно</span>
+          <span class="chip" style="cursor:default;">бежевый — нейтрально</span>
           <span class="chip" style="cursor:default;">◆ смена периода</span>
         </div>
+        <div class="chip-row" id="cal-event-legend" style="margin-top:8px;"></div>
       </div>
       <div id="cal-day-detail" class="form-card" style="padding:16px;display:none;"></div>
     </div>
@@ -1094,6 +1110,9 @@
     investment: '<path d="M4 18l5-6 4 3 7-9.3"/><path d="M15 5.7h5v5"/>',
     financialDay: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v9"/><path d="M9.5 9.7c0-1.2 1-2 2.5-2s2.5.8 2.5 2c0 2.4-5 1.4-5 3.8 0 1.2 1 2 2.5 2s2.5-.8 2.5-2"/>',
     haircut: '<circle cx="6.3" cy="6.3" r="2.2"/><circle cx="6.3" cy="17.7" r="2.2"/><path d="M8.3 7.5 20 18M8.3 16.5 20 6"/>',
+    jobHunt: '<rect x="4" y="9" width="16" height="10.5" rx="1"/><path d="M9 9V6.3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1V9"/><path d="M15.5 5.5 20 3M18 3.5l2 2"/>',
+    jobQuit: '<path d="M9 4h8v16H9"/><path d="M4 12h9M10 8.5 6.5 12l3.5 3.5"/>',
+    conception: '<path d="M12 20c-4-2-6-6-6-9.5 2 1 4 3 6 6 2-3 4-5 6-6 0 3.5-2 7.5-6 9.5Z"/><circle cx="12" cy="5.5" r="1.8"/>',
   };
   function actionIconSvg(key) {
     const path = ACTION_ICON_SVGS[key];
@@ -1240,16 +1259,20 @@
     });
   }
 
-  async function showPlanetDetail(anchorEl, planetName, signIndex, isRetrograde, house, nakName, nakPada) {
+  async function showPlanetDetail(anchorEl, planetName, signIndex, isRetrograde, house, nakName, nakPada, chartRef) {
     const status = getDignityStatusD1(planetName, signIndex);
     const hasDigBala = DIG_BALA_HOUSE[planetName] === house;
     const nakMeaning = NAKSHATRA_MEANINGS_D1[nakName] || '';
+    const combust = chartRef && isCombust(chartRef, planetName);
+    const atWar = chartRef ? planetsAtWarWith(chartRef, planetName) : [];
     const tip = ensurePlanetTooltip();
     tip.innerHTML = `
       <div style="font-weight:600;margin-bottom:4px;">${planetName} в ${house} доме, в ${SIGN_NAMES_D1[signIndex]}</div>
       <div style="font-size:11px;color:var(--gold);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:.03em;">${DIGNITY_LABELS_D1[status]}${isRetrograde ? ' · Ретроградна' : ''}</div>
       <p style="margin-bottom:8px;">${DIGNITY_TEXTS_D1[status]}</p>
       ${hasDigBala ? '<p style="margin-bottom:8px;">◈ <b>Есть диг-бала</b> — планета в доме своей направленной силы, это усиливает её.</p>' : ''}
+      ${combust ? '<p style="color:#a8654a;margin-bottom:8px;">☉ <b>Сожжена</b> — планета слишком близко к Солнцу, её сила ослаблена.</p>' : ''}
+      ${atWar.length ? `<p style="color:#a8654a;margin-bottom:8px;">⚔ <b>Планетная война</b> с ${atWar.join(', ')} — обе планеты в одном градусе, борьба ослабляет проигравшую (кто именно — вопрос спорный между традициями).</p>` : ''}
       ${isRetrograde ? '<p style="color:#a8654a;margin-bottom:8px;">Ретроградность: темы этой планеты разворачиваются внутрь, требуют пересмотра, а не прямого движения вперёд.</p>' : ''}
       <p style="color:var(--taupe);margin-bottom:8px;">${PLANET_SIGNIFICATIONS_D1[planetName]}</p>
       ${nakName ? `<p style="margin-bottom:0;"><b>Накшатра: ${nakName}</b> (пада ${nakPada})<br><span style="color:var(--taupe);">${nakMeaning}</span></p>` : ''}
@@ -1293,6 +1316,43 @@
   // У Раху/Кету дигбала классически не определяется (нет в большинстве текстов).
   const DIG_BALA_HOUSE = { 'Юпитер': 1, 'Меркурий': 1, 'Солнце': 10, 'Марс': 10, 'Сатурн': 7, 'Луна': 4, 'Венера': 4 };
 
+  // Сожжение (Астангата) — классические орбы (градусов от Солнца), при попадании
+  // в которые планета считается "сожжённой" и ослабленной. Луну сознательно не
+  // включаю — среди традиций есть расхождение, применять ли к ней сожжение вообще.
+  const COMBUSTION_ORB = { 'Марс': 17, 'Меркурий': 14, 'Юпитер': 11, 'Венера': 10, 'Сатурн': 15 };
+  function angularDistance(lon1, lon2) {
+    let d = Math.abs(lon1 - lon2) % 360;
+    return d > 180 ? 360 - d : d;
+  }
+  function isCombust(chart, planetName) {
+    if (!COMBUSTION_ORB[planetName]) return false;
+    const sunLon = chart.planets['Солнце'].siderealLon;
+    const pLon = chart.planets[planetName].siderealLon;
+    return angularDistance(sunLon, pLon) <= COMBUSTION_ORB[planetName];
+  }
+
+  // Планетная война (Граха-юддха) — две из пяти планет (не считая светил и узлов)
+  // в одном знаке на расстоянии до 1°. Кто именно "побеждает" — вопрос спорный
+  // между традициями (по широте, по яркости, по разным правилам), поэтому здесь
+  // только сам факт войны, без определения победителя.
+  function detectPlanetaryWar(chart) {
+    const warPlanets = ['Марс', 'Меркурий', 'Юпитер', 'Венера', 'Сатурн'];
+    const wars = [];
+    for (let i = 0; i < warPlanets.length; i++) {
+      for (let j = i + 1; j < warPlanets.length; j++) {
+        const a = warPlanets[i], b = warPlanets[j];
+        const pa = chart.planets[a], pb = chart.planets[b];
+        if (pa.sign.index === pb.sign.index && angularDistance(pa.siderealLon, pb.siderealLon) <= 1) {
+          wars.push([a, b]);
+        }
+      }
+    }
+    return wars;
+  }
+  function planetsAtWarWith(chart, planetName) {
+    return detectPlanetaryWar(chart).filter(w => w.includes(planetName)).map(w => w.find(n => n !== planetName));
+  }
+
   function dignityColor(name, signIdx) {
     if (EXALTATION[name] === signIdx) return '#4f7a52';
     if (DEBILITATION[name] === signIdx) return '#b23b2e';
@@ -1316,13 +1376,16 @@
     let x=0,y=0; for (const p of poly) { x+=p[0]; y+=p[1]; }
     return [x/poly.length, y/poly.length];
   }
-  function signNumberPos(poly) {
+  function signNumberPos(poly, rows) {
     let nearest = poly[0], best = Infinity;
     for (const v of poly) { const d=(v[0]-C)**2+(v[1]-C)**2; if (d<best){best=d;nearest=v;} }
     const c = centroid(poly);
     let dx=c[0]-nearest[0], dy=c[1]-nearest[1];
     const len = Math.sqrt(dx*dx+dy*dy)||1; dx/=len; dy/=len;
-    return [nearest[0]+dx*30, nearest[1]+dy*30];
+    // Чем больше строк в сетке планет этого дома, тем ближе номер надо прижать
+    // к вершине (подальше от сетки) — иначе он наезжает на нижние ряды планет.
+    const dist = rows >= 3 ? 4 : rows === 2 ? 10 : 30;
+    return [nearest[0]+dx*dist, nearest[1]+dy*dist];
   }
 
   function renderChartSVG(chart, svgId, transitsData) {
@@ -1359,7 +1422,10 @@
       const signIdx = (ascIdx + h - 1) % 12;
       housePixelPos[h] = { x: cx, y: cy };
 
-      const [nx,ny] = signNumberPos(poly);
+      const numPlanetsHere = (signPlanets[signIdx] || []).length;
+      const numCols = numPlanetsHere>2?2:1;
+      const numRows = Math.ceil(numPlanetsHere/numCols) || 0;
+      const [nx,ny] = signNumberPos(poly, numRows);
       const numText = el('text', {x:nx,y:ny,'text-anchor':'middle','font-family':'Playfair Display, serif','font-size':h===1?17:15,fill:h===1?'#C8A26B':'#7A6B5A','font-weight':h===1?700:400});
       numText.textContent = signIdx+1;
       svg.appendChild(numText);
@@ -1370,9 +1436,13 @@
         const ascT = el('text', {x:cx,y:cy-32,'text-anchor':'middle','font-family':'Inter, sans-serif','font-size':11,fill:'#FBF8F3','font-weight':700});
         ascT.textContent = 'ASC';
         svg.appendChild(ascT);
-        const ascDegT = el('text', {x:cx,y:cy-18,'text-anchor':'middle','font-family':'Inter, sans-serif','font-size':9,fill:'#7A6B5A'});
-        ascDegT.textContent = dms(chart.ascendant.sign.degInSign);
-        svg.appendChild(ascDegT);
+        // Для "виртуальных" референсных карт (например, "От Лагны" — от Луны/Солнца)
+        // настоящего градуса Асцендента нет, только знак — раньше это давало NaN°NaN'.
+        if (typeof chart.ascendant.sign.degInSign === 'number' && !isNaN(chart.ascendant.sign.degInSign)) {
+          const ascDegT = el('text', {x:cx,y:cy-18,'text-anchor':'middle','font-family':'Inter, sans-serif','font-size':9,fill:'#7A6B5A'});
+          ascDegT.textContent = dms(chart.ascendant.sign.degInSign);
+          svg.appendChild(ascDegT);
+        }
       }
 
       const planetsHere = signPlanets[signIdx] || [];
@@ -1380,9 +1450,19 @@
       const cols = count>2?2:1;
       const rows = Math.ceil(count/cols);
       const fs = count>3?12:count>1?13.5:15;
-      const colGap=fs*2.6, rowGap=fs*2.9;
+      const colGap = count>3 ? fs*2.35 : fs*2.6;
+      const rowGap = fs*2.9;
+      const degFs = count>3 ? 7.5 : 9;
       const gridW=(cols-1)*colGap, gridH=(rows-1)*rowGap;
-      const startX=cx-gridW/2, startY=cy-gridH/2;
+      let startX=cx-gridW/2, startY=cy-gridH/2;
+      // Защита от выхода сетки за пределы холста (0..400) — актуально для
+      // некоторых дробных карт (например, D2, где всего 2 возможных знака и
+      // в одном доме может оказаться 4-5+ планет сразу). Это не полноценное
+      // решение компоновки для таких карт, а страховка от полной обрезки —
+      // сама компоновка для «экстремальных» варг требует отдельной доработки.
+      const margin = 18;
+      startX = Math.max(margin, Math.min(400-margin-gridW, startX));
+      startY = Math.max(margin, Math.min(400-margin-gridH, startY));
 
       planetsHere.forEach((item,i)=>{
         const col=i%cols, row=Math.floor(i/cols);
@@ -1393,7 +1473,7 @@
         t.textContent = PLANET_SYMBOLS[item.name];
         svg.appendChild(t);
         if (item.p.retrograde) addRetroBar(svg, t, color);
-        const dt = el('text', {x:px,y:py+fs*1.2,'text-anchor':'middle','font-family':'Inter, sans-serif','font-size':9,fill:'#7A6B5A'});
+        const dt = el('text', {x:px,y:py+fs*1.2,'text-anchor':'middle','font-family':'Inter, sans-serif','font-size':degFs,fill:'#7A6B5A'});
         dt.textContent = dms(item.p.sign.degInSign);
         svg.appendChild(dt);
 
@@ -1401,7 +1481,7 @@
         // не только в списке планет под ней. Прозрачный круг шире самого текста,
         // чтобы было проще попасть пальцем на мобильном.
         const hit = el('circle', {cx:px, cy:py, r:16, fill:'transparent', style:'cursor:pointer;', 'data-planet':item.name});
-        const openDetail = () => showPlanetDetail(hit, item.name, item.p.sign.index, item.p.retrograde, item.p.house, item.p.nakshatra.name, item.p.nakshatra.pada);
+        const openDetail = () => showPlanetDetail(hit, item.name, item.p.sign.index, item.p.retrograde, item.p.house, item.p.nakshatra ? item.p.nakshatra.name : null, item.p.nakshatra ? item.p.nakshatra.pada : null, chart);
         hit.addEventListener('click', openDetail);
         hit.addEventListener('mouseenter', openDetail);
         svg.appendChild(hit);
@@ -1447,9 +1527,11 @@
       const p = chart.planets[name];
       const color = dignityColor(name, p.sign.index);
       const hasDigBala = DIG_BALA_HOUSE[name] === p.house;
+      const combust = isCombust(chart, name);
+      const atWar = planetsAtWarWith(chart, name);
       return `<div class="planet-row" data-planet="${name}" data-signidx="${p.sign.index}" data-retro="${p.retrograde ? '1' : '0'}" data-house="${p.house}" data-nak="${p.nakshatra.name}" data-pada="${p.nakshatra.pada}">
         <div class="sym" style="color:${color}">${p.retrograde ? `<span style="display:inline-block;border-top:2px solid currentColor;padding-top:3px;">${PLANET_SYMBOLS[name]}</span>` : PLANET_SYMBOLS[name]}</div>
-        <div class="pname">${name}${hasDigBala ? ' <span title="Диг-бала — направленная сила" style="color:var(--gold);font-size:11px;">◈</span>' : ''}</div>
+        <div class="pname">${name}${hasDigBala ? ' <span title="Диг-бала — направленная сила" style="color:var(--gold);font-size:11px;">◈</span>' : ''}${combust ? ' <span title="Сожжена (близко к Солнцу)" style="color:#a8654a;font-size:11px;">☉</span>' : ''}${atWar.length ? ` <span title="Планетная война с ${atWar.join(', ')}" style="color:#a8654a;font-size:11px;">⚔</span>` : ''}</div>
         <div class="pdeg">${dms(p.sign.degInSign)}</div>
         <div class="psign">${p.sign.name}<br><span style="font-size:11px;">${p.nakshatra.name} (пада ${p.nakshatra.pada})</span></div>
       </div>`;
@@ -1457,7 +1539,7 @@
     container.innerHTML = html;
 
     container.querySelectorAll('.planet-row[data-planet]').forEach(row => {
-      const trigger = () => showPlanetDetail(row, row.dataset.planet, Number(row.dataset.signidx), row.dataset.retro === '1', Number(row.dataset.house), row.dataset.nak, row.dataset.pada);
+      const trigger = () => showPlanetDetail(row, row.dataset.planet, Number(row.dataset.signidx), row.dataset.retro === '1', Number(row.dataset.house), row.dataset.nak, row.dataset.pada, chart);
       row.addEventListener('click', trigger);
       row.addEventListener('mouseenter', trigger);
     });
@@ -1607,6 +1689,46 @@
 
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function pickCityCandidate(candidates) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(31,31,31,0.5);z-index:10000;display:flex;align-items:flex-end;justify-content:center;';
+      const sheet = document.createElement('div');
+      sheet.style.cssText = 'background:var(--bg);width:100%;max-width:480px;border-radius:16px 16px 0 0;padding:16px;max-height:70vh;overflow-y:auto;';
+      sheet.innerHTML = '<div class="name" style="margin-bottom:10px;">Нашлось несколько городов — уточните, какой нужен</div>' +
+        candidates.map((c, i) => `<div class="note-item" data-idx="${i}" style="cursor:pointer;"><div class="note-text">${escapeHtml(c.city)}</div></div>`).join('');
+      overlay.appendChild(sheet);
+      document.body.appendChild(overlay);
+      sheet.querySelectorAll('[data-idx]').forEach(el => {
+        el.addEventListener('click', () => {
+          const chosen = candidates[Number(el.dataset.idx)];
+          document.body.removeChild(overlay);
+          resolve(chosen);
+        });
+      });
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) { document.body.removeChild(overlay); resolve(null); } });
+    });
+  }
+
+  // Единая обёртка над /api/geocode: если найден один явный город — возвращает
+  // его сразу, если несколько похожих — сначала спрашивает, какой из них нужен,
+  // вместо того чтобы молча брать первый (это и было причиной путаницы с
+  // одноимёнными городами в разных регионах/странах).
+  async function resolveCityWithPicker(city, day, month, year) {
+    const geoRes = await fetch('/api/geocode', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ city, day, month, year })
+    });
+    const geo = await geoRes.json();
+    if (geo.error) return { error: geo.error };
+    if (geo.candidates) {
+      const chosen = await pickCityCandidate(geo.candidates);
+      if (!chosen) return { error: 'Город не выбран' };
+      return chosen;
+    }
+    return geo;
   }
 
   function showArchiveListView() {
@@ -1933,11 +2055,7 @@
     const hour = parseInt(timeMatch[1]), minute = parseInt(timeMatch[2]);
 
     try {
-      const geoRes = await fetch('/api/geocode', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ city, day, month, year })
-      });
-      const geo = await geoRes.json();
+      const geo = await resolveCityWithPicker(city, day, month, year);
       if (geo.error) { errorEl.textContent = geo.error; errorEl.style.display='block'; return; }
 
       currentChartMeta = null; // сброс на время построения — заполнится в displayChartResults
@@ -2026,7 +2144,7 @@
           const isCurPD = chain && chain.pratyantardasha && pd.lord === chain.pratyantardasha.lord && pd.start === chain.pratyantardasha.start;
           const lords = JSON.stringify([md.lord, ad.lord, pd.lord]);
           return `<div class="praty-row ${isCurPD?'current':''} ${hasNoteClass(pd.start, pd.end)}" data-period-start="${pd.start}" data-period-end="${pd.end}"${noteTitleAttr(pd.start)}>
-            <span>${pd.lord}${noteMarker(pd.start, pd.end)}</span><span>${fmtDate(pd.start)} – ${fmtDate(pd.end)}</span>
+            <span style="display:inline-block;width:78px;flex-shrink:0;">${pd.lord}${noteMarker(pd.start, pd.end)}</span><span style="flex:1;">${fmtDate(pd.start)} – ${fmtDate(pd.end)}</span>
             <button data-event-btn data-lords='${lords}' data-start="${pd.start}" data-end="${pd.end}" style="background:none;border:none;color:var(--gold);font-size:13px;cursor:pointer;padding:0 0 0 8px;">📝</button>
           </div>`;
         }).join('');
@@ -2418,6 +2536,20 @@
     const panel = document.getElementById('chart-extras-panel');
     if (!currentChart) { panel.innerHTML = '<div style="font-size:13px;color:var(--taupe);">Сначала постройте карту.</div>'; return; }
 
+    if (type === 'karakas') {
+      const HOUSE_KARAKAS = {
+        1: 'Солнце', 2: 'Юпитер', 3: 'Марс', 4: 'Луна, Венера', 5: 'Юпитер',
+        6: 'Марс, Сатурн', 7: 'Венера', 8: 'Сатурн', 9: 'Юпитер, Солнце',
+        10: 'Меркурий, Юпитер, Сатурн', 11: 'Юпитер', 12: 'Сатурн',
+      };
+      let html = '<div class="name" style="margin-bottom:6px;">Караки домов</div><div style="font-size:11px;color:var(--taupe);margin-bottom:10px;">Классические постоянные значения — не зависят от конкретной карты.</div>';
+      for (let h = 1; h <= 12; h++) {
+        html += `<div class="current-period-row"><span class="label">${h} дом</span><span class="value">${HOUSE_KARAKAS[h]}</span></div>`;
+      }
+      panel.innerHTML = html;
+      return;
+    }
+
     if (type === 'lords') {
       function housesRuledBy(planetName) {
         const ascIdx = currentChart.ascendant.sign.index;
@@ -2580,6 +2712,13 @@
     renderTransitsAt(sliderCenter);
   });
 
+  document.getElementById('t-now-btn').addEventListener('click', () => {
+    sliderCenter = new Date();
+    const slider = document.getElementById('t-slider');
+    slider.value = 0;
+    renderTransitsAt(sliderCenter);
+  });
+
   // Дата по умолчанию — сегодня
   // Автоматически ставим двоеточие при вводе времени (ЧЧ:ММ) — не нужно
   // печатать его самостоятельно, просто вводишь 4 цифры подряд.
@@ -2619,11 +2758,7 @@
     const [year, month, day] = dateVal.split('-').map(Number);
 
     try {
-      const geoRes = await fetch('/api/geocode', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ city, day, month, year })
-      });
-      const geo = await geoRes.json();
+      const geo = await resolveCityWithPicker(city, day, month, year);
       if (geo.error) { errorEl.textContent = geo.error; errorEl.style.display='block'; return; }
 
       const pRes = await fetch('/api/panchanga', {
@@ -2652,6 +2787,7 @@
       document.getElementById('p-rahu').textContent = `${p.rahuKalam.start}–${p.rahuKalam.end}`;
       document.getElementById('p-yama').textContent = `${p.yamaganda.start}–${p.yamaganda.end}`;
       document.getElementById('p-gulika').textContent = `${p.gulikaKalam.start}–${p.gulikaKalam.end}`;
+      document.getElementById('p-abhijit').textContent = `${p.abhijitMuhurta.start}–${p.abhijitMuhurta.end}`;
 
       document.getElementById('panchanga-result').style.display = 'block';
     } catch (e) {
@@ -3023,7 +3159,8 @@
       if (data.notableTransits.length === 0) {
         notableEl.innerHTML = '<div style="font-size:13px;color:var(--taupe);">Сегодня нет транзитов к чувствительным точкам карты.</div>';
       } else {
-        notableEl.innerHTML = data.notableTransits.map(nt => `<div class="note-item"><div class="note-text"><span style="display:block;background:var(--bg);border-radius:6px;padding:1px 7px;font-size:11px;color:var(--gold);font-weight:600;margin-bottom:4px;width:fit-content;">${nt.house} дом</span>${escapeHtml(nt.phrase)}${nt.hits.length ? '<br><span style="color:var(--taupe);font-size:12px;">Рядом с: ' + nt.hits.map(escapeHtml).join(', ') + '</span>' : ''}</div></div>`).join('');
+        notableEl.innerHTML = data.notableTransits.map((nt, i) => `<div class="note-item"><div class="note-text"><span style="display:block;background:var(--bg);border-radius:6px;padding:1px 7px;font-size:11px;color:var(--gold);font-weight:600;margin-bottom:4px;width:fit-content;">${nt.house} дом</span>${escapeHtml(nt.phrase)}${nt.hits.length ? '<br><span style="color:var(--taupe);font-size:12px;">Рядом с: ' + nt.hits.map(escapeHtml).join(', ') + '</span>' : ''}<span id="transit-end-${i}" style="display:block;color:var(--taupe);font-size:12px;margin-top:4px;"></span></div></div>`).join('');
+        loadTransitEndDates(data.notableTransits);
       }
 
       contentEl.style.display = 'block';
@@ -3032,6 +3169,26 @@
       errorEl.textContent = 'Не удалось загрузить: ' + e.message;
       errorEl.style.display = 'block';
     }
+  }
+
+  async function loadTransitEndDates(notableTransits) {
+    const p = currentChartMeta.params;
+    notableTransits.forEach(async (nt, i) => {
+      try {
+        const res = await fetch('/api/transit-end-date', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ initData: getInitData(), planet: nt.planet, lat: p.lat, lon: p.lon, utcOffset: p.utcOffset })
+        });
+        const data = await res.json();
+        const el = document.getElementById(`transit-end-${i}`);
+        if (!el) return; // экран уже мог обновиться/перерисоваться
+        if (data.daysAhead != null) {
+          el.textContent = `До смены знака: ~${data.daysAhead} дн. (${data.date.split('-').reverse().join('.')})`;
+        }
+      } catch (e) {
+        // тихо игнорируем — это не критичная деталь
+      }
+    });
   }
 
   async function loadSadeSati() {
@@ -3076,6 +3233,13 @@
     noChartEl.style.display = 'none';
     contentEl.style.display = 'none';
     errorEl.style.display = 'none';
+
+    const legendEl = document.getElementById('cal-event-legend');
+    if (legendEl && !legendEl.dataset.filled) {
+      const legendItems = ['Пурнима', 'Амавасья', 'Экадаши', 'Санкранти', 'Затмение (лунное)', 'Затмение (солнечное)', 'Праздник'];
+      legendEl.innerHTML = legendItems.map(t => `<span class="chip" style="cursor:default;">${eventIconSvg(t)}${t}</span>`).join('');
+      legendEl.dataset.filled = '1';
+    }
 
     try {
       const res = await fetch('/api/tier', {

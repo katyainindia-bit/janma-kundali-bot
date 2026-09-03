@@ -12,25 +12,35 @@ const USER_AGENT = 'JanmaKundaliBot/1.0 (https://t.me/janma_kundali_bot)';
 
 /**
  * Ищет город по названию через Nominatim (OpenStreetMap).
- * Возвращает { lat, lon, displayName } либо null, если не нашлось.
+ * Возвращает МАССИВ кандидатов (до limit штук) — раньше молча брался
+ * только первый результат Nominatim, из-за чего одноимённые города в
+ * разных регионах/странах путались без возможности выбрать нужный.
  */
-async function geocodeCity(query) {
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&accept-language=ru`;
+async function geocodeCityCandidatesRaw(query, limit = 5) {
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=${limit}&accept-language=ru`;
   try {
     const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
-    if (!res.ok) return null;
+    if (!res.ok) return [];
     const data = await res.json();
-    if (!Array.isArray(data) || data.length === 0) return null;
-    const place = data[0];
-    return {
+    if (!Array.isArray(data)) return [];
+    return data.map(place => ({
       lat: parseFloat(place.lat),
       lon: parseFloat(place.lon),
       displayName: place.display_name,
-    };
+    }));
   } catch (e) {
     console.error('Ошибка геокодирования:', e.message);
-    return null;
+    return [];
   }
+}
+
+/**
+ * То же самое, но всегда возвращает только первый результат — для обратной
+ * совместимости с местами в коде, которым нужен именно один ответ.
+ */
+async function geocodeCity(query) {
+  const candidates = await geocodeCityCandidatesRaw(query, 1);
+  return candidates[0] || null;
 }
 
 /**
@@ -69,4 +79,18 @@ async function resolveWorldCity(cityName, approxDateUTC) {
   };
 }
 
-module.exports = { geocodeCity, getOffsetHours, resolveWorldCity };
+/**
+ * Возвращает несколько кандидатов (с уже посчитанным часовым поясом на каждый) —
+ * когда несколько городов подходят под запрос, решение остаётся за человеком,
+ * а не молча берётся первый ответ Nominatim.
+ */
+async function resolveWorldCityCandidates(cityName, approxDateUTC, limit = 5) {
+  const geos = await geocodeCityCandidatesRaw(cityName, limit);
+  return geos.map(geo => {
+    const timezone = tzlookup(geo.lat, geo.lon);
+    const utcOffset = getOffsetHours(timezone, approxDateUTC);
+    return { city: geo.displayName, lat: geo.lat, lon: geo.lon, utcOffset, timezone };
+  });
+}
+
+module.exports = { geocodeCity, getOffsetHours, resolveWorldCity, resolveWorldCityCandidates };

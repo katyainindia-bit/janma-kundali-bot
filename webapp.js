@@ -18,10 +18,11 @@ const { computeCalendarMonth, computeDateSearch, computeDayDetail, computeAction
 const { ACTIONS, ACTION_ICONS, NICHE_ACTION_KEYS, evaluateAction } = require('./muhurta.js');
 const { getEventsForDate, findUpcomingEvents, getYearEvents } = require('./calendar-events.js');
 const { computeSadeSati } = require('./sade-sati.js');
+const { findSignExitDate } = require('./transit-forecast.js');
 const { houseMeaningPhrase, computeDayTier, transitPhrase } = require('./day-summary.js');
 const { buildChartExportPDF } = require('./chart-export-pdf.js');
 const { resolveCity } = require('./ru-timezone.js');
-const { resolveWorldCity } = require('./world-geocoding.js');
+const { resolveWorldCityCandidates } = require('./world-geocoding.js');
 const db = require('./database.js');
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
@@ -92,10 +93,17 @@ function startWebApp() {
       const dateForTz = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
       let found = resolveCity(city, dateForTz);
       if (!found) {
-        const world = await resolveWorldCity(city, dateForTz);
-        if (world) found = { city: world.city, lat: world.lat, lon: world.lon, utcOffset: world.utcOffset };
+        // Небольшая курируемая база городов России даёт однозначный ответ сразу —
+        // за её пределами используем открытый геокодер и, если он находит
+        // несколько похожих городов, отдаём список на выбор, а не молча первый.
+        const candidates = await resolveWorldCityCandidates(city, dateForTz);
+        if (candidates.length === 0) return res.status(404).json({ error: 'Город не найден' });
+        if (candidates.length === 1) {
+          found = { city: candidates[0].city, lat: candidates[0].lat, lon: candidates[0].lon, utcOffset: candidates[0].utcOffset };
+        } else {
+          return res.json({ candidates });
+        }
       }
-      if (!found) return res.status(404).json({ error: 'Город не найден' });
       res.json(found);
     } catch (e) {
       console.error(e);
@@ -595,6 +603,17 @@ function startWebApp() {
     try {
       const { year } = req.body;
       res.json({ events: getYearEvents(year) });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/transit-end-date', requireTelegramUser, requirePremium, (req, res) => {
+    try {
+      const { planet, lat, lon, utcOffset } = req.body;
+      const result = findSignExitDate(planet, new Date(), lat, lon, utcOffset);
+      res.json(result || { daysAhead: null, date: null });
     } catch (e) {
       console.error(e);
       res.status(500).json({ error: e.message });
