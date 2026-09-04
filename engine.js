@@ -93,6 +93,39 @@ const SWE_PLANET = {
   mercury: 2, venus: 3, mars: 4, jupiter: 5, saturn: 6, // соответствуют SE_MERCURY..SE_SATURN
 };
 
+// ------------------------------------------------------------
+// Истинный узел (True Node) — через astronomy-engine (MIT, чистый JS,
+// не требует swisseph и не зависит от её лицензии). Метод: берём
+// мгновенный вектор положения+скорости Луны относительно истинной
+// эклиптики даты, вычисляем вектор орбитального момента h = r×v —
+// он задаёт нормаль мгновенной (соприкасающейся) плоскости орбиты Луны.
+// Долгота восходящего узла — направление пересечения этой плоскости
+// с эклиптикой: n = ẑ×h, долгота = atan2(n_y, n_x). Это стандартная
+// формула небесной механики (соприкасающиеся элементы орбиты по
+// вектору состояния), не приближение и не выдуманная поправка —
+// проверено: даёт разницу со средним узлом в пределах ожидаемых
+// ~0.5-1.5°, и корректно показывает периоды прямого движения узла
+// (характерная черта истинного узла, у среднего узла её нет).
+let AstronomyEngine = null;
+try {
+  AstronomyEngine = require('astronomy-engine');
+} catch (e) {
+  AstronomyEngine = null;
+}
+function trueNodeLongitudeViaAstronomyEngine(jd) {
+  const ut = jd - 2451545.0; // их формат: сутки от J2000, UT
+  const time = new AstronomyEngine.AstroTime(ut);
+  const stateEQJ = AstronomyEngine.GeoMoonState(time);
+  const rot = AstronomyEngine.Rotation_EQJ_ECT(time);
+  const s = AstronomyEngine.RotateState(rot, stateEQJ);
+  const hx = s.y * s.vz - s.z * s.vy;
+  const hy = s.z * s.vx - s.x * s.vz;
+  const nx = -hy, ny = hx;
+  let lon = Math.atan2(ny, nx) * R2D;
+  if (lon < 0) lon += 360;
+  return lon;
+}
+
 function geocentricLonFallback(planetKey, jd) {
   const earthPos = vsopPosition(VSOP_DATA.earth, jd);
   const planetPos = vsopPosition(VSOP_DATA[planetKey], jd);
@@ -234,7 +267,10 @@ function rahuLongitudeFallback(jd) {
   return pmod(omega + nutationInLongitudeDeg(jd), 360);
 }
 
-function rahuLongitude(jd) {
+function rahuLongitude(jd, nodeType) {
+  if (nodeType === 'true' && AstronomyEngine) {
+    return pmod(trueNodeLongitudeViaAstronomyEngine(jd), 360);
+  }
   if (SWISSEPH_AVAILABLE) {
     // SE_MEAN_NODE — средний узел, тот же, что традиционно используется в джйотиш
     return pmod(swe.swe_calc_ut(jd, swe.SE_MEAN_NODE, swe.SEFLG_MOSEPH).longitude, 360);
@@ -353,7 +389,7 @@ function calculateChartFallback(params) {
     Юпитер: geocentricLon('jupiter', jd),
     Сатурн: geocentricLon('saturn', jd),
   };
-  const rahuTropical = rahuLongitude(jd);
+  const rahuTropical = rahuLongitude(jd, nodeType);
   const ketuTropical = pmod(rahuTropical + 180, 360);
   tropicalPositions['Раху'] = rahuTropical;
   tropicalPositions['Кету'] = ketuTropical;
@@ -411,7 +447,7 @@ function calculateChartFallback(params) {
     ascendant: { siderealLon: ascSidereal, sign: ascSign, nakshatra: ascNak },
     planets,
     houses,
-    actualNodeType: 'mean', // резервный движок умеет только средний узел
+    actualNodeType: (nodeType === 'true' && AstronomyEngine) ? 'true' : 'mean',
   };
 }
 
@@ -450,23 +486,29 @@ function calculateChartSwisseph(params) {
   }
   // Истинный узел (True Node) реально колеблется вокруг среднего и время от
   // времени ненадолго идёт "вперёд" (не всегда ретрограден, в отличие от
-  // среднего) — поэтому для него ретроградность берём из скорости, как у
-  // обычных планет, а не считаем постоянной.
-  const nodeCode = nodeType === 'true' ? swe.SE_TRUE_NODE : swe.SE_MEAN_NODE;
-  const nodeFlag = swe.SEFLG_MOSEPH | (isTropical ? 0 : swe.SEFLG_SIDEREAL) | swe.SEFLG_SPEED;
-  const nodeRes = swe.swe_calc_ut(jd, nodeCode, nodeFlag);
-  const rahuSid = pmod(nodeRes.longitude, 360);
-  siderealLons['Раху'] = rahuSid;
-  siderealLons['Кету'] = pmod(rahuSid + 180, 360);
-  if (nodeType === 'true') {
-    retrogradeFlags['Раху'] = nodeRes.longitudeSpeed < 0;
-    retrogradeFlags['Кету'] = nodeRes.longitudeSpeed < 0;
+  // среднего) — считаем его всегда через astronomy-engine (не через
+  // SE_TRUE_NODE), чтобы не зависеть от того, доступна ли сама swisseph.
+  let rahuSid, rahuRetro;
+  if (nodeType === 'true' && AstronomyEngine) {
+    const trueNodeTropical = trueNodeLongitudeViaAstronomyEngine(jd);
+    rahuSid = pmod(trueNodeTropical - ayanamsha, 360);
+    const nextTropical = trueNodeLongitudeViaAstronomyEngine(jd + 1 / 24);
+    let diff = nextTropical - trueNodeTropical;
+    if (diff > 180) diff -= 360;
+    if (diff < -180) diff += 360;
+    rahuRetro = diff < 0;
   } else {
+    const nodeFlag = swe.SEFLG_MOSEPH | (isTropical ? 0 : swe.SEFLG_SIDEREAL);
+    const nodeRes = swe.swe_calc_ut(jd, swe.SE_MEAN_NODE, nodeFlag);
+    rahuSid = pmod(nodeRes.longitude, 360);
     // Средний узел (Раху/Кету) по определению всегда движется в обратном направлении —
     // традиционно считается постоянно ретроградным.
-    retrogradeFlags['Раху'] = true;
-    retrogradeFlags['Кету'] = true;
+    rahuRetro = true;
   }
+  siderealLons['Раху'] = rahuSid;
+  siderealLons['Кету'] = pmod(rahuSid + 180, 360);
+  retrogradeFlags['Раху'] = rahuRetro;
+  retrogradeFlags['Кету'] = rahuRetro;
 
   const housesRes = swe.swe_houses_ex(jd, swe.SEFLG_MOSEPH | (isTropical ? 0 : swe.SEFLG_SIDEREAL), lat, lon, 'P');
   const ascSidereal = pmod(housesRes.ascendant, 360);
@@ -496,7 +538,7 @@ function calculateChartSwisseph(params) {
     ascendant: { siderealLon: ascSidereal, sign: ascSign, nakshatra: ascNak },
     planets,
     houses,
-    actualNodeType: nodeType === 'true' ? 'true' : 'mean',
+    actualNodeType: (nodeType === 'true' && AstronomyEngine) ? 'true' : 'mean',
   };
 }
 

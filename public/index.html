@@ -1453,12 +1453,21 @@
 
     // Внешний квадрат + внутренние линии сетки 4×4
     svg.appendChild(el('rect', { x: 0, y: 0, width: 400, height: 400, fill: 'none', stroke: '#C8A26B', 'stroke-width': 1.5 }));
-    [100, 200, 300].forEach(v => {
-      svg.appendChild(el('line', { x1: v, y1: 0, x2: v, y2: 400, stroke: '#C8A26B', 'stroke-width': v === 200 ? 0 : 1 }));
-      svg.appendChild(el('line', { x1: 0, y1: v, x2: 400, y2: v, stroke: '#C8A26B', 'stroke-width': v === 200 ? 0 : 1 }));
+    // Линии на 100 и 300 — полные, на всю длину (границы верхнего/нижнего ряда и левой/правой колонки)
+    [100, 300].forEach(v => {
+      svg.appendChild(el('line', { x1: v, y1: 0, x2: v, y2: 400, stroke: '#C8A26B', 'stroke-width': 1 }));
+      svg.appendChild(el('line', { x1: 0, y1: v, x2: 400, y2: v, stroke: '#C8A26B', 'stroke-width': 1 }));
     });
-    // Рамка центрального пустого блока 2×2 отдельно (внутренние линии сетки на 200
-    // специально не рисуем выше — иначе они бы делили сам этот пустой блок пополам)
+    // Линия на 200 нужна ТОЛЬКО в полосах 0–100 и 300–400 (разделяет два реальных
+    // дома в верхнем/нижнем ряду и левой/правой колонке) — раньше вся линия на 200
+    // пряталась целиком, включая эти нужные куски, из-за чего 2 соседних дома
+    // визуально сливались в один без границы между ними. В центре (100–300) её
+    // по-прежнему быть не должно — там пустой блок 2×2.
+    svg.appendChild(el('line', { x1: 200, y1: 0, x2: 200, y2: 100, stroke: '#C8A26B', 'stroke-width': 1 }));
+    svg.appendChild(el('line', { x1: 200, y1: 300, x2: 200, y2: 400, stroke: '#C8A26B', 'stroke-width': 1 }));
+    svg.appendChild(el('line', { x1: 0, y1: 200, x2: 100, y2: 200, stroke: '#C8A26B', 'stroke-width': 1 }));
+    svg.appendChild(el('line', { x1: 300, y1: 200, x2: 400, y2: 200, stroke: '#C8A26B', 'stroke-width': 1 }));
+    // Рамка центрального пустого блока 2×2 отдельно
     svg.appendChild(el('rect', { x: 100, y: 100, width: 200, height: 200, fill: 'none', stroke: '#C8A26B', 'stroke-width': 1 }));
 
     SOUTH_CELLS.forEach(cell => {
