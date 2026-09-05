@@ -538,7 +538,17 @@
     </div>
     <div class="field">
       <label for="f-city">Город рождения</label>
-      <input type="text" id="f-city" placeholder="Например: Москва">
+      <input type="text" id="f-city" placeholder="Например: Москва" autocomplete="off">
+      <div id="f-city-suggestions" style="display:none;position:relative;z-index:20;"></div>
+      <button type="button" id="f-coords-toggle-btn" style="background:none;border:none;color:var(--gold);font-size:12px;padding:4px 0 0;cursor:pointer;">Или ввести по координатам</button>
+    </div>
+    <div class="field" id="f-coords-field" style="display:none;">
+      <label>Широта и долгота</label>
+      <div class="row2">
+        <input type="number" id="f-lat" placeholder="Широта, например 55.75" step="0.0001">
+        <input type="number" id="f-lon" placeholder="Долгота, например 37.6" step="0.0001">
+      </div>
+      <button type="button" id="f-city-toggle-btn" style="background:none;border:none;color:var(--gold);font-size:12px;padding:4px 0 0;cursor:pointer;">Или найти по названию города</button>
     </div>
     <button class="btn-primary" id="build-btn">Построить карту</button>
     <div class="error-msg" id="error-msg"></div>
@@ -1070,15 +1080,29 @@
     <div class="field">
       <label for="settings-zodiac-type">Зодиак</label>
       <select id="settings-zodiac-type">
-        <option value="sidereal">Сидерический (Лахири)</option>
+        <option value="sidereal">Сидерический — Лахири</option>
+        <option value="sidereal-raman">Сидерический — Раман</option>
+        <option value="sidereal-krishnamurti">Сидерический — Кришнамурти (KP)</option>
+        <option value="sidereal-custom">Сидерический — своя аянамша</option>
         <option value="tropical">Тропический</option>
       </select>
+    </div>
+    <div class="field" id="settings-custom-ayanamsha-field" style="display:none;">
+      <label for="settings-custom-ayanamsha-value">Значение аянамши на 01.01.2000, 12:00 UT (градусы)</label>
+      <input type="number" id="settings-custom-ayanamsha-value" step="0.0001" placeholder="Например: 23.8532">
     </div>
     <div class="field">
       <label for="settings-chart-style">Стиль карты</label>
       <select id="settings-chart-style">
         <option value="north">Северо-индийский (ромб)</option>
         <option value="south">Южно-индийский (квадрат)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="settings-observation-mode">Режим наблюдения</label>
+      <select id="settings-observation-mode">
+        <option value="geocentric">Геоцентрический (из центра Земли)</option>
+        <option value="topocentric">Топоцентрический (с места рождения)</option>
       </select>
     </div>
     <div id="settings-node-note" style="display:none;font-size:12px;color:#a8654a;margin-bottom:10px;"></div>
@@ -1406,15 +1430,21 @@
     return [x/poly.length, y/poly.length];
   }
   function signNumberPos(poly, rows) {
-    let nearest = poly[0], best = Infinity;
-    for (const v of poly) { const d=(v[0]-C)**2+(v[1]-C)**2; if (d<best){best=d;nearest=v;} }
+    // Планеты в доме центрируются вокруг центроида формы — значит номер
+    // дома должен быть подальше ОТ центроида, а не рядом с ним. Толкаем
+    // номер от центроида к самой дальней от него вершине (внешнему "кончику"
+    // формы) — чем теснее дом от планет, тем ближе к самому кончику.
     const c = centroid(poly);
-    let dx=c[0]-nearest[0], dy=c[1]-nearest[1];
-    const len = Math.sqrt(dx*dx+dy*dy)||1; dx/=len; dy/=len;
-    // Чем больше строк в сетке планет этого дома, тем ближе номер надо прижать
-    // к вершине (подальше от сетки) — иначе он наезжает на нижние ряды планет.
-    const dist = rows >= 3 ? 4 : rows === 2 ? 10 : 30;
-    return [nearest[0]+dx*dist, nearest[1]+dy*dist];
+    let farVertex = poly[0], maxD = 0;
+    for (const v of poly) {
+      const d = Math.sqrt((v[0]-c[0])**2 + (v[1]-c[1])**2);
+      if (d > maxD) { maxD = d; farVertex = v; }
+    }
+    let dx = farVertex[0]-c[0], dy = farVertex[1]-c[1];
+    const len = Math.sqrt(dx*dx + dy*dy) || 1;
+    dx /= len; dy /= len;
+    const frac = rows >= 3 ? 0.85 : rows === 2 ? 0.72 : 0.55;
+    return [c[0] + dx*maxD*frac, c[1] + dy*maxD*frac];
   }
 
   // Южно-индийский стиль: фиксированная сетка знаков 4×4 (центр 2×2 пустой),
@@ -2202,6 +2232,18 @@
     applyScale(currentScale, false);
   }
 
+  let useCoordsMode = false;
+  document.getElementById('f-coords-toggle-btn').addEventListener('click', () => {
+    useCoordsMode = true;
+    document.getElementById('f-city').closest('.field').style.display = 'none';
+    document.getElementById('f-coords-field').style.display = 'block';
+  });
+  document.getElementById('f-city-toggle-btn').addEventListener('click', () => {
+    useCoordsMode = false;
+    document.getElementById('f-city').closest('.field').style.display = 'block';
+    document.getElementById('f-coords-field').style.display = 'none';
+  });
+
   document.getElementById('build-btn').addEventListener('click', async () => {
     const errorEl = document.getElementById('error-msg');
     errorEl.style.display = 'none';
@@ -2217,14 +2259,65 @@
     const hour = parseInt(timeMatch[1]), minute = parseInt(timeMatch[2]);
 
     try {
-      const geo = await resolveCityWithPicker(city, day, month, year);
-      if (geo.error) { errorEl.textContent = geo.error; errorEl.style.display='block'; return; }
+      let geo;
+      if (useCoordsMode) {
+        const lat = parseFloat(document.getElementById('f-lat').value);
+        const lon = parseFloat(document.getElementById('f-lon').value);
+        if (isNaN(lat) || isNaN(lon)) { errorEl.textContent = 'Введите широту и долготу числами'; errorEl.style.display='block'; return; }
+        const tzRes = await fetch('/api/timezone-for-coords', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lat, lon, day, month, year })
+        });
+        const tzData = await tzRes.json();
+        if (!tzRes.ok) { errorEl.textContent = tzData.error || 'Не удалось определить часовой пояс'; errorEl.style.display='block'; return; }
+        geo = { lat, lon, utcOffset: tzData.utcOffset, city: `${lat}, ${lon}` };
+      } else {
+        geo = await resolveCityWithPicker(city, day, month, year);
+        if (geo.error) { errorEl.textContent = geo.error; errorEl.style.display='block'; return; }
+      }
 
       currentChartMeta = null; // сброс на время построения — заполнится в displayChartResults
       await displayChartResults({ name, day, month, year, hour, minute, lat: geo.lat, lon: geo.lon, utcOffset: geo.utcOffset, placeLabel: geo.city });
     } catch (e) {
       errorEl.textContent = 'Ошибка: ' + e.message;
       errorEl.style.display = 'block';
+    }
+  });
+
+  // Живые подсказки при вводе города — с debounce, чтобы не долбить сервер
+  // на каждую букву
+  let citySuggestTimer = null;
+  document.getElementById('f-city').addEventListener('input', (e) => {
+    clearTimeout(citySuggestTimer);
+    const query = e.target.value.trim();
+    const box = document.getElementById('f-city-suggestions');
+    if (query.length < 2) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    citySuggestTimer = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/geocode-suggest', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query })
+        });
+        const data = await res.json();
+        if (!data.candidates || data.candidates.length === 0) { box.style.display = 'none'; box.innerHTML = ''; return; }
+        box.style.cssText = 'display:block;position:absolute;background:var(--bg);border:1px solid var(--line);border-radius:10px;margin-top:2px;max-height:220px;overflow-y:auto;width:100%;box-shadow:0 4px 12px rgba(0,0,0,0.08);';
+        box.innerHTML = data.candidates.map((c, i) => `<div data-sugg-idx="${i}" style="padding:10px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--line);">${escapeHtml(c.city)}</div>`).join('');
+        box.querySelectorAll('[data-sugg-idx]').forEach(el => {
+          el.addEventListener('click', () => {
+            const chosen = data.candidates[Number(el.dataset.suggIdx)];
+            document.getElementById('f-city').value = chosen.city;
+            box.style.display = 'none';
+            box.innerHTML = '';
+          });
+        });
+      } catch (e) {
+        // тихо — это лишь подсказки, не мешаем основному вводу
+      }
+    }, 350);
+  });
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#f-city') && !e.target.closest('#f-city-suggestions')) {
+      document.getElementById('f-city-suggestions').style.display = 'none';
     }
   });
 
@@ -3166,8 +3259,12 @@
         }
       }
       document.getElementById('settings-node-type').value = data.nodeType || 'true';
-      document.getElementById('settings-zodiac-type').value = data.zodiacType || 'sidereal';
+      const zodiacVal = data.zodiacType === 'tropical' ? 'tropical' : `sidereal${data.ayanamshaVariant && data.ayanamshaVariant !== 'lahiri' ? '-' + data.ayanamshaVariant : ''}`;
+      document.getElementById('settings-zodiac-type').value = zodiacVal;
+      document.getElementById('settings-custom-ayanamsha-field').style.display = zodiacVal === 'sidereal-custom' ? 'block' : 'none';
+      if (data.customAyanamshaBase != null) document.getElementById('settings-custom-ayanamsha-value').value = data.customAyanamshaBase;
       document.getElementById('settings-chart-style').value = data.chartStyle || 'north';
+      document.getElementById('settings-observation-mode').value = data.observationMode || 'geocentric';
       userChartStyle = data.chartStyle || 'north';
       if ((data.nodeType || 'true') === 'true') {
         try {
@@ -3188,18 +3285,32 @@
     }
   }
 
+  document.getElementById('settings-zodiac-type').addEventListener('change', (e) => {
+    document.getElementById('settings-custom-ayanamsha-field').style.display = e.target.value === 'sidereal-custom' ? 'block' : 'none';
+  });
+
   document.getElementById('settings-save-btn').addEventListener('click', async () => {
     const nodeType = document.getElementById('settings-node-type').value;
-    const zodiacType = document.getElementById('settings-zodiac-type').value;
+    const zodiacRaw = document.getElementById('settings-zodiac-type').value;
+    const zodiacType = zodiacRaw === 'tropical' ? 'tropical' : 'sidereal';
+    const ayanamshaVariant = zodiacRaw.startsWith('sidereal-') ? zodiacRaw.replace('sidereal-', '') : 'lahiri';
+    const customAyanamshaBase = ayanamshaVariant === 'custom' ? parseFloat(document.getElementById('settings-custom-ayanamsha-value').value) : undefined;
     const chartStyle = document.getElementById('settings-chart-style').value;
+    const observationMode = document.getElementById('settings-observation-mode').value;
     const savedNote = document.getElementById('settings-saved-note');
     const nodeNote = document.getElementById('settings-node-note');
     savedNote.style.display = 'none';
     nodeNote.style.display = 'none';
+    if (ayanamshaVariant === 'custom' && isNaN(customAyanamshaBase)) {
+      savedNote.textContent = 'Введите числовое значение своей аянамши';
+      savedNote.style.color = '#a8654a';
+      savedNote.style.display = 'block';
+      return;
+    }
     try {
       const res = await fetch('/api/settings/update', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData: getInitData(), nodeType, zodiacType, chartStyle })
+        body: JSON.stringify({ initData: getInitData(), nodeType, zodiacType, chartStyle, ayanamshaVariant, customAyanamshaBase, observationMode })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Ошибка');

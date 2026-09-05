@@ -93,4 +93,14 @@ async function resolveWorldCityCandidates(cityName, approxDateUTC, limit = 5) {
   });
 }
 
-module.exports = { geocodeCity, getOffsetHours, resolveWorldCity, resolveWorldCityCandidates };
+/**
+ * Определяет часовой пояс напрямую по координатам, без поиска города —
+ * для случая, когда человек вводит широту/долготу вручную.
+ */
+function resolveTimezoneForCoords(lat, lon, approxDateUTC) {
+  const timezone = tzlookup(lat, lon);
+  const utcOffset = getOffsetHours(timezone, approxDateUTC);
+  return { timezone, utcOffset };
+}
+
+module.exports = { geocodeCity, getOffsetHours, resolveWorldCity, resolveWorldCityCandidates, resolveTimezoneForCoords };

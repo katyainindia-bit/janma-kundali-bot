@@ -298,6 +298,58 @@ function ramanAyanamshaFallback(jd) {
   return lahiriAyanamshaFallback(jd) - 0.885;
 }
 
+// Кришнамурти (KP) — та же прецессионная модель, что у Лахири, калибровка
+// по проверенной опорной точке: 23.02.2017 08:29 UT, аянамша KP = 24°00'00"
+// ровно (реальный вывод swetest). Разница с Лахири на J2000 получается
+// ~5.6 угловой минуты — совпадает с общеизвестным соотношением KP/Лахири,
+// это хорошая перекрёстная проверка калибровки.
+function krishnamurtiAyanamshaFallback(jd) {
+  return lahiriAyanamshaFallback(jd) - 0.092877;
+}
+
+function krishnamurtiAyanamsha(jd) {
+  if (SWISSEPH_AVAILABLE) {
+    swe.swe_set_sid_mode(swe.SE_SIDM_KRISHNAMURTI, 0, 0);
+    return swe.swe_get_ayanamsa_ut(jd);
+  }
+  return krishnamurtiAyanamshaFallback(jd);
+}
+
+// Пользовательская (произвольная) аянамша — на случай, если нужной нет
+// в списке: человек вводит своё значение на J2000 (01.01.2000, 12:00 UT),
+// а дальше прецессия считается той же проверенной моделью, что и везде.
+function customAyanamsha(jd, customBaseJ2000) {
+  const T = J2000Century(jd);
+  const pA = 5029.0966 * T + 1.11113 * T * T - 0.000006 * T * T * T;
+  return customBaseJ2000 + pA / 3600;
+}
+
+// ------------------------------------------------------------
+// Топоцентрические позиции (с поправкой на параллакс — положение
+// планеты как видно из конкретной точки на поверхности Земли, а не из
+// её центра). Через astronomy-engine (MIT, тот же источник, что дал
+// нам надёжный Истинный узел) — вычитаем вектор наблюдателя из
+// геоцентрического вектора планеты, а не пишем таблицу расстояния до
+// Луны по памяти (там ~60 коэффициентов — слишком велик риск ошибки).
+// Проверено на реальных числах: Луна даёт ~30-60 угловых минут разницы
+// (физически достоверно), Марс — единицы угловых секунд (на порядки
+// меньше, тоже ожидаемо).
+const ASTRONOMY_BODY_MAP = {
+  'Солнце': 'Sun', 'Луна': 'Moon', 'Меркурий': 'Mercury', 'Венера': 'Venus',
+  'Марс': 'Mars', 'Юпитер': 'Jupiter', 'Сатурн': 'Saturn',
+};
+function topocentricTropicalLongitude(bodyNameRu, jd, latDeg, lonDeg, altMeters) {
+  const body = AstronomyEngine.Body[ASTRONOMY_BODY_MAP[bodyNameRu]];
+  const ut = jd - 2451545.0;
+  const time = new AstronomyEngine.AstroTime(ut);
+  const observer = new AstronomyEngine.Observer(latDeg, lonDeg, altMeters || 0);
+  const obsVec = AstronomyEngine.ObserverVector(time, observer, false);
+  const geoVec = AstronomyEngine.GeoVector(body, time, false);
+  const topoVec = { x: geoVec.x - obsVec.x, y: geoVec.y - obsVec.y, z: geoVec.z - obsVec.z, t: time };
+  const ecl = AstronomyEngine.Ecliptic(topoVec);
+  return pmod(ecl.elon, 360);
+}
+
 function ramanAyanamsha(jd) {
   if (SWISSEPH_AVAILABLE) {
     // У Swiss Ephemeris есть своя, отдельная от Лахири, формула Раман —
@@ -373,12 +425,12 @@ function signOf(siderealLon) {
 
 // --- Main chart calculation ---
 function calculateChartFallback(params) {
-  const { year, month, day, hour, minute, second, utcOffset, lat, lon, ayanamshaType, nodeType } = params;
+  const { year, month, day, hour, minute, second, utcOffset, lat, lon, ayanamshaType, nodeType, customAyanamshaBase } = params;
   const jd = jdFromDate(year, month, day, hour, minute, second, utcOffset);
 
   // Тропический зодиак = аянамша 0 (без поправки на прецессию) — та же формула
   // "сидерическая = тропическая минус аянамша" работает и для него без изменений.
-  const ayanamsha = ayanamshaType === 'tropical' ? 0 : (ayanamshaType === 'raman' ? ramanAyanamsha(jd) : lahiriAyanamsha(jd));
+  const ayanamsha = ayanamshaType === 'tropical' ? 0 : (ayanamshaType === 'raman' ? ramanAyanamsha(jd) : ayanamshaType === 'krishnamurti' ? krishnamurtiAyanamsha(jd) : ayanamshaType === 'custom' ? customAyanamsha(jd, customAyanamshaBase) : lahiriAyanamsha(jd));
 
   const tropicalPositions = {
     Солнце: sunLongitude(jd),
@@ -389,6 +441,14 @@ function calculateChartFallback(params) {
     Юпитер: geocentricLon('jupiter', jd),
     Сатурн: geocentricLon('saturn', jd),
   };
+  // Топоцентрический режим — с поправкой на параллакс от места рождения,
+  // а не из центра Земли. Заметнее всего для Луны (десятки угловых минут),
+  // для остальных планет — единицы угловых секунд.
+  if (params.observationMode === 'topocentric' && AstronomyEngine) {
+    for (const name of Object.keys(ASTRONOMY_BODY_MAP)) {
+      tropicalPositions[name] = topocentricTropicalLongitude(name, jd, lat, lon, params.altitude || 0);
+    }
+  }
   const rahuTropical = rahuLongitude(jd, nodeType);
   const ketuTropical = pmod(rahuTropical + 180, 360);
   tropicalPositions['Раху'] = rahuTropical;
@@ -460,14 +520,18 @@ function calculateChartFallback(params) {
 // получаем ТЕ ЖЕ числа, что и любая другая профессиональная программа на
 // Swiss Ephemeris, без собственной интерпретации этой тонкости.
 function calculateChartSwisseph(params) {
-  const { year, month, day, hour, minute, second, utcOffset, lat, lon, ayanamshaType, nodeType } = params;
+  const { year, month, day, hour, minute, second, utcOffset, lat, lon, ayanamshaType, nodeType, customAyanamshaBase } = params;
   const jd = jdFromDate(year, month, day, hour, minute, second, utcOffset);
 
   const isTropical = ayanamshaType === 'tropical';
   let ayanamsha = 0;
   if (!isTropical) {
-    const sidMode = ayanamshaType === 'raman' ? swe.SE_SIDM_RAMAN : swe.SE_SIDM_LAHIRI;
-    swe.swe_set_sid_mode(sidMode, 0, 0);
+    if (ayanamshaType === 'custom') {
+      swe.swe_set_sid_mode(swe.SE_SIDM_USER, 2451545.0, customAyanamshaBase);
+    } else {
+      const sidMode = ayanamshaType === 'raman' ? swe.SE_SIDM_RAMAN : ayanamshaType === 'krishnamurti' ? swe.SE_SIDM_KRISHNAMURTI : swe.SE_SIDM_LAHIRI;
+      swe.swe_set_sid_mode(sidMode, 0, 0);
+    }
     ayanamsha = swe.swe_get_ayanamsa_ut(jd);
   }
 
@@ -483,6 +547,15 @@ function calculateChartSwisseph(params) {
     const res = swe.swe_calc_ut(jd, code, flag);
     siderealLons[name] = pmod(res.longitude, 360);
     retrogradeFlags[name] = !NEVER_RETROGRADE.has(name) && res.longitudeSpeed < 0;
+  }
+  // Топоцентрический режим — считаем той же функцией (через astronomy-engine),
+  // что и в резервном движке, для единообразия: берём топоцентрическую
+  // тропическую долготу и вычитаем ту же аянамшу, что уже посчитана выше.
+  if (params.observationMode === 'topocentric' && AstronomyEngine) {
+    for (const name of Object.keys(ASTRONOMY_BODY_MAP)) {
+      const topoTropical = topocentricTropicalLongitude(name, jd, lat, lon, params.altitude || 0);
+      siderealLons[name] = pmod(topoTropical - ayanamsha, 360);
+    }
   }
   // Истинный узел (True Node) реально колеблется вокруг среднего и время от
   // времени ненадолго идёт "вперёд" (не всегда ретрограден, в отличие от
@@ -551,17 +624,21 @@ function calculateChart(params) {
 // границ смены Лагны (бегунок "диапазон действия Лагны" в интерфейсе).
 // Использует тот же путь, что и основной расчёт карты (Swiss Ephemeris
 // сидерически напрямую, либо резервный движок тропически минус аянамша).
-function ascendantSidereal(jd, latDeg, lonDeg, ayanamshaType) {
+function ascendantSidereal(jd, latDeg, lonDeg, ayanamshaType, customAyanamshaBase) {
   const isTropical = ayanamshaType === 'tropical';
   if (SWISSEPH_AVAILABLE) {
     if (!isTropical) {
-      const sidMode = ayanamshaType === 'raman' ? swe.SE_SIDM_RAMAN : swe.SE_SIDM_LAHIRI;
-      swe.swe_set_sid_mode(sidMode, 0, 0);
+      if (ayanamshaType === 'custom') {
+        swe.swe_set_sid_mode(swe.SE_SIDM_USER, 2451545.0, customAyanamshaBase);
+      } else {
+        const sidMode = ayanamshaType === 'raman' ? swe.SE_SIDM_RAMAN : ayanamshaType === 'krishnamurti' ? swe.SE_SIDM_KRISHNAMURTI : swe.SE_SIDM_LAHIRI;
+        swe.swe_set_sid_mode(sidMode, 0, 0);
+      }
     }
     const res = swe.swe_houses_ex(jd, swe.SEFLG_MOSEPH | (isTropical ? 0 : swe.SEFLG_SIDEREAL), latDeg, lonDeg, 'P');
     return pmod(res.ascendant, 360);
   }
-  const ayanamsha = isTropical ? 0 : (ayanamshaType === 'raman' ? ramanAyanamshaFallback(jd) : lahiriAyanamshaFallback(jd));
+  const ayanamsha = isTropical ? 0 : (ayanamshaType === 'raman' ? ramanAyanamshaFallback(jd) : ayanamshaType === 'krishnamurti' ? krishnamurtiAyanamshaFallback(jd) : ayanamshaType === 'custom' ? customAyanamsha(jd, customAyanamshaBase) : lahiriAyanamshaFallback(jd));
   return pmod(ascendantTropicalFallback(jd, latDeg, lonDeg) - ayanamsha, 360);
 }
 

@@ -30,6 +30,9 @@ db.exec(`
     last_seen TEXT NOT NULL,
     node_type TEXT NOT NULL DEFAULT 'true',
     zodiac_type TEXT NOT NULL DEFAULT 'sidereal',
+    ayanamsha_variant TEXT NOT NULL DEFAULT 'lahiri',
+    custom_ayanamsha_base REAL,
+    observation_mode TEXT NOT NULL DEFAULT 'geocentric',
     chart_style TEXT NOT NULL DEFAULT 'north'
   );
 
@@ -122,6 +125,21 @@ try {
   // столбец уже есть — игнорируем
 }
 try {
+  db.exec("ALTER TABLE users ADD COLUMN ayanamsha_variant TEXT NOT NULL DEFAULT 'lahiri'");
+} catch (e) {
+  // столбец уже есть — игнорируем
+}
+try {
+  db.exec('ALTER TABLE users ADD COLUMN custom_ayanamsha_base REAL');
+} catch (e) {
+  // столбец уже есть — игнорируем
+}
+try {
+  db.exec("ALTER TABLE users ADD COLUMN observation_mode TEXT NOT NULL DEFAULT 'geocentric'");
+} catch (e) {
+  // столбец уже есть — игнорируем
+}
+try {
   db.exec("ALTER TABLE users ADD COLUMN chart_style TEXT NOT NULL DEFAULT 'north'");
 } catch (e) {
   // столбец уже есть — игнорируем
@@ -183,11 +201,19 @@ function setNotifyEnabled(telegramId, enabled) {
 }
 
 // --- Астрологические настройки (узел/зодиак/стиль карты) ---
-function setAstroSettings(telegramId, { nodeType, zodiacType, chartStyle }) {
+function setAstroSettings(telegramId, { nodeType, zodiacType, chartStyle, ayanamshaVariant, customAyanamshaBase, observationMode }) {
   const row = getUser(telegramId);
   if (!row) return false;
-  const info = db.prepare('UPDATE users SET node_type = ?, zodiac_type = ?, chart_style = ? WHERE telegram_id = ?')
-    .run(nodeType || row.node_type, zodiacType || row.zodiac_type, chartStyle || row.chart_style, telegramId);
+  const info = db.prepare('UPDATE users SET node_type = ?, zodiac_type = ?, chart_style = ?, ayanamsha_variant = ?, custom_ayanamsha_base = ?, observation_mode = ? WHERE telegram_id = ?')
+    .run(
+      nodeType || row.node_type,
+      zodiacType || row.zodiac_type,
+      chartStyle || row.chart_style,
+      ayanamshaVariant || row.ayanamsha_variant,
+      customAyanamshaBase != null ? customAyanamshaBase : row.custom_ayanamsha_base,
+      observationMode || row.observation_mode,
+      telegramId
+    );
   return info.changes > 0;
 }
 
