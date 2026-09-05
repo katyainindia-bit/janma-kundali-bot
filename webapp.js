@@ -729,6 +729,7 @@ function startWebApp() {
       premiumUntil: row.premium_until,
       isPremium: db.isPremium(req.tgUser.id),
       notifyEnabled: !!row.notify_enabled,
+      notifyRitualsEnabled: !!row.notify_rituals_enabled,
       primaryChartId: row.primary_chart_id,
       nodeType: row.node_type,
       zodiacType: row.zodiac_type,
@@ -761,6 +762,18 @@ function startWebApp() {
     try {
       const { enabled } = req.body;
       db.setNotifyEnabled(req.tgUser.id, !!enabled);
+      res.json({ ok: true, enabled: !!enabled });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Ритуальные напоминания — отдельная бесплатная подписка, не требует Premium
+  app.post('/api/notify/ritual-toggle', requireTelegramUser, (req, res) => {
+    try {
+      const { enabled } = req.body;
+      db.setRitualNotifyEnabled(req.tgUser.id, !!enabled);
       res.json({ ok: true, enabled: !!enabled });
     } catch (e) {
       console.error(e);

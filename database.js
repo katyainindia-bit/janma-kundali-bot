@@ -33,6 +33,7 @@ db.exec(`
     ayanamsha_variant TEXT NOT NULL DEFAULT 'lahiri',
     custom_ayanamsha_base REAL,
     observation_mode TEXT NOT NULL DEFAULT 'geocentric',
+    notify_rituals_enabled INTEGER NOT NULL DEFAULT 0,
     chart_style TEXT NOT NULL DEFAULT 'north'
   );
 
@@ -140,6 +141,11 @@ try {
   // столбец уже есть — игнорируем
 }
 try {
+  db.exec('ALTER TABLE users ADD COLUMN notify_rituals_enabled INTEGER NOT NULL DEFAULT 0');
+} catch (e) {
+  // столбец уже есть — игнорируем
+}
+try {
   db.exec("ALTER TABLE users ADD COLUMN chart_style TEXT NOT NULL DEFAULT 'north'");
 } catch (e) {
   // столбец уже есть — игнорируем
@@ -198,6 +204,17 @@ function setTier(telegramId, tier, untilISO) {
 // --- Уведомления ---
 function setNotifyEnabled(telegramId, enabled) {
   return db.prepare('UPDATE users SET notify_enabled = ? WHERE telegram_id = ?').run(enabled ? 1 : 0, telegramId);
+}
+
+// Ритуальные напоминания (Экадаши/Пурнима/Амавасья/праздники) — отдельная,
+// независимая от личных уведомлений подписка. Одинаковы для всех, поэтому
+// не требуют ни Premium, ни сохранённой карты рождения — в отличие от
+// listNotifiableUsers() выше.
+function setRitualNotifyEnabled(telegramId, enabled) {
+  return db.prepare('UPDATE users SET notify_rituals_enabled = ? WHERE telegram_id = ?').run(enabled ? 1 : 0, telegramId);
+}
+function listRitualNotifiableUsers() {
+  return db.prepare('SELECT telegram_id FROM users WHERE notify_rituals_enabled = 1').all();
 }
 
 // --- Астрологические настройки (узел/зодиак/стиль карты) ---
@@ -335,6 +352,7 @@ module.exports = {
   upsertUser, getAllUserIds, getUserCount,
   getUser, isPremium, setTier,
   setNotifyEnabled, setPrimaryChart, listNotifiableUsers, saveNotifyState, setAstroSettings,
+  setRitualNotifyEnabled, listRitualNotifiableUsers,
   saveChart, listCharts, countCharts, getChart, deleteChart, updateChart, renameChart, setFolder, toggleFavorite,
   addNote, listNotes, updateNote, deleteNote,
 };

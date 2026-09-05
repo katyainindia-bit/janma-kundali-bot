@@ -15,8 +15,39 @@ const { calculateChart } = require('./engine.js');
 const { computeVimshottariDasha, findCurrentDashaChain } = require('./dasha.js');
 const { computeCurrentTransits } = require('./transits.js');
 const { computePanchanga, computeTaraBala } = require('./panchanga.js');
+const { getEventsForDate } = require('./calendar-events.js');
 
 const NOTABLE_TARA_QUALITIES = ['наиболее благоприятно', 'неблагоприятно', 'наименее благоприятно'];
+
+// --- Ритуальные напоминания (Экадаши/Пурнима/Амавасья/праздники) ---
+// Одинаковы для всех подписчиков — не завязаны на чью-то конкретную карту
+// или координаты (титхи не зависит от места наблюдения). Дата берётся по
+// единому опорному времени (UTC), как и у остального планировщика ниже —
+// это то же упрощение, что уже принято в проекте, а не новый компромисс.
+function buildRitualNotificationForToday() {
+  const now = new Date();
+  // Титхи не зависит от места, но нам всё равно нужна панчанга дня — берём
+  // Москву как опорную точку (координаты нужны формально для восхода/заката,
+  // на сам титхи и события они не влияют).
+  const p = computePanchanga(now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate(), now.getUTCHours(), now.getUTCMinutes(), 55.75, 37.6, 3);
+  const events = getEventsForDate(now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate(), p.tithi.number);
+  if (events.length === 0) return null;
+  return events.map(e => `🔔 ${e.label}${e.description ? '\n' + e.description : ''}`).join('\n\n');
+}
+
+async function runRitualDailyCheck(bot) {
+  const text = buildRitualNotificationForToday();
+  if (!text) return; // сегодня нет ни одного ритуального события — никому не пишем
+  const users = db.listRitualNotifiableUsers();
+  for (const u of users) {
+    try {
+      await bot.telegram.sendMessage(u.telegram_id, text);
+    } catch (e) {
+      console.error(`Ошибка ритуального уведомления для ${u.telegram_id}:`, e);
+    }
+    await new Promise(r => setTimeout(r, 50));
+  }
+}
 
 function chartParamsFromRow(row) {
   return {
@@ -130,9 +161,10 @@ function startNotificationScheduler(bot, { hourUTC = 5, checkIntervalMs = 15 * 6
       lastRunDate = todayISO;
       console.log('Запуск ежедневной проверки уведомлений...');
       await runDailyCheck(bot);
+      await runRitualDailyCheck(bot);
       console.log('Проверка уведомлений завершена.');
     }
   }, checkIntervalMs);
 }
 
-module.exports = { runDailyCheck, startNotificationScheduler, buildNotificationsForUser };
+module.exports = { runDailyCheck, startNotificationScheduler, buildNotificationsForUser, runRitualDailyCheck, buildRitualNotificationForToday };
