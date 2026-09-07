@@ -526,35 +526,26 @@ bot.use((ctx, next) => {
 // ---------- Commands ----------
 const WEBAPP_URL = process.env.WEBAPP_URL; // публичный HTTPS-адрес мини-приложения (задаётся в Railway)
 
-const mainMenuButtons = [
-  [Markup.button.callback('🌟 Построить карту', 'menu_chart')],
-  [Markup.button.callback('📜 Периоды жизни', 'menu_dasha'), Markup.button.callback('🔄 Транзиты', 'menu_transits')],
-  [Markup.button.callback('📅 Панчанга', 'menu_panchanga'), Markup.button.callback('📁 Архив', 'menu_archive')],
-  [Markup.button.callback('🔯 Навамша', 'menu_navamsha')],
-];
+// Раньше здесь было полноценное меню с кнопками на расчёт карты/даш/транзитов
+// прямо внутри бота (отдельными пошаговыми диалогами) — это было нужно до
+// того, как весь расчёт переехал в мини-приложение. Теперь это лишний шаг:
+// единственное, что нужно человеку — открыть приложение, всё остальное
+// внутри него. Сами команды (/chart, /dasha и т.п.) ниже пока оставлены
+// рабочими на случай прямого набора, просто без кнопок в меню.
+const mainMenuButtons = [];
 if (WEBAPP_URL) {
   mainMenuButtons.push([Markup.button.webApp('🌐 Открыть приложение', WEBAPP_URL)]);
 }
 const mainMenuKeyboard = Markup.inlineKeyboard(mainMenuButtons);
 
-// Постоянная кнопка внизу экрана (не пропадает, в отличие от кнопок под сообщениями) —
-// нажатие всегда возвращает в главное меню, даже если бот "завис" посреди диалога.
-const persistentKeyboard = Markup.keyboard([['☰ Меню']]).resize();
-
 function welcomeTextFor(ctx) {
   const name = ctx.from && ctx.from.first_name;
   const greeting = name ? `${name}, добро пожаловать` : 'Добро пожаловать';
-  return (
-    `${greeting} в Джанма Кундали — пространство точных расчётов джйотиш от Katya Das.\n\n` +
-    'Здесь вы можете построить свою натальную карту, рассчитать периоды и транзиты, а также ' +
-    'смотреть панчангу дня, чтобы следить за звёздной динамикой.\n\n' +
-    'Нажмите «Построить карту», чтобы начать.'
-  );
+  return `${greeting} в Джанма Кундали — пространство точных расчётов джйотиш от Katya Das.\n\nНажмите кнопку ниже, чтобы открыть приложение.`;
 }
 
 async function sendMainMenu(ctx) {
   await ctx.reply(welcomeTextFor(ctx), { reply_markup: mainMenuKeyboard.reply_markup });
-  await ctx.reply('Кнопка «☰ Меню» внизу всегда вернёт сюда.', persistentKeyboard);
 }
 
 bot.start(async (ctx) => { await sendMainMenu(ctx); });
