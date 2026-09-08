@@ -737,6 +737,7 @@ function startWebApp() {
       ayanamshaVariant: row.ayanamsha_variant,
       customAyanamshaBase: row.custom_ayanamsha_base,
       observationMode: row.observation_mode,
+      displayName: row.display_name,
     });
   });
 
@@ -775,6 +776,18 @@ function startWebApp() {
       const { enabled } = req.body;
       db.setRitualNotifyEnabled(req.tgUser.id, !!enabled);
       res.json({ ok: true, enabled: !!enabled });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/account/set-name', requireTelegramUser, (req, res) => {
+    try {
+      const { name } = req.body;
+      const trimmed = (name || '').trim().slice(0, 60);
+      db.setDisplayName(req.tgUser.id, trimmed || null);
+      res.json({ ok: true, name: trimmed });
     } catch (e) {
       console.error(e);
       res.status(500).json({ error: e.message });

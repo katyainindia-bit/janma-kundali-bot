@@ -34,6 +34,7 @@ db.exec(`
     custom_ayanamsha_base REAL,
     observation_mode TEXT NOT NULL DEFAULT 'geocentric',
     notify_rituals_enabled INTEGER NOT NULL DEFAULT 0,
+    display_name TEXT,
     chart_style TEXT NOT NULL DEFAULT 'north'
   );
 
@@ -146,6 +147,11 @@ try {
   // столбец уже есть — игнорируем
 }
 try {
+  db.exec('ALTER TABLE users ADD COLUMN display_name TEXT');
+} catch (e) {
+  // столбец уже есть — игнорируем
+}
+try {
   db.exec("ALTER TABLE users ADD COLUMN chart_style TEXT NOT NULL DEFAULT 'north'");
 } catch (e) {
   // столбец уже есть — игнорируем
@@ -212,6 +218,9 @@ function setNotifyEnabled(telegramId, enabled) {
 // listNotifiableUsers() выше.
 function setRitualNotifyEnabled(telegramId, enabled) {
   return db.prepare('UPDATE users SET notify_rituals_enabled = ? WHERE telegram_id = ?').run(enabled ? 1 : 0, telegramId);
+}
+function setDisplayName(telegramId, name) {
+  return db.prepare('UPDATE users SET display_name = ? WHERE telegram_id = ?').run(name, telegramId);
 }
 function listRitualNotifiableUsers() {
   return db.prepare('SELECT telegram_id FROM users WHERE notify_rituals_enabled = 1').all();
@@ -352,7 +361,7 @@ module.exports = {
   upsertUser, getAllUserIds, getUserCount,
   getUser, isPremium, setTier,
   setNotifyEnabled, setPrimaryChart, listNotifiableUsers, saveNotifyState, setAstroSettings,
-  setRitualNotifyEnabled, listRitualNotifiableUsers,
+  setRitualNotifyEnabled, listRitualNotifiableUsers, setDisplayName,
   saveChart, listCharts, countCharts, getChart, deleteChart, updateChart, renameChart, setFolder, toggleFavorite,
   addNote, listNotes, updateNote, deleteNote,
 };

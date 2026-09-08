@@ -561,9 +561,18 @@ bot.command('menu', async (ctx) => {
   await sendMainMenu(ctx);
 });
 
+// Расчёты в самом боте (пошаговые диалоги) остаются рабочими только для
+// администратора — обычным пользователям всё нужное теперь в приложении.
+function adminOnly(handler) {
+  return async (ctx) => {
+    if (ADMIN_ID && ctx.from.id === ADMIN_ID) return handler(ctx);
+    await ctx.reply('Расчёты теперь делаются в приложении — нажмите /start, чтобы открыть его.');
+  };
+}
+
 const startChartWizard = (ctx) => ctx.scene.enter('birth-data-wizard');
-bot.command('chart', startChartWizard);
-bot.action('menu_chart', async (ctx) => { await ctx.answerCbQuery(); return startChartWizard(ctx); });
+bot.command('chart', adminOnly(startChartWizard));
+bot.action('menu_chart', adminOnly(async (ctx) => { await ctx.answerCbQuery(); return startChartWizard(ctx); }));
 
 // ---------- Переключение стиля карты (Северный / Южный) по кнопкам под фото ----------
 async function switchChartStyle(ctx, style) {
@@ -631,16 +640,16 @@ async function sendDashaReport(ctx) {
     await ctx.reply('Ошибка при формировании PDF: ' + e.message);
   }
 }
-bot.command('dasha', sendDashaReport);
-bot.action('menu_dasha', async (ctx) => { await ctx.answerCbQuery(); return sendDashaReport(ctx); });
+bot.command('dasha', adminOnly(sendDashaReport));
+bot.action('menu_dasha', adminOnly(async (ctx) => { await ctx.answerCbQuery(); return sendDashaReport(ctx); }));
 
 const startTransitWizard = (ctx) => ctx.scene.enter('transit-wizard');
-bot.command('transits', startTransitWizard);
-bot.action('menu_transits', async (ctx) => { await ctx.answerCbQuery(); return startTransitWizard(ctx); });
+bot.command('transits', adminOnly(startTransitWizard));
+bot.action('menu_transits', adminOnly(async (ctx) => { await ctx.answerCbQuery(); return startTransitWizard(ctx); }));
 
 const startPanchangaWizard = (ctx) => ctx.scene.enter('panchanga-wizard');
-bot.command('panchanga', startPanchangaWizard);
-bot.action('menu_panchanga', async (ctx) => { await ctx.answerCbQuery(); return startPanchangaWizard(ctx); });
+bot.command('panchanga', adminOnly(startPanchangaWizard));
+bot.action('menu_panchanga', adminOnly(async (ctx) => { await ctx.answerCbQuery(); return startPanchangaWizard(ctx); }));
 
 // ---------- Сохранение и архив карт ----------
 bot.action('save_chart', async (ctx) => { await ctx.answerCbQuery(); return ctx.scene.enter('save-chart-wizard'); });
@@ -657,8 +666,8 @@ async function showArchive(ctx) {
   )]);
   await ctx.reply('Ваш архив карт:', Markup.inlineKeyboard(buttons));
 }
-bot.command('archive', showArchive);
-bot.action('menu_archive', async (ctx) => { await ctx.answerCbQuery(); return showArchive(ctx); });
+bot.command('archive', adminOnly(showArchive));
+bot.action('menu_archive', adminOnly(async (ctx) => { await ctx.answerCbQuery(); return showArchive(ctx); }));
 
 async function sendNavamsha(ctx) {
   const stored = userCharts.get(ctx.from.id);
@@ -678,8 +687,8 @@ async function sendNavamsha(ctx) {
     await ctx.reply('Ошибка при расчёте навамши: ' + e.message);
   }
 }
-bot.command('navamsha', sendNavamsha);
-bot.action('menu_navamsha', async (ctx) => { await ctx.answerCbQuery(); return sendNavamsha(ctx); });
+bot.command('navamsha', adminOnly(sendNavamsha));
+bot.action('menu_navamsha', adminOnly(async (ctx) => { await ctx.answerCbQuery(); return sendNavamsha(ctx); }));
 
 bot.action(/^open_chart_(\d+)$/, async (ctx) => {
   await ctx.answerCbQuery('Открываю...');

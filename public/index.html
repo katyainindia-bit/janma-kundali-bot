@@ -21,6 +21,16 @@
     --line: #DCD2C0;
   }
 
+  body.dark-theme {
+    --bg: #1A1714;
+    --card: #26221D;
+    --card-light: #2E2924;
+    --gold: #D4B483;
+    --taupe: #A89A87;
+    --ink: #F0EAE0;
+    --line: #3A342C;
+  }
+
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
   body {
@@ -495,7 +505,7 @@
       <div class="brand-by">by Katya Das</div>
     </div>
   </div>
-  <button class="menu-btn">☰</button>
+  <button class="menu-btn" id="header-menu-btn">☰</button>
 </header>
 
 <main>
@@ -1037,6 +1047,16 @@
     <div class="meta" id="profile-tier-line">—</div>
   </div>
 
+  <div class="form-card" style="padding:16px;">
+    <h2 style="margin-bottom:10px;">Данные аккаунта</h2>
+    <div class="field">
+      <label for="account-display-name">Имя</label>
+      <input type="text" id="account-display-name" placeholder="Как к вам обращаться">
+    </div>
+    <div id="account-name-saved-note" style="display:none;font-size:12px;color:#4f7a52;margin-bottom:10px;">Сохранено.</div>
+    <button class="btn-primary" id="account-name-save-btn" style="margin-bottom:0;">Сохранить</button>
+  </div>
+
   <div class="form-card" id="profile-upgrade-card" style="padding:16px;display:none;">
     <h2 style="margin-bottom:8px;">Premium</h2>
     <p style="font-size:13px;color:var(--taupe);margin-bottom:14px;line-height:1.5;">
@@ -1061,7 +1081,6 @@
       <span class="label">Карта для уведомлений</span><span class="value" id="profile-notify-chart-name">—</span>
     </div>
     <div class="current-period-row"><span class="label">Язык</span><span class="value">Русский</span></div>
-    <button class="btn-secondary" id="profile-support-btn" style="margin-top:10px;">Написать в поддержку</button>
   </div>
 
   <div class="form-card" id="profile-ritual-notify-card" style="padding:16px;">
@@ -1077,6 +1096,11 @@
       </span>
     </div>
   </div>
+
+</div>
+
+<div id="page-settings" style="display:none;">
+  <button class="btn-secondary" id="settings-back-btn" style="margin-bottom:14px;">← Назад</button>
 
   <div class="form-card" id="profile-astro-settings-card" style="padding:16px;">
     <h2 style="margin-bottom:4px;">Настройки расчёта</h2>
@@ -1116,9 +1140,28 @@
         <option value="topocentric">Топоцентрический (с места рождения)</option>
       </select>
     </div>
+    <div class="field">
+      <label for="settings-theme">Тема оформления</label>
+      <select id="settings-theme">
+        <option value="light">Светлая</option>
+        <option value="dark">Тёмная</option>
+      </select>
+    </div>
     <div id="settings-node-note" style="display:none;font-size:12px;color:#a8654a;margin-bottom:10px;"></div>
     <div id="settings-saved-note" style="display:none;font-size:12px;color:#4f7a52;margin-bottom:10px;">Сохранено.</div>
     <button class="btn-primary" id="settings-save-btn" style="margin-bottom:0;">Сохранить</button>
+  </div>
+
+  <div class="form-card" style="padding:16px;">
+    <h2 style="margin-bottom:10px;">Партнёрская программа</h2>
+    <p style="font-size:13px;color:var(--taupe);margin-bottom:12px;">Приглашайте учеников по своей ссылке — подробности программы появятся здесь.</p>
+    <button class="btn-secondary" id="settings-referral-btn" style="margin-bottom:0;">Получить ссылку</button>
+  </div>
+
+  <div class="form-card" style="padding:16px;">
+    <h2 style="margin-bottom:10px;">Поддержка</h2>
+    <button class="btn-secondary" id="settings-support-btn" style="margin-bottom:8px;">Написать в поддержку</button>
+    <button class="btn-secondary" id="settings-review-btn" style="margin-bottom:0;">Оставить отзыв</button>
   </div>
 </div>
 
@@ -1143,11 +1186,14 @@
   </button>
   <button class="nav-item" data-nav="profile">
     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.3" r="3.3"/><path d="M5 20c0-3.5 3.1-6.3 7-6.3s7 2.8 7 6.3"/></svg>
-    Профиль
+    Мой аккаунт
   </button>
 </div>
 
 <script>
+  if (localStorage.getItem('theme') === 'dark') {
+    document.body.classList.add('dark-theme');
+  }
   if (window.Telegram && window.Telegram.WebApp) {
     Telegram.WebApp.ready();
     Telegram.WebApp.expand();
@@ -1759,7 +1805,7 @@
     });
   });
 
-  const PAGES = ['home', 'panchanga', 'days', 'archive', 'profile'];
+  const PAGES = ['home', 'panchanga', 'days', 'archive', 'profile', 'settings'];
   document.querySelectorAll('.nav-item').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
@@ -1779,6 +1825,26 @@
       if (nav === 'profile') {
         loadProfile();
       }
+    });
+  });
+
+  // Настройки — отдельная страница, открывается по кнопке "☰" в шапке
+  // (не через нижнюю навигацию), поверх той страницы, где был человек —
+  // "Назад" возвращает его туда же.
+  let pageBeforeSettings = 'home';
+  document.getElementById('header-menu-btn').addEventListener('click', () => {
+    const activeNav = document.querySelector('.nav-item.active');
+    pageBeforeSettings = activeNav ? activeNav.dataset.nav : 'home';
+    PAGES.forEach(p => {
+      const el = document.getElementById('page-' + p);
+      if (el) el.style.display = (p === 'settings') ? 'block' : 'none';
+    });
+    loadProfile(); // тот же вызов, что и раньше подгружал настройки — теперь используется и здесь
+  });
+  document.getElementById('settings-back-btn').addEventListener('click', () => {
+    PAGES.forEach(p => {
+      const el = document.getElementById('page-' + p);
+      if (el) el.style.display = (p === pageBeforeSettings) ? 'block' : 'none';
     });
   });
 
@@ -3273,6 +3339,7 @@
       const ritualCheckbox = document.getElementById('profile-ritual-notify-checkbox');
       const ritualLabel = document.getElementById('profile-ritual-notify-label');
       ritualCheckbox.checked = data.notifyRitualsEnabled;
+      if (data.displayName) document.getElementById('account-display-name').value = data.displayName;
       ritualLabel.textContent = data.notifyRitualsEnabled ? 'Вкл' : 'Выкл';
 
       document.getElementById('settings-node-type').value = data.nodeType || 'true';
@@ -3304,6 +3371,15 @@
 
   document.getElementById('settings-zodiac-type').addEventListener('change', (e) => {
     document.getElementById('settings-custom-ayanamsha-field').style.display = e.target.value === 'sidereal-custom' ? 'block' : 'none';
+  });
+
+  // Тема — чисто визуальная настройка, хранится локально на устройстве (не
+  // на сервере, как остальные настройки) и применяется сразу по выбору.
+  document.getElementById('settings-theme').value = localStorage.getItem('theme') === 'dark' ? 'dark' : 'light';
+  document.getElementById('settings-theme').addEventListener('change', (e) => {
+    const isDark = e.target.value === 'dark';
+    document.body.classList.toggle('dark-theme', isDark);
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
   });
 
   document.getElementById('settings-save-btn').addEventListener('click', async () => {
@@ -3406,13 +3482,46 @@
     }
   });
 
-  document.getElementById('profile-support-btn').addEventListener('click', () => {
+  document.getElementById('settings-support-btn').addEventListener('click', () => {
     if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.openTelegramLink) {
       window.Telegram.WebApp.openTelegramLink('https://t.me/katyadass');
     } else {
       window.open('https://t.me/katyadass', '_blank');
     }
   });
+
+  document.getElementById('settings-review-btn').addEventListener('click', () => {
+    const msg = 'Форма отзывов скоро появится прямо здесь. Пока можно написать в поддержку — там же передадут.';
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showAlert) window.Telegram.WebApp.showAlert(msg);
+    else alert(msg);
+  });
+
+  document.getElementById('settings-referral-btn').addEventListener('click', () => {
+    const msg = 'Партнёрская программа в разработке — подробности и ссылка появятся здесь.';
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showAlert) window.Telegram.WebApp.showAlert(msg);
+    else alert(msg);
+  });
+
+  document.getElementById('account-name-save-btn').addEventListener('click', async () => {
+    const name = document.getElementById('account-display-name').value.trim();
+    const note = document.getElementById('account-name-saved-note');
+    note.style.display = 'none';
+    try {
+      const res = await fetch('/api/account/set-name', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: getInitData(), name })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Ошибка');
+      note.style.display = 'block';
+      if (name) document.getElementById('profile-name').textContent = name;
+    } catch (e) {
+      note.textContent = 'Не удалось сохранить: ' + e.message;
+      note.style.color = '#a8654a';
+      note.style.display = 'block';
+    }
+  });
+
 
   // ============================================================
   // «Сегодня для меня» (Premium): активная даша + заметные транзиты +
