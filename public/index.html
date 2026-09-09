@@ -442,8 +442,9 @@
   .praty-row.current { background: #F1DFB0; color: var(--ink); font-weight: 700; border-radius: 8px; padding-left: 10px; }
   .note-marker { cursor: pointer; display: inline-flex; align-items: center; vertical-align: middle; margin-left: 4px; color: var(--gold); }
   .note-marker svg { display: block; }
-  .praty-row.has-note, .current-period-row.has-note { background: #FBF3DF; border-radius: 8px; padding-left: 8px; }
-  .antar-row.has-note > summary, .dasha-accordion.has-note > summary { background: #FBF3DF; }
+  /* Подсветка фона у периодов с заметкой убрана по просьбе — достаточно
+     самого значка заметки, отдельная подсветка сбивала с толку вперемешку
+     с подсветкой "текущий период". */
   .praty-row:last-child { border-bottom: none; }
 
   .period-tooltip {
@@ -570,9 +571,8 @@
         <div class="name" id="res-name">—</div>
         <div class="meta" id="res-meta">—</div>
       </div>
-      <button class="bookmark" id="bookmark-btn">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="display:block;margin:0 auto 2px;"><path d="M6 3.5h12v17l-6-4-6 4v-17Z"/></svg>
-        <span style="font-size:10px;">В архив</span>
+      <button class="bookmark" id="bookmark-btn" title="В архив">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="display:block;margin:0 auto;"><path d="M6 3.5h12v17l-6-4-6 4v-17Z"/></svg>
       </button>
     </div>
 
@@ -882,7 +882,9 @@
         <p style="margin-bottom:8px;"><b>Накшатра дня</b> — созвездие (одно из 27), в котором сегодня находится Луна — у каждой своя природа.</p>
         <p style="margin-bottom:8px;"><b>Йога</b> — сочетание положений Солнца и Луны, ещё один самостоятельный слой качества дня.</p>
         <p style="margin-bottom:8px;"><b>Карана</b> — половина титхи, более короткий цикл внутри лунных суток.</p>
-        <p style="margin-bottom:8px;"><b>Раху-калам / Ямаганда / Гулика-калам</b> — три периода внутри дня (разные для каждого дня недели), которые традиционно считаются менее благоприятными для важных начинаний.</p>
+        <p style="margin-bottom:8px;"><b>Раху-калам</b> — самый известный и строгий из трёх периодов, связан с планетой Раху: считается, что помрачает рассудок, худшее время для любых начинаний.</p>
+        <p style="margin-bottom:8px;"><b>Ямаганда</b> — «время Ямы» (владыки смерти), отдельный период дня со схожей строгостью — тоже не для начинаний.</p>
+        <p style="margin-bottom:8px;"><b>Гулика-калам</b> — управляется Гуликой (сыном Сатурна), обычно считается менее строгим из трёх: не подходит для нового, но традиционно годится для благотворительности и повторения уже однажды удавшихся дел.</p>
         <p style="margin-bottom:0;"><b>Абхиджит мухурта</b> — короткий период вокруг истинного солнечного полудня (8-я из 15 равных долей дня), классически считается благоприятным почти для любых начинаний — в отличие от трёх периодов выше.</p>
       </div>
     </details>
@@ -1084,7 +1086,7 @@
   </div>
 
   <div class="form-card" id="profile-ritual-notify-card" style="padding:16px;">
-    <h2 style="margin-bottom:4px;">Ритуальные напоминания</h2>
+    <h2 style="margin-bottom:4px;">Лунный календарь</h2>
     <p style="font-size:12px;color:var(--taupe);margin-bottom:10px;">Экадаши, Пурнима, Амавасья и праздники — одинаковые для всех, бесплатно, не требуют карты рождения.</p>
     <div class="current-period-row">
       <span class="label">Присылать в бот</span>
@@ -1095,6 +1097,18 @@
         </label>
       </span>
     </div>
+  </div>
+
+  <div class="form-card" style="padding:16px;">
+    <h2 style="margin-bottom:10px;">Партнёрская программа</h2>
+    <p style="font-size:13px;color:var(--taupe);margin-bottom:12px;">Приглашайте учеников по своей ссылке — подробности программы появятся здесь.</p>
+    <button class="btn-secondary" id="settings-referral-btn" style="margin-bottom:0;">Получить ссылку</button>
+  </div>
+
+  <div class="form-card" style="padding:16px;">
+    <h2 style="margin-bottom:10px;">Поддержка</h2>
+    <button class="btn-secondary" id="settings-support-btn" style="margin-bottom:8px;">Написать в поддержку</button>
+    <button class="btn-secondary" id="settings-review-btn" style="margin-bottom:0;">Оставить отзыв</button>
   </div>
 
 </div>
@@ -1150,18 +1164,6 @@
     <div id="settings-node-note" style="display:none;font-size:12px;color:#a8654a;margin-bottom:10px;"></div>
     <div id="settings-saved-note" style="display:none;font-size:12px;color:#4f7a52;margin-bottom:10px;">Сохранено.</div>
     <button class="btn-primary" id="settings-save-btn" style="margin-bottom:0;">Сохранить</button>
-  </div>
-
-  <div class="form-card" style="padding:16px;">
-    <h2 style="margin-bottom:10px;">Партнёрская программа</h2>
-    <p style="font-size:13px;color:var(--taupe);margin-bottom:12px;">Приглашайте учеников по своей ссылке — подробности программы появятся здесь.</p>
-    <button class="btn-secondary" id="settings-referral-btn" style="margin-bottom:0;">Получить ссылку</button>
-  </div>
-
-  <div class="form-card" style="padding:16px;">
-    <h2 style="margin-bottom:10px;">Поддержка</h2>
-    <button class="btn-secondary" id="settings-support-btn" style="margin-bottom:8px;">Написать в поддержку</button>
-    <button class="btn-secondary" id="settings-review-btn" style="margin-bottom:0;">Оставить отзыв</button>
   </div>
 </div>
 
@@ -1486,11 +1488,12 @@
     let x=0,y=0; for (const p of poly) { x+=p[0]; y+=p[1]; }
     return [x/poly.length, y/poly.length];
   }
-  function signNumberPos(poly, rows) {
-    // Планеты в доме центрируются вокруг центроида формы — значит номер
-    // дома должен быть подальше ОТ центроида, а не рядом с ним. Толкаем
-    // номер от центроида к самой дальней от него вершине (внешнему "кончику"
-    // формы) — чем теснее дом от планет, тем ближе к самому кончику.
+  function signNumberPos(poly, rows, extraDist) {
+    // Планеты в доме центрируются вокруг центроида формы — номер дома
+    // отталкивается от центроида в сторону дальней вершины формы, но
+    // НЕБОЛЬШИМ фиксированным расстоянием (не пропорционально размеру
+    // дома!) — иначе у больших "воздушных змеев" номер улетает слишком
+    // далеко к самому кончику и смотрится "раскиданным", не по классике.
     const c = centroid(poly);
     let farVertex = poly[0], maxD = 0;
     for (const v of poly) {
@@ -1500,8 +1503,8 @@
     let dx = farVertex[0]-c[0], dy = farVertex[1]-c[1];
     const len = Math.sqrt(dx*dx + dy*dy) || 1;
     dx /= len; dy /= len;
-    const frac = rows >= 3 ? 0.85 : rows === 2 ? 0.72 : 0.55;
-    return [c[0] + dx*maxD*frac, c[1] + dy*maxD*frac];
+    const dist = (rows >= 3 ? 26 : rows === 2 ? 34 : 42) + (extraDist || 0);
+    return [c[0] + dx*dist, c[1] + dy*dist];
   }
 
   // Южно-индийский стиль: фиксированная сетка знаков 4×4 (центр 2×2 пустой),
@@ -1674,7 +1677,7 @@
       const numPlanetsHere = (signPlanets[signIdx] || []).length;
       const numCols = numPlanetsHere>2?2:1;
       const numRows = Math.ceil(numPlanetsHere/numCols) || 0;
-      const [nx,ny] = signNumberPos(poly, numRows);
+      const [nx,ny] = signNumberPos(poly, numRows, h===1?22:0);
       const numText = el('text', {x:nx,y:ny,'text-anchor':'middle','font-family':'Playfair Display, serif','font-size':h===1?17:15,fill:h===1?'#C8A26B':'#7A6B5A','font-weight':h===1?700:400});
       numText.textContent = signIdx+1;
       svg.appendChild(numText);
@@ -1747,12 +1750,31 @@
         const tHere = transitsByHouse[h] || [];
         if (tHere.length > 0) {
           const dir = cy <= C ? 1 : -1;
-          const tFs = tHere.length > 3 ? 9 : 10;
-          const tRowGap = tFs*2.3;
-          const tStartY = cy + dir*(gridH/2 + fs*1.2 + 14);
+          // При 5+ планетах в одном доме одна колонка становится слишком
+          // высокой и может выйти за пределы дома — переходим на две
+          // колонки с более мелким шрифтом, тем же приёмом, что уже
+          // работает для натальных планет в этом же доме.
+          const tCols = tHere.length > 4 ? 2 : 1;
+          const tRows = Math.ceil(tHere.length / tCols);
+          const tFs = tHere.length > 4 ? 6.5 : tHere.length > 3 ? 9 : 10;
+          const tColGap = tFs * 5.4;
+          const tRowGap = tFs * 2.3;
+          const tStartY = cy + dir*(gridH/2 + fs*1.2 + 14) + (dir > 0 ? 0 : -(tRows-1)*tRowGap);
+          let tStartX = cx - (tCols-1)*tColGap/2;
+          // Та же защита от выхода за холст, что уже есть для натальной
+          // сетки — иначе в маленьких угловых домах у края карты вторая
+          // колонка уходит за границу экрана.
+          // Текст выровнен по центру (text-anchor:middle) — учитываем не только
+          // точку привязки, но и половину ширины самой подписи, иначе край
+          // текста всё равно вылезает за холст, даже если точка внутри.
+          const tMargin = 26;
+          const tGridW = (tCols-1)*tColGap;
+          tStartX = Math.max(tMargin, Math.min(400 - tMargin - tGridW, tStartX));
           tHere.forEach((item,i)=>{
-            const py = tStartY + dir*i*tRowGap;
-            const tt = el('text', {x:cx,y:py,'text-anchor':'middle','font-family':'Inter, sans-serif','font-size':tFs,'font-weight':600,fill:'#6b8299'});
+            const col = i % tCols, row = Math.floor(i / tCols);
+            const px = tStartX + col*tColGap;
+            const py = tStartY + dir*row*tRowGap;
+            const tt = el('text', {x:px,y:py,'text-anchor':'middle','font-family':'Inter, sans-serif','font-size':tFs,'font-weight':600,fill:'#6b8299'});
             tt.textContent = PLANET_SYMBOLS[item.name] + ' ' + dms(item.t.sign.degInSign);
             svg.appendChild(tt);
           });
@@ -2432,7 +2454,7 @@
     return false;
   }
 
-  const NOTE_MARKER_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5.5" width="16" height="15" rx="1.5"/><path d="M8 3.5v4M16 3.5v4M4 10h16"/><path d="M8 14h2M14 14h2M8 17h2M14 17h2"/></svg>';
+  const NOTE_MARKER_SVG = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5.5" width="16" height="15" rx="1.5"/><path d="M8 3.5v4M16 3.5v4M4 10h16"/><path d="M8 14h2M14 14h2M8 17h2M14 17h2"/></svg>';
 
   function noteMarker(startISO, endISO) {
     if (!anyNoteInRange(startISO, endISO)) return '';
@@ -3116,14 +3138,17 @@
         return;
       }
 
-      const sub = (text) => text ? `<span class="sub">до ${text}</span>` : '';
+      const sub = (startText, endText) => {
+        if (!endText) return '';
+        return startText ? `<span class="sub">с ${startText} по ${endText}</span>` : `<span class="sub">до ${endText}</span>`;
+      };
 
       document.getElementById('p-res-title').textContent = `${p.date}, ${p.time} · ${geo.city}`;
       document.getElementById('p-vara').textContent = p.vara;
-      document.getElementById('p-tithi').innerHTML = `${p.tithi.name} (№${p.tithi.number}, ${p.tithi.paksha})${sub(p.tithi.endsAt)}`;
-      document.getElementById('p-nakshatra').innerHTML = `${p.nakshatraOfDay}${sub(p.nakshatra.endsAt)}`;
-      document.getElementById('p-yoga').innerHTML = `${p.yoga.name}${sub(p.yoga.endsAt)}`;
-      document.getElementById('p-karana').innerHTML = `${p.karana.name}${sub(p.karana.endsAt)}`;
+      document.getElementById('p-tithi').innerHTML = `${p.tithi.name} (№${p.tithi.number}, ${p.tithi.paksha})${sub(p.tithi.startsAt, p.tithi.endsAt)}`;
+      document.getElementById('p-nakshatra').innerHTML = `${p.nakshatraOfDay}${sub(p.nakshatra.startsAt, p.nakshatra.endsAt)}`;
+      document.getElementById('p-yoga').innerHTML = `${p.yoga.name}${sub(p.yoga.startsAt, p.yoga.endsAt)}`;
+      document.getElementById('p-karana').innerHTML = `${p.karana.name}${sub(p.karana.startsAt, p.karana.endsAt)}`;
       document.getElementById('p-sunrise').textContent = p.sunrise;
       document.getElementById('p-sunset').textContent = p.sunset;
       document.getElementById('p-rahu').textContent = `${p.rahuKalam.start}–${p.rahuKalam.end}`;
@@ -3484,9 +3509,9 @@
 
   document.getElementById('settings-support-btn').addEventListener('click', () => {
     if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.openTelegramLink) {
-      window.Telegram.WebApp.openTelegramLink('https://t.me/katyadass');
+      window.Telegram.WebApp.openTelegramLink('https://t.me/jyotion');
     } else {
-      window.open('https://t.me/katyadass', '_blank');
+      window.open('https://t.me/jyotion', '_blank');
     }
   });
 

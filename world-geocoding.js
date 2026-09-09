@@ -103,4 +103,25 @@ function resolveTimezoneForCoords(lat, lon, approxDateUTC) {
   return { timezone, utcOffset };
 }
 
-module.exports = { geocodeCity, getOffsetHours, resolveWorldCity, resolveWorldCityCandidates, resolveTimezoneForCoords };
+/**
+ * Обратное геокодирование: по координатам — полный адрес с регионом
+ * (например, "Орёл, Орловская область, Россия"). Нужно для городов из
+ * нашей собственной курируемой базы (ru-timezone.js) — там координаты
+ * точные и исторический часовой пояс верный, но само название хранится
+ * без региона, и непонятно, какой именно "Орёл" (город или тёзка-село)
+ * на самом деле имеется в виду.
+ */
+async function reverseGeocode(lat, lon) {
+  const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=ru`;
+  try {
+    const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data && data.display_name ? data.display_name : null;
+  } catch (e) {
+    console.error('Ошибка обратного геокодирования:', e.message);
+    return null;
+  }
+}
+
+module.exports = { geocodeCity, getOffsetHours, resolveWorldCity, resolveWorldCityCandidates, resolveTimezoneForCoords, reverseGeocode };

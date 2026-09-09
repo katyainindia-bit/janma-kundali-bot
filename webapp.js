@@ -22,7 +22,7 @@ const { findSignExitDate } = require('./transit-forecast.js');
 const { houseMeaningPhrase, computeDayTier, transitPhrase } = require('./day-summary.js');
 const { buildChartExportPDF } = require('./chart-export-pdf.js');
 const { resolveCity } = require('./ru-timezone.js');
-const { resolveWorldCityCandidates, resolveTimezoneForCoords } = require('./world-geocoding.js');
+const { resolveWorldCityCandidates, resolveTimezoneForCoords, reverseGeocode } = require('./world-geocoding.js');
 const db = require('./database.js');
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
@@ -109,7 +109,10 @@ function startWebApp() {
       const { query } = req.body;
       if (!query || query.trim().length < 2) return res.json({ candidates: [] });
       const found = resolveCity(query, new Date());
-      if (found) return res.json({ candidates: [{ city: found.city, lat: found.lat, lon: found.lon }] });
+      if (found) {
+        const fullAddress = await reverseGeocode(found.lat, found.lon);
+        return res.json({ candidates: [{ city: fullAddress || found.city, lat: found.lat, lon: found.lon }] });
+      }
       const candidates = await resolveWorldCityCandidates(query, new Date(), 5);
       res.json({ candidates: candidates.map(c => ({ city: c.city, lat: c.lat, lon: c.lon })) });
     } catch (e) {
@@ -123,6 +126,14 @@ function startWebApp() {
       const { city, day, month, year } = req.body;
       const dateForTz = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
       let found = resolveCity(city, dateForTz);
+      if (found) {
+        // Наша курируемая база даёт точные координаты и верный исторический
+        // часовой пояс, но хранит название без региона — непонятно, тот ли
+        // это Орёл (город) или его тёзка. Дополняем настоящим адресом через
+        // обратное геокодирование, не меняя сами координаты/часовой пояс.
+        const fullAddress = await reverseGeocode(found.lat, found.lon);
+        if (fullAddress) found = { ...found, city: fullAddress };
+      }
       if (!found) {
         // Небольшая курируемая база городов России даёт однозначный ответ сразу —
         // за её пределами используем открытый геокодер и, если он находит
