@@ -135,6 +135,8 @@ function computeDayDetail(chart, birthDateUTC, year, month, day, lat, lon, utcOf
 
   const transits = computeCurrentTransits(chart, dateAtNoonUTC);
   const moonTransitHouse = transits.planets['Луна'].transitHouse;
+  const marsTransitHouse = transits.planets['Марс'].transitHouse;
+  const venusTransitHouse = transits.planets['Венера'].transitHouse;
 
   const events = getEventsForDate(year, month, day, panchanga.tithi.number);
 
@@ -145,6 +147,8 @@ function computeDayDetail(chart, birthDateUTC, year, month, day, lat, lon, utcOf
     taraBala,
     dashaChangeToday,
     moonHouseFromLagna: moonTransitHouse,
+    marsHouseFromLagna: marsTransitHouse,
+    venusHouseFromLagna: venusTransitHouse,
     calendarEvents: events,
   };
   const muhurtaResults = Object.keys(ACTIONS)
@@ -276,7 +280,7 @@ module.exports = { GOALS, computeCalendarMonth, computeDateSearch, computeDayDet
  * возвращает по каждому дню классификацию (good/neutral/bad) — для
  * подсветки в календаре, а не список «окон».
  */
-function computeActionDateSearch(chart, birthDateUTC, lat, lon, utcOffset, actionKey, fromDateUTC, toDateUTC) {
+function computeActionDateSearch(chart, birthDateUTC, lat, lon, utcOffset, actionKey, fromDateUTC, toDateUTC, travelDirection) {
   const action = ACTIONS[actionKey];
   if (!action) throw new Error('Неизвестное действие: ' + actionKey);
 
@@ -312,6 +316,8 @@ function computeActionDateSearch(chart, birthDateUTC, lat, lon, utcOffset, actio
 
     const transits = computeCurrentTransits(chart, dateUTC);
     const moonHouseFromLagna = transits.planets['Луна'].transitHouse;
+    const marsHouseFromLagna = transits.planets['Марс'].transitHouse;
+    const venusHouseFromLagna = transits.planets['Венера'].transitHouse;
 
     const dayCtx = {
       tithiNumber: p.tithi.number,
@@ -320,6 +326,9 @@ function computeActionDateSearch(chart, birthDateUTC, lat, lon, utcOffset, actio
       taraBala,
       dashaChangeToday,
       moonHouseFromLagna,
+      marsHouseFromLagna,
+      venusHouseFromLagna,
+      travelDirection,
       calendarEvents: getEventsForDate(dateUTC.getUTCFullYear(), dateUTC.getUTCMonth() + 1, dateUTC.getUTCDate(), p.tithi.number),
     };
     const result = evaluateAction(actionKey, dayCtx);

@@ -650,7 +650,7 @@ if (typeof window !== 'undefined') {
 }
 if (typeof module !== 'undefined') {
   module.exports = {
-    calculateChart, jdFromDate, lahiriAyanamsha, ramanAyanamsha,
+    calculateChart, jdFromDate, lahiriAyanamsha, ramanAyanamsha, krishnamurtiAyanamsha,
     sunLongitude, moonLongitude, ascendantSidereal, SWISSEPH_AVAILABLE,
   };
 }

@@ -133,6 +133,24 @@ function horaPosition(lon) {
   return makeSignResult(resultSign, degInSign);
 }
 
+// --- D2: Лабха Мандука Хора — альтернативный метод (не Парашари).
+// Не была нигде официально задокументирована в доступных источниках —
+// разобрана реверс-инжинирингом по реальной паре карт (D1+D2) из J108,
+// присланных пользователем. Проверено на 5 независимых парах планет
+// (Раху/Кету, Луна, Сатурн, Солнце+Марс вместе) — все совпали с этим
+// правилом без единого расхождения:
+// 1-я половина знака (0-15°) — Хора-знак = тот же знак ("1-й");
+// 2-я половина знака (15-30°) — Хора-знак = 11-й от него по счёту.
+function horaPositionLabhaManduka(lon) {
+  const signIndex0 = Math.floor(lon / 30);
+  const degInSignD1 = lon % 30;
+  const firstHalf = degInSignD1 < 15;
+  const resultSign = firstHalf ? signIndex0 : (signIndex0 + 10) % 12;
+  const posInHalf = degInSignD1 % 15;
+  const degInSign = (posInHalf / 15) * 30;
+  return makeSignResult(resultSign, degInSign);
+}
+
 // --- D30: Тримшамша (трудности, недостатки) — неравные сегменты по BPHS ---
 const TRIMSHAMSHA_ODD = [
   { end: 5, sign: 0 },   // Марс — Овен
@@ -200,6 +218,7 @@ function buildVargaChart(chart, positionFn) {
 
 const VARGA_DEFS = {
   d2: { label: 'Хора (D2)', positionFn: horaPosition },
+  d2lm: { label: 'Хора — Лабха Мандука (D2)', positionFn: horaPositionLabhaManduka },
   d3: { label: 'Дрекана (D3)', positionFn: drekkanaPosition },
   d4: { label: 'Чатуртхамша (D4)', positionFn: chaturthamshaPosition },
   d7: { label: 'Саптамша (D7)', positionFn: saptamshaPosition },
@@ -224,7 +243,7 @@ module.exports = {
   calculateVarga,
   VARGA_DEFS,
   // экспортируем и отдельные функции — на случай точечных проверок/тестов
-  horaPosition, drekkanaPosition, chaturthamshaPosition, saptamshaPosition,
+  horaPosition, horaPositionLabhaManduka, drekkanaPosition, chaturthamshaPosition, saptamshaPosition,
   dvadashamshaPosition, shodashamshaPosition, vimshamshaPosition,
   chaturvimshamshaPosition, bhamshaPosition, trimshamshaPosition,
   khavedamshaPosition, akshavedamshaPosition, shashtiamshaPosition,

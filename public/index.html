@@ -90,6 +90,15 @@
     font-weight: 600;
   }
   .field { margin-bottom: 14px; }
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .toggle-row .toggle-labels { display: flex; flex-direction: column; }
+  .toggle-row .toggle-state { font-size: 12px; color: var(--taupe); margin-top: 2px; }
+  .toggle-switch { position: relative; display: inline-block; width: 46px; height: 26px; flex-shrink: 0; }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider { position: absolute; cursor: pointer; inset: 0; background: var(--line); transition: .2s; border-radius: 26px; }
+  .toggle-slider::before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px; background: var(--card-light); transition: .2s; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+  .toggle-switch input:checked + .toggle-slider { background: var(--gold); }
+  .toggle-switch input:checked + .toggle-slider::before { transform: translateX(20px); }
   .field label {
     display: block;
     font-size: 11px;
@@ -674,6 +683,14 @@
         <button class="btn-secondary" id="lagna-reset-btn" style="margin-top:12px;margin-bottom:0;">Сбросить на время рождения</button>
       </div>
 
+      <div class="form-card" id="special-points-card" style="padding:16px;display:none;">
+        <div class="varga-chart-label" style="margin-bottom:10px;">Бхригу-бинду и специальные лагны</div>
+        <div class="current-period-row"><span class="label">Бхригу-бинду</span><span class="value" id="sp-bhrigu-bindu">—</span></div>
+        <div class="current-period-row"><span class="label">Хора-лагна</span><span class="value" id="sp-hora-lagna">—</span></div>
+        <div class="current-period-row"><span class="label">Гхати-лагна</span><span class="value" id="sp-ghati-lagna">—</span></div>
+        <div class="current-period-row"><span class="label">Бхава-лагна</span><span class="value" id="sp-bhava-lagna">—</span></div>
+      </div>
+
       <div style="display:flex;align-items:center;gap:12px;padding:0 16px 6px;font-size:10px;color:var(--taupe);text-transform:uppercase;letter-spacing:.03em;">
         <div style="width:28px;flex-shrink:0;"></div>
         <div style="width:90px;flex-shrink:0;">Планета</div>
@@ -791,6 +808,7 @@
           </optgroup>
           <optgroup label="Premium">
             <option value="d2">🔒 Хора (D2) — богатство</option>
+            <option value="d2lm">🔒 Хора — Лабха Мандука (D2)</option>
             <option value="d3">🔒 Дрекана (D3) — братья/сёстры</option>
             <option value="d4">🔒 Чатуртхамша (D4) — недвижимость</option>
             <option value="d7">🔒 Саптамша (D7) — дети</option>
@@ -939,6 +957,15 @@
           <label for="search-action-select">Действие</label>
           <select id="search-action-select"></select>
         </div>
+        <div class="field" id="search-direction-field" style="display:none;">
+          <label for="search-direction-select">Направление поездки</label>
+          <select id="search-direction-select">
+            <option value="Север">Север</option>
+            <option value="Юг">Юг</option>
+            <option value="Восток">Восток</option>
+            <option value="Запад">Запад</option>
+          </select>
+        </div>
         <div class="field">
           <label for="search-from-date">С какой даты искать</label>
           <input type="date" id="search-from-date">
@@ -951,7 +978,7 @@
       </div>
       <div class="form-card" id="search-cal-card" style="padding:16px;display:none;">
         <div class="name" id="search-cal-label" style="margin-bottom:10px;">—</div>
-        <div id="search-cal-grid" class="cal-grid"></div>
+        <div id="search-cal-grid"></div>
         <div class="chip-row" style="margin-top:14px;">
           <span class="chip" style="cursor:default;">🟢 благоприятно</span>
           <span class="chip" style="cursor:default;">🔴 требует осторожности</span>
@@ -1119,12 +1146,12 @@
   <div class="form-card" id="profile-astro-settings-card" style="padding:16px;">
     <h2 style="margin-bottom:4px;">Настройки расчёта</h2>
     <p style="font-size:12px;color:var(--taupe);margin-bottom:14px;">Влияет на все новые расчёты. Уже построенные карты не пересчитываются автоматически — откройте их заново после сохранения.</p>
-    <div class="field">
-      <label for="settings-node-type">Раху/Кету — узел</label>
-      <select id="settings-node-type">
-        <option value="true">Истинный (True Node)</option>
-        <option value="mean">Средний (Mean Node)</option>
-      </select>
+    <div class="toggle-row">
+      <div class="toggle-labels">
+        <label for="settings-node-type" style="margin:0;">Раху/Кету — узел</label>
+        <span class="toggle-state" id="settings-node-type-label">Средний</span>
+      </div>
+      <label class="toggle-switch"><input type="checkbox" id="settings-node-type"><span class="toggle-slider"></span></label>
     </div>
     <div class="field">
       <label for="settings-zodiac-type">Зодиак</label>
@@ -1140,26 +1167,26 @@
       <label for="settings-custom-ayanamsha-value">Значение аянамши на 01.01.2000, 12:00 UT (градусы)</label>
       <input type="number" id="settings-custom-ayanamsha-value" step="0.0001" placeholder="Например: 23.8532">
     </div>
-    <div class="field">
-      <label for="settings-chart-style">Стиль карты</label>
-      <select id="settings-chart-style">
-        <option value="north">Северо-индийский (ромб)</option>
-        <option value="south">Южно-индийский (квадрат)</option>
-      </select>
+    <div class="toggle-row">
+      <div class="toggle-labels">
+        <label for="settings-chart-style" style="margin:0;">Стиль карты</label>
+        <span class="toggle-state" id="settings-chart-style-label">Северо-индийский</span>
+      </div>
+      <label class="toggle-switch"><input type="checkbox" id="settings-chart-style"><span class="toggle-slider"></span></label>
     </div>
-    <div class="field">
-      <label for="settings-observation-mode">Режим наблюдения</label>
-      <select id="settings-observation-mode">
-        <option value="geocentric">Геоцентрический (из центра Земли)</option>
-        <option value="topocentric">Топоцентрический (с места рождения)</option>
-      </select>
+    <div class="toggle-row">
+      <div class="toggle-labels">
+        <label for="settings-observation-mode" style="margin:0;">Режим наблюдения</label>
+        <span class="toggle-state" id="settings-observation-mode-label">Геоцентрический</span>
+      </div>
+      <label class="toggle-switch"><input type="checkbox" id="settings-observation-mode"><span class="toggle-slider"></span></label>
     </div>
-    <div class="field">
-      <label for="settings-theme">Тема оформления</label>
-      <select id="settings-theme">
-        <option value="light">Светлая</option>
-        <option value="dark">Тёмная</option>
-      </select>
+    <div class="toggle-row">
+      <div class="toggle-labels">
+        <label for="settings-theme" style="margin:0;">Тема оформления</label>
+        <span class="toggle-state" id="settings-theme-label">Светлая</span>
+      </div>
+      <label class="toggle-switch"><input type="checkbox" id="settings-theme"><span class="toggle-slider"></span></label>
     </div>
     <div id="settings-node-note" style="display:none;font-size:12px;color:#a8654a;margin-bottom:10px;"></div>
     <div id="settings-saved-note" style="display:none;font-size:12px;color:#4f7a52;margin-bottom:10px;">Сохранено.</div>
@@ -1212,7 +1239,8 @@
     realestate: '<path d="M4 11 12 4l8 7"/><path d="M6 10.5V20h12v-9.5"/>',
     construction: '<rect x="4.5" y="12" width="4.5" height="8"/><rect x="10" y="7" width="4.5" height="13"/><rect x="15.5" y="14.5" width="4" height="5.5"/>',
     wedding: '<circle cx="9" cy="14.5" r="4"/><circle cx="15" cy="14.5" r="4"/>',
-    medicalProcedure: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v9M7.5 12h9"/>',
+    medicalCheckup: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v9M7.5 12h9"/>',
+    surgery: '<path d="M6 18 17 7"/><path d="M15 5l4 4"/><circle cx="7" cy="19" r="1.6"/>',
     spiritualPractice: '<path d="M12 20c-4-2-6-6-6-9.5 2 1 4 3 6 6 2-3 4-5 6-6 0 3.5-2 7.5-6 9.5Z"/><circle cx="12" cy="5.5" r="2"/>',
     initiation: '<path d="M12 3.5c2 2.7 3.7 4.7 3.7 7.3a3.7 3.7 0 1 1-7.4 0c0-.9.4-1.8.9-2.6.5.9 1 1.3 1 1.3-.4-2.3.6-4.2 1.8-6Z"/>',
     contract: '<rect x="5.5" y="3.5" width="11" height="15" rx="1"/><path d="M8.3 8h5.4M8.3 11.5h5.4M8.3 15h3.4"/><path d="M15.5 15.3l3-3 1.2 1.2-3 3-1.7.5.5-1.7Z"/>',
@@ -1489,22 +1517,20 @@
     return [x/poly.length, y/poly.length];
   }
   function signNumberPos(poly, rows, extraDist) {
-    // Планеты в доме центрируются вокруг центроида формы — номер дома
-    // отталкивается от центроида в сторону дальней вершины формы, но
-    // НЕБОЛЬШИМ фиксированным расстоянием (не пропорционально размеру
-    // дома!) — иначе у больших "воздушных змеев" номер улетает слишком
-    // далеко к самому кончику и смотрится "раскиданным", не по классике.
+    // По образцу J108 (прислан как референс) — номера домов стоят прямо
+    // у точек пересечения линий сетки, в том числе у общего центра карты
+    // для четырёх "воздушных змеев" (это НЕ баг и не "разлетелось" — так
+    // выглядит сам J108, четыре номера рядом у центра). Толкаем номер от
+    // ближайшей к центру вершины фигуры к её центроиду, небольшим фиксированным
+    // шагом — то же самое решение, что было в самой первой версии.
+    let nearest = poly[0], best = Infinity;
+    for (const v of poly) { const d=(v[0]-C)**2+(v[1]-C)**2; if (d<best){best=d;nearest=v;} }
     const c = centroid(poly);
-    let farVertex = poly[0], maxD = 0;
-    for (const v of poly) {
-      const d = Math.sqrt((v[0]-c[0])**2 + (v[1]-c[1])**2);
-      if (d > maxD) { maxD = d; farVertex = v; }
-    }
-    let dx = farVertex[0]-c[0], dy = farVertex[1]-c[1];
-    const len = Math.sqrt(dx*dx + dy*dy) || 1;
+    let dx = c[0]-nearest[0], dy = c[1]-nearest[1];
+    const len = Math.sqrt(dx*dx+dy*dy) || 1;
     dx /= len; dy /= len;
-    const dist = (rows >= 3 ? 26 : rows === 2 ? 34 : 42) + (extraDist || 0);
-    return [c[0] + dx*dist, c[1] + dy*dist];
+    const dist = (rows >= 3 ? 4 : rows === 2 ? 10 : 30) + (extraDist || 0);
+    return [nearest[0]+dx*dist, nearest[1]+dy*dist];
   }
 
   // Южно-индийский стиль: фиксированная сетка знаков 4×4 (центр 2×2 пустой),
@@ -1782,6 +1808,17 @@
       }
     }
     return { planetPixelPos, housePixelPos };
+  }
+
+  function renderSpecialPoints(chart) {
+    const card = document.getElementById('special-points-card');
+    if (!chart.bhriguBindu || !chart.ghatiLagna) { card.style.display = 'none'; return; }
+    card.style.display = 'block';
+    const fmt = (p) => `${p.sign.name} ${dms(p.sign.degInSign)}`;
+    document.getElementById('sp-bhrigu-bindu').textContent = fmt(chart.bhriguBindu);
+    document.getElementById('sp-hora-lagna').textContent = fmt(chart.horaLagna);
+    document.getElementById('sp-ghati-lagna').textContent = fmt(chart.ghatiLagna);
+    document.getElementById('sp-bhava-lagna').textContent = fmt(chart.bhavaLagna);
   }
 
   function renderPlanetList(chart) {
@@ -2311,6 +2348,7 @@
 
     renderChartSVGDispatch(chart, 'chart-svg');
     renderPlanetList(chart);
+    renderSpecialPoints(chart);
     currentChart = chart;
     currentChartMeta = { name, params: { day, month, year, hour, minute, lat, lon, utcOffset }, placeLabel };
     updateBookmarkBtnState();
@@ -3177,7 +3215,7 @@
 
   const VARGA_LABELS = {
     d9: 'Навамша (D9)', d10: 'Дашамша (D10)',
-    d2: 'Хора (D2)', d3: 'Дрекана (D3)', d4: 'Чатуртхамша (D4)', d7: 'Саптамша (D7)',
+    d2: 'Хора (D2)', d2lm: 'Хора — Лабха Мандука (D2)', d3: 'Дрекана (D3)', d4: 'Чатуртхамша (D4)', d7: 'Саптамша (D7)',
     d12: 'Двадашамша (D12)', d16: 'Шодашамша (D16)', d20: 'Вимшамша (D20)',
     d24: 'Чатурвимшамша (D24)', d27: 'Бхамша (D27)', d30: 'Тримшамша (D30)',
     d40: 'Хаведамша (D40)', d45: 'Акшаведамша (D45)', d60: 'Шаштиамша (D60)',
@@ -3367,13 +3405,19 @@
       if (data.displayName) document.getElementById('account-display-name').value = data.displayName;
       ritualLabel.textContent = data.notifyRitualsEnabled ? 'Вкл' : 'Выкл';
 
-      document.getElementById('settings-node-type').value = data.nodeType || 'true';
+      const nodeIsTrue = (data.nodeType || 'true') === 'true';
+      document.getElementById('settings-node-type').checked = nodeIsTrue;
+      document.getElementById('settings-node-type-label').textContent = nodeIsTrue ? 'Истинный' : 'Средний';
       const zodiacVal = data.zodiacType === 'tropical' ? 'tropical' : `sidereal${data.ayanamshaVariant && data.ayanamshaVariant !== 'lahiri' ? '-' + data.ayanamshaVariant : ''}`;
       document.getElementById('settings-zodiac-type').value = zodiacVal;
       document.getElementById('settings-custom-ayanamsha-field').style.display = zodiacVal === 'sidereal-custom' ? 'block' : 'none';
       if (data.customAyanamshaBase != null) document.getElementById('settings-custom-ayanamsha-value').value = data.customAyanamshaBase;
-      document.getElementById('settings-chart-style').value = data.chartStyle || 'north';
-      document.getElementById('settings-observation-mode').value = data.observationMode || 'geocentric';
+      const styleIsSouth = (data.chartStyle || 'north') === 'south';
+      document.getElementById('settings-chart-style').checked = styleIsSouth;
+      document.getElementById('settings-chart-style-label').textContent = styleIsSouth ? 'Южно-индийский' : 'Северо-индийский';
+      const obsIsTopo = (data.observationMode || 'geocentric') === 'topocentric';
+      document.getElementById('settings-observation-mode').checked = obsIsTopo;
+      document.getElementById('settings-observation-mode-label').textContent = obsIsTopo ? 'Топоцентрический' : 'Геоцентрический';
       userChartStyle = data.chartStyle || 'north';
       if ((data.nodeType || 'true') === 'true') {
         try {
@@ -3398,23 +3442,37 @@
     document.getElementById('settings-custom-ayanamsha-field').style.display = e.target.value === 'sidereal-custom' ? 'block' : 'none';
   });
 
+  document.getElementById('settings-node-type').addEventListener('change', (e) => {
+    document.getElementById('settings-node-type-label').textContent = e.target.checked ? 'Истинный' : 'Средний';
+  });
+  document.getElementById('settings-chart-style').addEventListener('change', (e) => {
+    document.getElementById('settings-chart-style-label').textContent = e.target.checked ? 'Южно-индийский' : 'Северо-индийский';
+  });
+  document.getElementById('settings-observation-mode').addEventListener('change', (e) => {
+    document.getElementById('settings-observation-mode-label').textContent = e.target.checked ? 'Топоцентрический' : 'Геоцентрический';
+  });
+
   // Тема — чисто визуальная настройка, хранится локально на устройстве (не
-  // на сервере, как остальные настройки) и применяется сразу по выбору.
-  document.getElementById('settings-theme').value = localStorage.getItem('theme') === 'dark' ? 'dark' : 'light';
+  // на сервере, как остальные настройки) и применяется сразу по переключению.
+  const themeIsDark = localStorage.getItem('theme') === 'dark';
+  document.getElementById('settings-theme').checked = themeIsDark;
+  document.getElementById('settings-theme-label').textContent = themeIsDark ? 'Тёмная' : 'Светлая';
+  if (themeIsDark) document.body.classList.add('dark-theme');
   document.getElementById('settings-theme').addEventListener('change', (e) => {
-    const isDark = e.target.value === 'dark';
+    const isDark = e.target.checked;
+    document.getElementById('settings-theme-label').textContent = isDark ? 'Тёмная' : 'Светлая';
     document.body.classList.toggle('dark-theme', isDark);
     localStorage.setItem('theme', isDark ? 'dark' : 'light');
   });
 
   document.getElementById('settings-save-btn').addEventListener('click', async () => {
-    const nodeType = document.getElementById('settings-node-type').value;
+    const nodeType = document.getElementById('settings-node-type').checked ? 'true' : 'mean';
     const zodiacRaw = document.getElementById('settings-zodiac-type').value;
     const zodiacType = zodiacRaw === 'tropical' ? 'tropical' : 'sidereal';
     const ayanamshaVariant = zodiacRaw.startsWith('sidereal-') ? zodiacRaw.replace('sidereal-', '') : 'lahiri';
     const customAyanamshaBase = ayanamshaVariant === 'custom' ? parseFloat(document.getElementById('settings-custom-ayanamsha-value').value) : undefined;
-    const chartStyle = document.getElementById('settings-chart-style').value;
-    const observationMode = document.getElementById('settings-observation-mode').value;
+    const chartStyle = document.getElementById('settings-chart-style').checked ? 'south' : 'north';
+    const observationMode = document.getElementById('settings-observation-mode').checked ? 'topocentric' : 'geocentric';
     const savedNote = document.getElementById('settings-saved-note');
     const nodeNote = document.getElementById('settings-node-note');
     savedNote.style.display = 'none';
@@ -3809,15 +3867,24 @@
         listEl.innerHTML = '<div class="form-card" style="padding:16px;font-size:13px;color:var(--taupe);text-align:center;">На этот год пока нет данных в таблице — она заполнена на 2026 (и частично 2027).</div>';
         return;
       }
-      listEl.innerHTML = data.events.map(ev => `
-        <div class="note-item">
-          <div class="note-text">
+      const MONTH_NAMES = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+      let lastMonth = null, html = '';
+      for (const ev of data.events) {
+        const m = parseInt(ev.date.split('-')[1], 10) - 1;
+        if (m !== lastMonth) {
+          html += `<div style="font-family:'Playfair Display',serif;font-weight:600;font-size:15px;color:var(--gold);margin:${lastMonth===null?'0':'18px'} 0 8px;text-align:left;">${MONTH_NAMES[m]}</div>`;
+          lastMonth = m;
+        }
+        html += `
+        <div class="note-item" style="text-align:left;">
+          <div class="note-text" style="text-align:left;">
             <span style="color:var(--gold);font-weight:600;">${ev.date.split('-').reverse().join('.')}</span><br>
             <b>${eventIconSvg(ev.type)}${escapeHtml(ev.label)}</b>
             ${ev.description ? '<br><span style="color:var(--taupe);font-size:12px;">' + escapeHtml(ev.description) + '</span>' : ''}
           </div>
-        </div>
-      `).join('');
+        </div>`;
+      }
+      listEl.innerHTML = html;
     } catch (e) {
       errorEl.textContent = 'Не удалось загрузить: ' + e.message;
       errorEl.style.display = 'block';
@@ -3921,8 +3988,13 @@
       const data = await res.json();
       select.innerHTML = data.actions.map(a => `<option value="${a.key}">${a.label}</option>`).join('');
       select.dataset.loaded = '1';
+      document.getElementById('search-direction-field').style.display = select.value === 'travel' ? 'block' : 'none';
     } catch (e) { /* останется пустым — не критично */ }
   }
+
+  document.getElementById('search-action-select').addEventListener('change', (e) => {
+    document.getElementById('search-direction-field').style.display = e.target.value === 'travel' ? 'block' : 'none';
+  });
 
   document.getElementById('search-run-btn').addEventListener('click', async () => {
     const errorEl = document.getElementById('days-error-msg');
@@ -3931,9 +4003,10 @@
     const dayDetail = document.getElementById('search-day-detail');
     dayDetail.style.display = 'none';
     calCard.style.display = 'block';
-    document.getElementById('search-cal-grid').innerHTML = '<div style="grid-column:1/-1;text-align:center;font-size:12px;color:var(--taupe);">Считаю…</div>';
+    document.getElementById('search-cal-grid').innerHTML = '<div style="text-align:center;font-size:12px;color:var(--taupe);">Считаю…</div>';
 
     const actionKey = document.getElementById('search-action-select').value;
+    const travelDirection = actionKey === 'travel' ? document.getElementById('search-direction-select').value : undefined;
     const fromDate = document.getElementById('search-from-date').value;
     const toDate = document.getElementById('search-to-date').value;
     const p = currentChartMeta.params;
@@ -3942,21 +4015,30 @@
     try {
       const res = await fetch('/api/action-date-search', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData: getInitData(), chart: currentChart, birthDateUTC, lat: p.lat, lon: p.lon, utcOffset: p.utcOffset, action: actionKey, fromDate, toDate })
+        body: JSON.stringify({ initData: getInitData(), chart: currentChart, birthDateUTC, lat: p.lat, lon: p.lon, utcOffset: p.utcOffset, action: actionKey, fromDate, toDate, travelDirection })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Ошибка');
 
       document.getElementById('search-cal-label').textContent = data.actionLabel;
       const grid = document.getElementById('search-cal-grid');
-      const firstDate = new Date(data.days[0].date + 'T00:00:00Z');
-      const firstDow = (firstDate.getUTCDay() + 6) % 7;
+      const MONTH_NAMES = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
       let html = '';
-      for (let i = 0; i < firstDow; i++) html += '<div></div>';
+      let curMonthKey = null;
       data.days.forEach(d => {
         const dt = new Date(d.date + 'T00:00:00Z');
+        const monthKey = dt.getUTCFullYear() + '-' + dt.getUTCMonth();
+        if (monthKey !== curMonthKey) {
+          if (curMonthKey !== null) html += '</div>'; // закрыть сетку предыдущего месяца
+          curMonthKey = monthKey;
+          html += `<div style="font-family:'Playfair Display',serif;font-weight:600;font-size:15px;color:var(--gold);margin:${html?'18px':'0'} 0 8px;">${MONTH_NAMES[dt.getUTCMonth()]} ${dt.getUTCFullYear()}</div>`;
+          html += '<div class="cal-grid">';
+          const firstDow = (dt.getUTCDay() + 6) % 7; // понедельник = 0
+          for (let i = 0; i < firstDow; i++) html += '<div></div>';
+        }
         html += `<div class="cal-day ${d.quality === 'good' ? 'good' : d.quality === 'bad' ? 'bad' : ''}" data-date="${d.date}">${dt.getUTCDate()}</div>`;
       });
+      if (curMonthKey !== null) html += '</div>';
       grid.innerHTML = html;
 
       grid.querySelectorAll('.cal-day[data-date]').forEach(cell => {

@@ -8,6 +8,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 const { calculateChart } = require('./engine.js');
+const { bhriguBindu, specialLagnas } = require('./special-points.js');
 const { computeVimshottariDasha, findCurrentDashaChain } = require('./dasha.js');
 const { computeCurrentTransits, transitDignity } = require('./transits.js');
 const { computePanchanga, computeTaraBala } = require('./panchanga.js');
@@ -179,6 +180,15 @@ function startWebApp() {
       }
       const params = { day, month, year, hour, minute, second: 0, utcOffset, lat, lon, ayanamshaType: effectiveAyanamsha || 'lahiri', nodeType: effectiveNode || 'true', customAyanamshaBase, observationMode: effectiveObservation || 'geocentric' };
       const chart = calculateChart(params);
+      // Бхригу-бинду и специальные лагны — не критичны для основного расчёта,
+      // поэтому неполадка здесь не должна ронять весь ответ карты.
+      try {
+        const sl = specialLagnas(year, month, day, hour, minute, 0, utcOffset, lat, lon, params.ayanamshaType, customAyanamshaBase);
+        chart.bhriguBindu = bhriguBindu(chart.planets['Луна'].siderealLon, chart.planets['Раху'].siderealLon);
+        if (sl) Object.assign(chart, sl);
+      } catch (e) {
+        console.error('Ошибка спецточек (не критично):', e.message);
+      }
       res.json({ chart, params });
     } catch (e) {
       console.error(e);
@@ -441,6 +451,8 @@ function startWebApp() {
 
       // 4. Транзитная Луна сегодня — в каком натальном доме
       const moonTransitHouse = transits.planets['Луна'].transitHouse;
+      const marsTransitHouse = transits.planets['Марс'].transitHouse;
+      const venusTransitHouse = transits.planets['Венера'].transitHouse;
 
       // 5. "Заметные" транзиты сегодня: транзитная планета в том же доме, что натальный
       // Асцендент, лорд текущей антардаши, ИЛИ любая другая натальная планета (включая Луну/Солнце) —
@@ -502,6 +514,8 @@ function startWebApp() {
         taraBala,
         dashaChangeToday,
         moonHouseFromLagna: moonTransitHouse,
+        marsHouseFromLagna: marsTransitHouse,
+        venusHouseFromLagna: venusTransitHouse,
         calendarEvents: events,
       };
       const muhurtaResults = Object.keys(ACTIONS)
@@ -653,10 +667,10 @@ function startWebApp() {
 
   app.post('/api/action-date-search', requireTelegramUser, requirePremium, (req, res) => {
     try {
-      const { chart, birthDateUTC, lat, lon, utcOffset, action, fromDate, toDate } = req.body;
+      const { chart, birthDateUTC, lat, lon, utcOffset, action, fromDate, toDate, travelDirection } = req.body;
       const result = computeActionDateSearch(
         chart, new Date(birthDateUTC), lat, lon, utcOffset, action,
-        new Date(fromDate), new Date(toDate)
+        new Date(fromDate), new Date(toDate), travelDirection
       );
       res.json(result);
     } catch (e) {
