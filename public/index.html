@@ -669,6 +669,9 @@
           <button class="chart-extra-btn" data-extra="karakas" title="Караки домов">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/></svg>
           </button>
+          <button class="chart-extra-btn" id="chart-download-btn" title="Скачать карту">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13M7 11l5 5 5-5"/><path d="M4 19h16"/></svg>
+          </button>
         </div>
         <div id="chart-extras-panel" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--line);"></div>
       </div>
@@ -1652,6 +1655,7 @@
       }
     });
 
+    addWatermark(svg, el);
     return { planetPixelPos, housePixelPos };
   }
 
@@ -1664,6 +1668,12 @@
     return userChartStyle === 'south'
       ? renderChartSVGSouth(chart, svgId, transitsData)
       : renderChartSVGNorth(chart, svgId, transitsData);
+  }
+
+  function addWatermark(svg, el) {
+    const wm = el('text', {x:6,y:396,'font-family':"'Playfair Display', serif",'font-size':9,fill:'#C8A26B','opacity':0.75});
+    wm.textContent = 'Джанма Кундали';
+    svg.appendChild(wm);
   }
 
   function renderChartSVG(chart, svgId, transitsData) {
@@ -1733,6 +1743,10 @@
       const degFs = count>3 ? 7.5 : 9;
       const gridW=(cols-1)*colGap, gridH=(rows-1)*rowGap;
       let startX=cx-gridW/2, startY=cy-gridH/2;
+      // Дом 1 — сверху уже занято бейджем ASC и его градусом (до cy-14
+      // примерно), сетку планет нужно сдвинуть вниз, иначе верхний ряд
+      // планет наезжает на подпись градуса Асцендента.
+      if (h === 1) startY += 22;
       // Защита от выхода сетки за пределы холста (0..400) — актуально для
       // некоторых дробных карт (например, D2, где всего 2 возможных знака и
       // в одном доме может оказаться 4-5+ планет сразу). Это не полноценное
@@ -1807,6 +1821,7 @@
         }
       }
     }
+    addWatermark(svg, el);
     return { planetPixelPos, housePixelPos };
   }
 
@@ -2734,6 +2749,35 @@
       renderChartExtraPanel(type);
     });
   });
+
+  document.getElementById('chart-download-btn').addEventListener('click', () => {
+    const svg = document.getElementById('chart-svg');
+    const serialized = new XMLSerializer().serializeToString(svg);
+    const svgBlob = new Blob([serialized], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+    const img = new Image();
+    img.onload = () => {
+      const scale = 3; // повышаем разрешение экспорта для чёткой картинки
+      const canvas = document.createElement('canvas');
+      canvas.width = 400 * scale;
+      canvas.height = 400 * scale;
+      const ctx = canvas.getContext('2d');
+      // У самой SVG нет заливки фона (только рамка) — без этого экспорт
+      // получился бы с прозрачным фоном.
+      ctx.fillStyle = '#FBF8F3';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      canvas.toBlob((blob) => {
+        const link = document.createElement('a');
+        link.download = 'Джанма_Кундали.png';
+        link.href = URL.createObjectURL(blob);
+        link.click();
+      }, 'image/png');
+    };
+    img.src = url;
+  });
+
   // --- Аспекты (переиспользуется и в панели "Аспекты", и в детекторе йог) ---
   function computeAspectsClient(chart) {
     const order = ['Солнце','Луна','Меркурий','Венера','Марс','Юпитер','Сатурн','Раху','Кету'];
