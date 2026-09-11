@@ -1672,7 +1672,7 @@
 
   function addWatermark(svg, el) {
     const wm = el('text', {x:6,y:396,'font-family':"'Playfair Display', serif",'font-size':9,fill:'#C8A26B','opacity':0.75});
-    wm.textContent = 'Джанма Кундали';
+    wm.textContent = 'Janma Kundali';
     svg.appendChild(wm);
   }
 
@@ -2756,7 +2756,7 @@
     const svgBlob = new Blob([serialized], { type: 'image/svg+xml;charset=utf-8' });
     const url = URL.createObjectURL(svgBlob);
     const img = new Image();
-    img.onload = () => {
+    img.onload = async () => {
       const scale = 3; // повышаем разрешение экспорта для чёткой картинки
       const canvas = document.createElement('canvas');
       canvas.width = 400 * scale;
@@ -2768,12 +2768,32 @@
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       URL.revokeObjectURL(url);
-      canvas.toBlob((blob) => {
-        const link = document.createElement('a');
-        link.download = 'Джанма_Кундали.png';
-        link.href = URL.createObjectURL(blob);
-        link.click();
-      }, 'image/png');
+      const dataUrl = canvas.toDataURL('image/png');
+      const fileName = 'Джанма_Кундали.png';
+
+      const tg = window.Telegram && window.Telegram.WebApp;
+      if (tg && typeof tg.downloadFile === 'function') {
+        // Нативное скачивание Telegram требует настоящую HTTPS-ссылку —
+        // blob-ссылка (как раньше) внутри Telegram не работает и выводит
+        // просто диалог "перейти по ссылке" без реального сохранения.
+        try {
+          const res = await fetch('/api/chart-image', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dataUrl })
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Ошибка загрузки картинки');
+          tg.downloadFile({ url: data.url, file_name: fileName }, () => {});
+          return;
+        } catch (e) {
+          console.error('Не удалось скачать через Telegram, пробуем обычным способом:', e);
+        }
+      }
+      // Вне Telegram (обычный браузер) — прямое скачивание работает и так.
+      const link = document.createElement('a');
+      link.download = fileName;
+      link.href = dataUrl;
+      link.click();
     };
     img.src = url;
   });

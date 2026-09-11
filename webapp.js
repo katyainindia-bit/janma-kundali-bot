@@ -122,6 +122,43 @@ function startWebApp() {
     }
   });
 
+  // Временное хранилище картинок карты — нужно специально для скачивания
+  // внутри Telegram: их нативный web_app_request_file_download требует
+  // настоящую HTTPS-ссылку, blob-ссылка (которую даёт canvas на телефоне
+  // напрямую) для него не подходит. Храним в памяти недолго, только на
+  // время самого скачивания — не архив, не файловое хранилище пользователя.
+  const chartImageStore = new Map(); // id -> { buffer, expiresAt }
+  setInterval(() => {
+    const now = Date.now();
+    for (const [id, entry] of chartImageStore) {
+      if (entry.expiresAt < now) chartImageStore.delete(id);
+    }
+  }, 60 * 1000);
+
+  app.post('/api/chart-image', (req, res) => {
+    try {
+      const { dataUrl } = req.body;
+      if (!dataUrl || !dataUrl.startsWith('data:image/png;base64,')) {
+        return res.status(400).json({ error: 'Ожидается PNG в формате data URL' });
+      }
+      const buffer = Buffer.from(dataUrl.slice('data:image/png;base64,'.length), 'base64');
+      const id = crypto.randomBytes(16).toString('hex');
+      chartImageStore.set(id, { buffer, expiresAt: Date.now() + 5 * 60 * 1000 });
+      const url = `${req.protocol}://${req.get('host')}/api/chart-image/${id}.png`;
+      res.json({ url });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get('/api/chart-image/:id.png', (req, res) => {
+    const entry = chartImageStore.get(req.params.id);
+    if (!entry) return res.status(404).end();
+    res.set('Content-Type', 'image/png');
+    res.send(entry.buffer);
+  });
+
   app.post('/api/geocode', async (req, res) => {
     try {
       const { city, day, month, year } = req.body;
