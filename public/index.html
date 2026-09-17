@@ -1100,14 +1100,12 @@
   <div class="form-card" id="profile-menu-card" style="padding:16px;">
     <h2 style="margin-bottom:4px;">Личные уведомления</h2>
     <p style="font-size:12px;color:var(--taupe);margin-bottom:10px;">Смена подпериода даши, особые дни по тара-бале, заметные транзиты — по твоей карте. Требует Premium.</p>
-    <div class="current-period-row">
-      <span class="label">Уведомления</span>
-      <span class="value">
-        <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-weight:600;">
-          <input type="checkbox" id="profile-notify-checkbox" style="width:16px;height:16px;">
-          <span id="profile-notify-label">—</span>
-        </label>
-      </span>
+    <div class="toggle-row">
+      <div class="toggle-labels">
+        <span class="label" style="margin:0;">Уведомления</span>
+        <span class="toggle-state" id="profile-notify-label">—</span>
+      </div>
+      <label class="toggle-switch"><input type="checkbox" id="profile-notify-checkbox"><span class="toggle-slider"></span></label>
     </div>
     <div class="current-period-row" id="profile-notify-chart-row" style="display:none;">
       <span class="label">Карта для уведомлений</span><span class="value" id="profile-notify-chart-name">—</span>
@@ -1118,14 +1116,12 @@
   <div class="form-card" id="profile-ritual-notify-card" style="padding:16px;">
     <h2 style="margin-bottom:4px;">Лунный календарь</h2>
     <p style="font-size:12px;color:var(--taupe);margin-bottom:10px;">Экадаши, Пурнима, Амавасья и праздники — одинаковые для всех, бесплатно, не требуют карты рождения.</p>
-    <div class="current-period-row">
-      <span class="label">Присылать в бот</span>
-      <span class="value">
-        <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-weight:600;">
-          <input type="checkbox" id="profile-ritual-notify-checkbox" style="width:16px;height:16px;">
-          <span id="profile-ritual-notify-label">—</span>
-        </label>
-      </span>
+    <div class="toggle-row">
+      <div class="toggle-labels">
+        <span class="label" style="margin:0;">Присылать в бот</span>
+        <span class="toggle-state" id="profile-ritual-notify-label">—</span>
+      </div>
+      <label class="toggle-switch"><input type="checkbox" id="profile-ritual-notify-checkbox"><span class="toggle-slider"></span></label>
     </div>
   </div>
 
