@@ -944,6 +944,22 @@ bot.command('help', async (ctx) => {
   );
 });
 
+bot.command('testnotify', async (ctx) => {
+  if (!ADMIN_ID || ctx.from.id !== ADMIN_ID) {
+    return; // тихо игнорируем для всех, кроме администратора
+  }
+  await ctx.reply('Запускаю проверку прямо сейчас (не жду 5:00 UTC)...');
+  try {
+    const { runDailyCheck, runRitualDailyCheck } = require('./notifications.js');
+    await runDailyCheck(bot);
+    await runRitualDailyCheck(bot);
+    await ctx.reply('Готово. Если сообщение не пришло — условия для рассылки сегодня не выполнены (см. /whoami и /mystatus), а не сбой планировщика.');
+  } catch (e) {
+    console.error('Ошибка /testnotify:', e);
+    await ctx.reply('Ошибка при проверке: ' + e.message);
+  }
+});
+
 bot.command('referralstats', async (ctx) => {
   if (!ADMIN_ID || ctx.from.id !== ADMIN_ID) {
     return; // тихо игнорируем для всех, кроме администратора
@@ -971,11 +987,20 @@ bot.command('mystatus', async (ctx) => {
     return;
   }
   const premium = db.isPremium(ctx.from.id);
+  const charts = db.listCharts(ctx.from.id);
+  const hasUsableChart = row.primary_chart_id || charts.length === 1;
   await ctx.reply(
     `Telegram ID: ${ctx.from.id}\n` +
     `Тариф в базе: ${row.tier}\n` +
     `premium_until: ${row.premium_until || '— (бессрочно, если тариф premium)'}\n` +
-    `Итог — Premium активен: ${premium ? 'ДА' : 'НЕТ'}`
+    `Итог — Premium активен: ${premium ? 'ДА' : 'НЕТ'}\n\n` +
+    `— Личные уведомления —\n` +
+    `Галочка включена: ${row.notify_enabled ? 'ДА' : 'НЕТ'}\n` +
+    `Карт в архиве: ${charts.length}, выбрана основная: ${row.primary_chart_id ? 'ДА' : 'НЕТ (нужна ровно одна карта в архиве, если не выбирали явно)'}\n` +
+    `Итог — личные уведомления пойдут: ${premium && row.notify_enabled && hasUsableChart ? 'ДА' : 'НЕТ'}\n\n` +
+    `— Лунный календарь —\n` +
+    `Галочка включена: ${row.notify_rituals_enabled ? 'ДА' : 'НЕТ'}\n` +
+    `Итог — придёт, если сегодня есть повод (Экадаши/Пурнима/праздник): ${row.notify_rituals_enabled ? 'ДА' : 'НЕТ'}`
   );
 });
 

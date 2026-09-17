@@ -152,17 +152,21 @@ async function runDailyCheck(bot) {
 // Простой планировщик без внешних зависимостей: раз в 15 минут проверяет,
 // не наступил ли час запуска (по умолчанию 8:00 UTC+3 — примерно раннее
 // утро для большинства пользователей из РФ) и не запускались ли мы уже сегодня.
-function startNotificationScheduler(bot, { hourUTC = 5, checkIntervalMs = 15 * 60 * 1000 } = {}) {
+function startNotificationScheduler(bot, { hourUTC = 5, checkIntervalMs = 5 * 60 * 1000 } = {}) {
   let lastRunDate = null;
   setInterval(async () => {
-    const now = new Date();
-    const todayISO = now.toISOString().slice(0, 10);
-    if (now.getUTCHours() === hourUTC && lastRunDate !== todayISO) {
-      lastRunDate = todayISO;
-      console.log('Запуск ежедневной проверки уведомлений...');
-      await runDailyCheck(bot);
-      await runRitualDailyCheck(bot);
-      console.log('Проверка уведомлений завершена.');
+    try {
+      const now = new Date();
+      const todayISO = now.toISOString().slice(0, 10);
+      if (now.getUTCHours() === hourUTC && lastRunDate !== todayISO) {
+        lastRunDate = todayISO;
+        console.log('Запуск ежедневной проверки уведомлений...');
+        await runDailyCheck(bot);
+        await runRitualDailyCheck(bot);
+        console.log('Проверка уведомлений завершена.');
+      }
+    } catch (e) {
+      console.error('Сбой в планировщике уведомлений:', e);
     }
   }, checkIntervalMs);
 }
