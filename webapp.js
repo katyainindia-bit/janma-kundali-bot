@@ -488,8 +488,10 @@ function startWebApp() {
 
       // 4. Транзитная Луна сегодня — в каком натальном доме
       const moonTransitHouse = transits.planets['Луна'].transitHouse;
-      const marsTransitHouse = transits.planets['Марс'].transitHouse;
-      const venusTransitHouse = transits.planets['Венера'].transitHouse;
+      const transitHouses = {};
+      for (const planetName of ['Марс', 'Венера', 'Юпитер', 'Меркурий']) {
+        transitHouses[planetName] = transits.planets[planetName].transitHouse;
+      }
 
       // 5. "Заметные" транзиты сегодня: транзитная планета в том же доме, что натальный
       // Асцендент, лорд текущей антардаши, ИЛИ любая другая натальная планета (включая Луну/Солнце) —
@@ -551,8 +553,7 @@ function startWebApp() {
         taraBala,
         dashaChangeToday,
         moonHouseFromLagna: moonTransitHouse,
-        marsHouseFromLagna: marsTransitHouse,
-        venusHouseFromLagna: venusTransitHouse,
+        transitHouses,
         calendarEvents: events,
       };
       const muhurtaResults = Object.keys(ACTIONS)
@@ -838,6 +839,21 @@ function startWebApp() {
       const { enabled } = req.body;
       db.setRitualNotifyEnabled(req.tgUser.id, !!enabled);
       res.json({ ok: true, enabled: !!enabled });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/referral/info', requireTelegramUser, (req, res) => {
+    try {
+      const botUsername = process.env.BOT_USERNAME;
+      if (!botUsername) {
+        return res.status(500).json({ error: 'BOT_USERNAME не задан на сервере' });
+      }
+      const link = `https://t.me/${botUsername}?start=ref_${req.tgUser.id}`;
+      const stats = db.getReferralStats(req.tgUser.id);
+      res.json({ link, ...stats });
     } catch (e) {
       console.error(e);
       res.status(500).json({ error: e.message });

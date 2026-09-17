@@ -548,7 +548,25 @@ async function sendMainMenu(ctx) {
   await ctx.reply(welcomeTextFor(ctx), { reply_markup: mainMenuKeyboard.reply_markup });
 }
 
-bot.start(async (ctx) => { await sendMainMenu(ctx); });
+bot.start(async (ctx) => {
+  // Реферальная ссылка: t.me/<бот>?start=ref_<telegram_id>. Привязываем
+  // только один раз (setReferredBy сама это гарантирует) и не даём
+  // пригласить самого себя.
+  const payload = ctx.startPayload;
+  if (payload && payload.startsWith('ref_')) {
+    const referrerId = Number(payload.slice(4));
+    if (referrerId && referrerId !== ctx.from.id) {
+      const linked = db.setReferredBy(ctx.from.id, referrerId);
+      if (linked) {
+        const REFERRAL_SIGNUP_BONUS_DAYS = 3;
+        db.grantPremiumDays(ctx.from.id, REFERRAL_SIGNUP_BONUS_DAYS);
+        db.logReferralReward(referrerId, ctx.from.id, 'signup', REFERRAL_SIGNUP_BONUS_DAYS);
+        await ctx.reply(`Добро пожаловать! Вам начислено ${REFERRAL_SIGNUP_BONUS_DAYS} дня Premium за переход по приглашению.`);
+      }
+    }
+  }
+  await sendMainMenu(ctx);
+});
 
 // Универсальный выход: если человек застрял посреди любого диалога (мастера),
 // команды /start, /menu или нажатие «☰ Меню» должны сработать в любой момент.
@@ -888,6 +906,20 @@ bot.command('setpremium', async (ctx) => {
     await ctx.reply(`⚠️ Пользователь ${targetId} не найден в базе — этот ID ещё ни разу не открывал бота или мини-приложение (нужно хотя бы раз нажать /start или зайти в приложение). Premium НЕ выдан, ничего не изменено.`);
     return;
   }
+  // Реферальный бонус за конверсию — только один раз на пару (пригласивший,
+  // приглашённый), не при каждом продлении Premium этому же человеку.
+  const targetUser = db.getUser(targetId);
+  if (targetUser && targetUser.referred_by && !targetUser.referral_reward_granted) {
+    const REFERRAL_CONVERSION_BONUS_DAYS = 7;
+    db.grantPremiumDays(targetUser.referred_by, REFERRAL_CONVERSION_BONUS_DAYS);
+    db.logReferralReward(targetUser.referred_by, targetId, 'conversion', REFERRAL_CONVERSION_BONUS_DAYS);
+    db.markReferralRewardGranted(targetId);
+    try {
+      await bot.telegram.sendMessage(targetUser.referred_by, `🎉 Ваш приглашённый друг оформил Premium — вам начислено ${REFERRAL_CONVERSION_BONUS_DAYS} дней Premium в благодарность.`);
+    } catch (e) {
+      // пригласивший мог не запускать бота напрямую — не критично
+    }
+  }
   await ctx.reply(days === 0
     ? `Пользователю ${targetId} выдан Premium бессрочно.`
     : `Пользователю ${targetId} выдан Premium до ${untilISO.slice(0, 10)}.`);
@@ -910,6 +942,22 @@ bot.command('help', async (ctx) => {
     '/whoami — узнать свой Telegram ID (нужен для настройки администратора)\n' +
     '/help — это сообщение'
   );
+});
+
+bot.command('referralstats', async (ctx) => {
+  if (!ADMIN_ID || ctx.from.id !== ADMIN_ID) {
+    return; // тихо игнорируем для всех, кроме администратора
+  }
+  const rows = db.getAllReferralStatsForAdmin(20);
+  if (rows.length === 0) {
+    await ctx.reply('Пока никто никого не пригласил.');
+    return;
+  }
+  const lines = rows.map((r, i) => {
+    const name = r.first_name || (r.username ? '@' + r.username : r.telegram_id);
+    return `${i + 1}. ${name} (${r.telegram_id}) — приглашено: ${r.referred_count}, стали Premium: ${r.conversions}`;
+  });
+  await ctx.reply(`Топ приглашающих:\n\n${lines.join('\n')}`);
 });
 
 bot.command('whoami', async (ctx) => {

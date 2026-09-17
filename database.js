@@ -34,6 +34,8 @@ db.exec(`
     custom_ayanamsha_base REAL,
     observation_mode TEXT NOT NULL DEFAULT 'geocentric',
     notify_rituals_enabled INTEGER NOT NULL DEFAULT 0,
+    referred_by INTEGER,
+    referral_reward_granted INTEGER NOT NULL DEFAULT 0,
     display_name TEXT,
     chart_style TEXT NOT NULL DEFAULT 'north'
   );
@@ -64,6 +66,15 @@ db.exec(`
     period_start TEXT,
     created_at TEXT NOT NULL,
     FOREIGN KEY (chart_id) REFERENCES charts(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS referral_rewards (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    referrer_id INTEGER NOT NULL,
+    referred_id INTEGER NOT NULL,
+    reward_type TEXT NOT NULL,
+    premium_days INTEGER NOT NULL,
+    created_at TEXT NOT NULL
   );
 `);
 
@@ -147,6 +158,16 @@ try {
   // столбец уже есть — игнорируем
 }
 try {
+  db.exec('ALTER TABLE users ADD COLUMN referred_by INTEGER');
+} catch (e) {
+  // столбец уже есть — игнорируем
+}
+try {
+  db.exec('ALTER TABLE users ADD COLUMN referral_reward_granted INTEGER NOT NULL DEFAULT 0');
+} catch (e) {
+  // столбец уже есть — игнорируем
+}
+try {
   db.exec('ALTER TABLE users ADD COLUMN display_name TEXT');
 } catch (e) {
   // столбец уже есть — игнорируем
@@ -205,6 +226,56 @@ function setTier(telegramId, tier, untilISO) {
   const info = db.prepare('UPDATE users SET tier = ?, premium_until = ? WHERE telegram_id = ?')
     .run(tier, untilISO || null, telegramId);
   return info.changes > 0; // false = пользователь с таким telegram_id ещё не встречался боту
+}
+
+// --- Реферальная система ---
+// Записывается один раз, при первом /start с параметром — если у человека
+// уже стоит referred_by (или он сам уже был известен боту раньше), второй
+// раз не перезаписывается (защита от "прикрепления" задним числом).
+function setReferredBy(telegramId, referrerId) {
+  const info = db.prepare('UPDATE users SET referred_by = ? WHERE telegram_id = ? AND referred_by IS NULL')
+    .run(referrerId, telegramId);
+  return info.changes > 0;
+}
+function markReferralRewardGranted(telegramId) {
+  db.prepare('UPDATE users SET referral_reward_granted = 1 WHERE telegram_id = ?').run(telegramId);
+}
+// Продлевает Premium на N дней от текущей даты ИЛИ от текущего окончания
+// подписки, если оно ещё не наступило (не даёт "сгореть" уже оплаченным
+// дням при начислении бонуса поверх активной подписки).
+function grantPremiumDays(telegramId, days) {
+  const row = db.prepare('SELECT premium_until FROM users WHERE telegram_id = ?').get(telegramId);
+  if (!row) return false;
+  const now = new Date();
+  const base = row.premium_until && new Date(row.premium_until) > now ? new Date(row.premium_until) : now;
+  base.setDate(base.getDate() + days);
+  db.prepare('UPDATE users SET tier = ?, premium_until = ? WHERE telegram_id = ?').run('premium', base.toISOString(), telegramId);
+  return true;
+}
+function logReferralReward(referrerId, referredId, rewardType, premiumDays) {
+  db.prepare('INSERT INTO referral_rewards (referrer_id, referred_id, reward_type, premium_days, created_at) VALUES (?, ?, ?, ?, ?)')
+    .run(referrerId, referredId, rewardType, premiumDays, new Date().toISOString());
+}
+function getReferralStats(telegramId) {
+  const referredCount = db.prepare('SELECT COUNT(*) AS c FROM users WHERE referred_by = ?').get(telegramId).c;
+  const rewards = db.prepare('SELECT reward_type, COUNT(*) AS c, SUM(premium_days) AS days FROM referral_rewards WHERE referrer_id = ? GROUP BY reward_type').all(telegramId);
+  const conversions = rewards.find(r => r.reward_type === 'conversion');
+  return {
+    referredCount,
+    conversionCount: conversions ? conversions.c : 0,
+    totalPremiumDaysEarned: rewards.reduce((sum, r) => sum + (r.days || 0), 0),
+  };
+}
+function getAllReferralStatsForAdmin(limit = 20) {
+  return db.prepare(`
+    SELECT u.telegram_id, u.username, u.first_name,
+      (SELECT COUNT(*) FROM users r WHERE r.referred_by = u.telegram_id) AS referred_count,
+      (SELECT COUNT(*) FROM referral_rewards rr WHERE rr.referrer_id = u.telegram_id AND rr.reward_type = 'conversion') AS conversions
+    FROM users u
+    WHERE (SELECT COUNT(*) FROM users r WHERE r.referred_by = u.telegram_id) > 0
+    ORDER BY referred_count DESC
+    LIMIT ?
+  `).all(limit);
 }
 
 // --- Уведомления ---
@@ -362,6 +433,7 @@ module.exports = {
   getUser, isPremium, setTier,
   setNotifyEnabled, setPrimaryChart, listNotifiableUsers, saveNotifyState, setAstroSettings,
   setRitualNotifyEnabled, listRitualNotifiableUsers, setDisplayName,
+  setReferredBy, markReferralRewardGranted, grantPremiumDays, logReferralReward, getReferralStats, getAllReferralStatsForAdmin,
   saveChart, listCharts, countCharts, getChart, deleteChart, updateChart, renameChart, setFolder, toggleFavorite,
   addNote, listNotes, updateNote, deleteNote,
 };

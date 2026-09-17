@@ -167,7 +167,7 @@ const ACTIONS = {
     // именно через 4-й дом (дом жилья) классически считается активирующим
     // для сделок с недвижимостью — это благоприятный сигнал, в отличие от
     // операции, где Марс в трудных домах наоборот избегается.
-    favorableMarsHouse: [4],
+    favorableTransitHouse: { 'Марс': [4] },
   },
   construction: {
     label: 'Строительство',
@@ -201,7 +201,7 @@ const ACTIONS = {
     // Транзитный Марс в 8 или 12 доме от Лагны — классически не подходит для
     // плановой операции (Марс управляет хирургией, но должен быть силён,
     // а не ослаблен положением в трудных домах).
-    restrictedMarsHouse: [8, 12],
+    restrictedTransitHouse: { 'Марс': [8, 12] },
   },
   spiritualPractice: {
     label: 'Духовные практики',
@@ -224,6 +224,10 @@ const ACTIONS = {
     roles: { tithi: 'Ограничение', vara: 'Благоприятно', nakshatra: 'Благоприятно', tarabala: 'Благоприятно', dasha: 'Благоприятно', chandraBala: 'Контекст', specialDay: 'Ограничение' },
     favorableNakGana: ['Кшипра'],
     restrictedNakGana: ['Угра', 'Тикшна'],
+    // Меркурий (торговля) и Юпитер (мудрость/рост) — оба классические караки
+    // 10 дома (дело/карьера); их транзит именно через 10 дом от Лагны
+    // многократно подтверждён как активирующий для карьерных/деловых начинаний.
+    favorableTransitHouse: { 'Юпитер': [10], 'Меркурий': [10] },
     goalKey: 'business', // соответствует GOALS.business в date-tools.js
   },
   project: {
@@ -242,7 +246,7 @@ const ACTIONS = {
     // 2-й (накопленное богатство) и 11-й (доходы/приобретения) — классическая
     // "ось богатства". Транзит Венеры через них — благоприятный сигнал
     // именно для трат на комфорт/удовольствие, не для вложений вообще.
-    favorableVenusHouse: [2, 11],
+    favorableTransitHouse: { 'Венера': [2, 11] },
   },
   investment: {
     label: 'Инвестиции',
@@ -279,6 +283,9 @@ const ACTIONS = {
     roles: { tithi: 'Ограничение', vara: 'Благоприятно', nakshatra: 'Благоприятно', tarabala: 'Благоприятно', dasha: 'Контекст', chandraBala: 'Контекст', specialDay: 'Ограничение' },
     favorableNakGana: ['Стхира', 'Кшипра'],
     restrictedNakGana: ['Угра', 'Тикшна'],
+    // Меркурий и Юпитер — классические караки 10 дома (дело/карьера);
+    // транзит через 10 дом от Лагны — та же логика, что и для бизнеса.
+    favorableTransitHouse: { 'Юпитер': [10], 'Меркурий': [10] },
     // По аналогии с "Подписанием договора"/"Начало бизнеса" — тот же общий каркас
     // начинаний. Отдельной классической традиции именно под "трудоустройство"
     // (современное понятие) нет, это перенос общих правил начинаний.
@@ -303,6 +310,12 @@ const ACTIONS = {
     roles: { tithi: 'Ограничение', nakshatra: 'Ограничение', specialDay: 'Ограничение', tarabala: 'Благоприятно', vara: 'Благоприятно', chandraBala: 'Контекст', dasha: 'Контекст' },
     favorableNakGana: ['Стхира', 'Мриду'],
     restrictedNakGana: ['Угра', 'Тикшна'],
+    // Юпитер — единственный карака детей (Путра-карака) во всей традиции;
+    // его транзит именно через 5 дом от Лагны — едва ли не самая надёжная
+    // находка из всех проверенных в этой сессии classical-связей, есть даже
+    // прямая цитата (Пхаладипика, гл. 26, ст. 23): "Панчаме Гурау путра-
+    // сукха-буддхи-лабхам парам" — Юпитер в 5 доме даёт высшее счастье от детей.
+    favorableTransitHouse: { 'Юпитер': [5] },
     // Проверено против конкретных источников по Гарбхадхана-мухурте:
     // понедельник/среда/четверг/пятница благоприятны, вторник/суббота — нет —
     // это СОВПАДАЕТ с нашей общей классификацией вара, поэтому теперь честно
@@ -450,22 +463,26 @@ function evaluateAction(actionKey, dayCtx) {
     }
   }
 
-  // Транзитный Марс от Лагны — для операции 8/12 дом ограничение (Марс
-  // ослаблен трудным домом), для недвижимости 4-й дом наоборот благоприятен
-  // (Марс — сигнификатор земли, активирует тему жилья).
-  if (dayCtx.marsHouseFromLagna != null) {
-    if (roles.marsBala === 'Ограничение' && action.restrictedMarsHouse && action.restrictedMarsHouse.includes(dayCtx.marsHouseFromLagna)) {
-      restrictions.push(`Марс транзитом в ${dayCtx.marsHouseFromLagna} доме от Лагны — не лучшее время для операции.`);
-    } else if (roles.marsBala === 'Благоприятно' && action.favorableMarsHouse && action.favorableMarsHouse.includes(dayCtx.marsHouseFromLagna)) {
-      favorable.push(`Марс транзитом в ${dayCtx.marsHouseFromLagna} доме от Лагны — активирует тему недвижимости.`);
+  // Транзит любой планеты от Лагны — единый механизм вместо отдельного
+  // блока кода под каждую планету. dayCtx.transitHouses — объект вида
+  // {Марс: 4, Венера: 11, Юпитер: 5, ...}; action.favorableTransitHouse /
+  // action.restrictedTransitHouse — объект вида {Марс: [4], Юпитер: [5,10]}.
+  if (dayCtx.transitHouses) {
+    if (action.favorableTransitHouse) {
+      for (const [planet, houses] of Object.entries(action.favorableTransitHouse)) {
+        const h = dayCtx.transitHouses[planet];
+        if (h != null && houses.includes(h)) {
+          favorable.push(`${planet} транзитом в ${h} доме от Лагны — благоприятно для этого действия.`);
+        }
+      }
     }
-  }
-
-  // Транзитная Венера от Лагны — благоприятна для крупных покупок, когда
-  // проходит по оси богатства (2-й и 11-й дома).
-  if (dayCtx.venusHouseFromLagna != null && roles.venusBala === 'Благоприятно') {
-    if (action.favorableVenusHouse && action.favorableVenusHouse.includes(dayCtx.venusHouseFromLagna)) {
-      favorable.push(`Венера транзитом в ${dayCtx.venusHouseFromLagna} доме от Лагны — благоприятно для трат на комфорт и удовольствие.`);
+    if (action.restrictedTransitHouse) {
+      for (const [planet, houses] of Object.entries(action.restrictedTransitHouse)) {
+        const h = dayCtx.transitHouses[planet];
+        if (h != null && houses.includes(h)) {
+          restrictions.push(`${planet} транзитом в ${h} доме от Лагны — не лучшее время для этого действия.`);
+        }
+      }
     }
   }
 

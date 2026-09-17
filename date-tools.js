@@ -135,8 +135,13 @@ function computeDayDetail(chart, birthDateUTC, year, month, day, lat, lon, utcOf
 
   const transits = computeCurrentTransits(chart, dateAtNoonUTC);
   const moonTransitHouse = transits.planets['Луна'].transitHouse;
-  const marsTransitHouse = transits.planets['Марс'].transitHouse;
-  const venusTransitHouse = transits.planets['Венера'].transitHouse;
+  // Единый объект транзитных домов от Лагны для ЛЮБОЙ планеты — раньше
+  // под каждую планету заводилась своя отдельная переменная, теперь один
+  // универсальный механизм в evaluateAction читает отсюда что нужно.
+  const transitHouses = {};
+  for (const planetName of ['Марс', 'Венера', 'Юпитер', 'Меркурий']) {
+    transitHouses[planetName] = transits.planets[planetName].transitHouse;
+  }
 
   const events = getEventsForDate(year, month, day, panchanga.tithi.number);
 
@@ -147,8 +152,7 @@ function computeDayDetail(chart, birthDateUTC, year, month, day, lat, lon, utcOf
     taraBala,
     dashaChangeToday,
     moonHouseFromLagna: moonTransitHouse,
-    marsHouseFromLagna: marsTransitHouse,
-    venusHouseFromLagna: venusTransitHouse,
+    transitHouses,
     calendarEvents: events,
   };
   const muhurtaResults = Object.keys(ACTIONS)
@@ -316,8 +320,10 @@ function computeActionDateSearch(chart, birthDateUTC, lat, lon, utcOffset, actio
 
     const transits = computeCurrentTransits(chart, dateUTC);
     const moonHouseFromLagna = transits.planets['Луна'].transitHouse;
-    const marsHouseFromLagna = transits.planets['Марс'].transitHouse;
-    const venusHouseFromLagna = transits.planets['Венера'].transitHouse;
+    const transitHouses = {};
+    for (const planetName of ['Марс', 'Венера', 'Юпитер', 'Меркурий']) {
+      transitHouses[planetName] = transits.planets[planetName].transitHouse;
+    }
 
     const dayCtx = {
       tithiNumber: p.tithi.number,
@@ -326,8 +332,7 @@ function computeActionDateSearch(chart, birthDateUTC, lat, lon, utcOffset, actio
       taraBala,
       dashaChangeToday,
       moonHouseFromLagna,
-      marsHouseFromLagna,
-      venusHouseFromLagna,
+      transitHouses,
       travelDirection,
       calendarEvents: getEventsForDate(dateUTC.getUTCFullYear(), dateUTC.getUTCMonth() + 1, dateUTC.getUTCDate(), p.tithi.number),
     };

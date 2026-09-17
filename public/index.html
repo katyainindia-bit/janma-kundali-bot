@@ -1131,7 +1131,16 @@
 
   <div class="form-card" style="padding:16px;">
     <h2 style="margin-bottom:10px;">Партнёрская программа</h2>
-    <p style="font-size:13px;color:var(--taupe);margin-bottom:12px;">Приглашайте учеников по своей ссылке — подробности программы появятся здесь.</p>
+    <p style="font-size:13px;color:var(--taupe);margin-bottom:12px;">Приглашайте друзей по своей ссылке — за переход по ней им сразу открывается несколько дней Premium, а вам — бонус, когда они оформят подписку.</p>
+    <div id="referral-link-block" style="display:none;">
+      <div class="field">
+        <label>Ваша ссылка</label>
+        <input type="text" id="referral-link-input" readonly style="font-size:12px;">
+      </div>
+      <button class="btn-secondary" id="referral-copy-btn" style="margin-bottom:14px;">Скопировать ссылку</button>
+      <div class="current-period-row"><span class="label">Перешло по ссылке</span><span class="value" id="referral-count">—</span></div>
+      <div class="current-period-row"><span class="label">Стали Premium</span><span class="value" id="referral-conversions">—</span></div>
+    </div>
     <button class="btn-secondary" id="settings-referral-btn" style="margin-bottom:0;">Получить ссылку</button>
   </div>
 
@@ -3643,10 +3652,37 @@
     else alert(msg);
   });
 
-  document.getElementById('settings-referral-btn').addEventListener('click', () => {
-    const msg = 'Партнёрская программа в разработке — подробности и ссылка появятся здесь.';
-    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showAlert) window.Telegram.WebApp.showAlert(msg);
-    else alert(msg);
+  document.getElementById('settings-referral-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('settings-referral-btn');
+    btn.textContent = 'Загрузка…';
+    try {
+      const res = await fetch('/api/referral/info', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: getInitData() })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Ошибка');
+      document.getElementById('referral-link-input').value = data.link;
+      document.getElementById('referral-count').textContent = data.referredCount;
+      document.getElementById('referral-conversions').textContent = data.conversionCount;
+      document.getElementById('referral-link-block').style.display = 'block';
+      btn.style.display = 'none';
+    } catch (e) {
+      const msg = 'Не удалось получить ссылку: ' + e.message;
+      if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showAlert) window.Telegram.WebApp.showAlert(msg);
+      else alert(msg);
+      btn.textContent = 'Получить ссылку';
+    }
+  });
+
+  document.getElementById('referral-copy-btn').addEventListener('click', () => {
+    const input = document.getElementById('referral-link-input');
+    input.select();
+    navigator.clipboard && navigator.clipboard.writeText(input.value);
+    const btn = document.getElementById('referral-copy-btn');
+    const original = btn.textContent;
+    btn.textContent = 'Скопировано!';
+    setTimeout(() => { btn.textContent = original; }, 1500);
   });
 
   document.getElementById('account-name-save-btn').addEventListener('click', async () => {
