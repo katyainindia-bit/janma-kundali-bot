@@ -344,6 +344,7 @@ function computeActionDateSearch(chart, birthDateUTC, lat, lon, utcOffset, actio
       quality,
       restrictions: result.restrictions,
       favorable: result.favorable,
+      context: result.context,
     });
   }
 

@@ -23,6 +23,7 @@
 // ============================================================
 
 const { jdFromDate, sunLongitude, moonLongitude, lahiriAyanamsha } = require('./engine.js');
+const { jdToLocalDateTimeStr } = require('./panchanga.js');
 
 function pmod(x, y) { let r = x % y; if (r < 0) r += y; return r; }
 
@@ -93,6 +94,23 @@ function sunSiderealSignIdx(year, month, day) {
   return Math.floor(sidLon / 30);
 }
 
+function sunSignAtJdFine(jd) {
+  const sidLon = pmod(sunLongitude(jd) - lahiriAyanamsha(jd), 360);
+  return Math.floor(sidLon / 30);
+}
+// Точный момент смены знака Солнцем — сканируем мелким шагом (10 минут)
+// в пределах суток вокруг даты, где обнаружена смена. Солнце движется
+// ~1°/сутки, потерять переход в этих пределах нельзя.
+function findSankrantiMoment(year, month, day) {
+  const dayStartJd = jdFromDate(year, month, day, 0, 0, 0, 0);
+  const startIdx = sunSignAtJdFine(dayStartJd - 0.5);
+  const step = 10 / 1440; // 10 минут
+  for (let jd = dayStartJd - 0.5; jd <= dayStartJd + 1.5; jd += step) {
+    if (sunSignAtJdFine(jd) !== startIdx) return jd;
+  }
+  return null;
+}
+
 function sankrantiEvent(year, month, day) {
   const todayIdx = sunSiderealSignIdx(year, month, day);
   const y = new Date(Date.UTC(year, month - 1, day) - 86400000);
@@ -101,7 +119,9 @@ function sankrantiEvent(year, month, day) {
     // Вход в Козерог (Макара Санкранти) уже отдельно поименован в таблице
     // праздников ниже — не дублируем тем же днём общей формулировкой.
     if (todayIdx === 9) return null;
-    return { type: EVENT_TYPES.SANKRANTI, label: `Санкранти — Солнце входит в ${SIGN_NAMES[todayIdx]}` };
+    const momentJd = findSankrantiMoment(year, month, day);
+    const timeStr = momentJd ? ` (${jdToLocalDateTimeStr(momentJd, 3)} МСК)` : '';
+    return { type: EVENT_TYPES.SANKRANTI, label: `Санкранти — Солнце входит в ${SIGN_NAMES[todayIdx]}${timeStr}` };
   }
   return null;
 }

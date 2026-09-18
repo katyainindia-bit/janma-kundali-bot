@@ -337,4 +337,4 @@ function computeTaraBala(natalMoonNakshatraIdx, dayNakshatraIdx) {
   return { count, ...TARA_NAMES[taraIdx] };
 }
 
-module.exports = { computePanchanga, computeTaraBala, sunriseSunsetMinutesUTC };
+module.exports = { computePanchanga, computeTaraBala, sunriseSunsetMinutesUTC, jdToLocalDateTimeStr };

@@ -961,7 +961,7 @@
           <select id="search-action-select"></select>
         </div>
         <div class="field" id="search-direction-field" style="display:none;">
-          <label for="search-direction-select">Направление поездки</label>
+          <label for="search-direction-select">Направление поездки (куда едете от места, откуда выезжаете — место рождения тут ни при чём)</label>
           <select id="search-direction-select">
             <option value="Север">Север</option>
             <option value="Юг">Юг</option>
@@ -1524,21 +1524,43 @@
     let x=0,y=0; for (const p of poly) { x+=p[0]; y+=p[1]; }
     return [x/poly.length, y/poly.length];
   }
-  function signNumberPos(poly, rows, extraDist) {
+  function signNumberPos(poly, rows, extraDist, isKite) {
     // По образцу J108 (прислан как референс) — номера домов стоят прямо
     // у точек пересечения линий сетки, в том числе у общего центра карты
     // для четырёх "воздушных змеев" (это НЕ баг и не "разлетелось" — так
     // выглядит сам J108, четыре номера рядом у центра). Толкаем номер от
     // ближайшей к центру вершины фигуры к её центроиду, небольшим фиксированным
     // шагом — то же самое решение, что было в самой первой версии.
-    let nearest = poly[0], best = Infinity;
-    for (const v of poly) { const d=(v[0]-C)**2+(v[1]-C)**2; if (d<best){best=d;nearest=v;} }
+    //
+    // ВАЖНО: угловые треугольники (не "воздушные змеи" 1/4/7/10) — намного
+    // меньше по площади, и когда в них 2 планеты (2 строки текста), номер
+    // нужно толкать ДАЛЬШЕ, а не ближе — иначе он утыкается прямо в текст
+    // соседней планеты (баг, который реально нашёлся и подтвердился).
+    let nearest = poly[0], best = Infinity, farthest = poly[0], worst = -Infinity;
+    for (const v of poly) {
+      const d=(v[0]-C)**2+(v[1]-C)**2;
+      if (d<best){best=d;nearest=v;}
+      if (d>worst){worst=d;farthest=v;}
+    }
     const c = centroid(poly);
-    let dx = c[0]-nearest[0], dy = c[1]-nearest[1];
+    // Угловые треугольники с 2+ строками планет: якорим от ДАЛЬНЕЙ (внешней)
+    // вершины — там пусто, планеты рисуются вокруг центроида. От ближней
+    // вершины толкание в сторону центроида проходит прямо через текст
+    // независимо от расстояния (проверено — просто отодвинуть не помогает,
+    // нужно менять саму сторону).
+    const anchor = (!isKite && rows >= 2) ? farthest : nearest;
+    let dx = c[0]-anchor[0], dy = c[1]-anchor[1];
     const len = Math.sqrt(dx*dx+dy*dy) || 1;
     dx /= len; dy /= len;
-    const dist = (rows >= 3 ? 4 : rows === 2 ? 10 : 30) + (extraDist || 0);
-    return [nearest[0]+dx*dist, nearest[1]+dy*dist];
+    const dist = (isKite
+      ? (rows >= 3 ? 4 : rows === 2 ? 10 : 30)
+      : (rows >= 2 ? 28 : 14)
+    ) + (extraDist || 0);
+    const margin = 14;
+    return [
+      Math.max(margin, Math.min(400 - margin, anchor[0]+dx*dist)),
+      Math.max(margin, Math.min(400 - margin, anchor[1]+dy*dist)),
+    ];
   }
 
   // Южно-индийский стиль: фиксированная сетка знаков 4×4 (центр 2×2 пустой),
@@ -1718,7 +1740,8 @@
       const numPlanetsHere = (signPlanets[signIdx] || []).length;
       const numCols = numPlanetsHere>2?2:1;
       const numRows = Math.ceil(numPlanetsHere/numCols) || 0;
-      const [nx,ny] = signNumberPos(poly, numRows, h===1?22:0);
+      const isKite = h===1 || h===4 || h===7 || h===10;
+      const [nx,ny] = signNumberPos(poly, numRows, h===1?22:0, isKite);
       const numText = el('text', {x:nx,y:ny,'text-anchor':'middle','font-family':'Playfair Display, serif','font-size':h===1?17:15,fill:h===1?'#C8A26B':'#7A6B5A','font-weight':h===1?700:400});
       numText.textContent = signIdx+1;
       svg.appendChild(numText);
@@ -1801,10 +1824,20 @@
           // работает для натальных планет в этом же доме.
           const tCols = tHere.length > 4 ? 2 : 1;
           const tRows = Math.ceil(tHere.length / tCols);
-          const tFs = tHere.length > 4 ? 6.5 : tHere.length > 3 ? 9 : 10;
+          // Раньше мелкий шрифт включался только при 5+ планетах — но даже
+          // при 3 планетах одна колонка растягивалась настолько, что
+          // дотягивалась до цифр соседнего углового треугольника. Понижаем
+          // порог и делаем сам шаг между строками теснее.
+          const tFs = tHere.length > 4 ? 6.5 : tHere.length >= 3 ? 8 : 10;
           const tColGap = tFs * 5.4;
-          const tRowGap = tFs * 2.3;
-          const tStartY = cy + dir*(gridH/2 + fs*1.2 + 14) + (dir > 0 ? 0 : -(tRows-1)*tRowGap);
+          const tRowGap = tFs * 1.9;
+          let tStartY = cy + dir*(gridH/2 + fs*1.2 + 12) + (dir > 0 ? 0 : -(tRows-1)*tRowGap);
+          // Жёсткая защита от выхода за пределы холста по вертикали — не даёт
+          // блоку транзитов дотянуться до чисел соседнего дома или до края.
+          const tMarginY = 20;
+          const tBlockH = (tRows-1)*tRowGap;
+          if (dir > 0) tStartY = Math.min(tStartY, 400 - tMarginY - tBlockH);
+          else tStartY = Math.max(tStartY, tMarginY);
           let tStartX = cx - (tCols-1)*tColGap/2;
           // Та же защита от выхода за холст, что уже есть для натальной
           // сетки — иначе в маленьких угловых домах у края карты вторая
@@ -2756,51 +2789,63 @@
   });
 
   document.getElementById('chart-download-btn').addEventListener('click', () => {
-    const svg = document.getElementById('chart-svg');
-    const serialized = new XMLSerializer().serializeToString(svg);
-    const svgBlob = new Blob([serialized], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(svgBlob);
-    const img = new Image();
-    img.onload = async () => {
-      const scale = 3; // повышаем разрешение экспорта для чёткой картинки
-      const canvas = document.createElement('canvas');
-      canvas.width = 400 * scale;
-      canvas.height = 400 * scale;
-      const ctx = canvas.getContext('2d');
-      // У самой SVG нет заливки фона (только рамка) — без этого экспорт
-      // получился бы с прозрачным фоном.
-      ctx.fillStyle = '#FBF8F3';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      URL.revokeObjectURL(url);
-      const dataUrl = canvas.toDataURL('image/png');
-      const fileName = 'Джанма_Кундали.png';
-
-      const tg = window.Telegram && window.Telegram.WebApp;
-      if (tg && typeof tg.downloadFile === 'function') {
-        // Нативное скачивание Telegram требует настоящую HTTPS-ссылку —
-        // blob-ссылка (как раньше) внутри Telegram не работает и выводит
-        // просто диалог "перейти по ссылке" без реального сохранения.
-        try {
-          const res = await fetch('/api/chart-image', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ dataUrl })
-          });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || 'Ошибка загрузки картинки');
-          tg.downloadFile({ url: data.url, file_name: fileName }, () => {});
-          return;
-        } catch (e) {
-          console.error('Не удалось скачать через Telegram, пробуем обычным способом:', e);
-        }
-      }
-      // Вне Telegram (обычный браузер) — прямое скачивание работает и так.
-      const link = document.createElement('a');
-      link.download = fileName;
-      link.href = dataUrl;
-      link.click();
+    const showError = (msg) => {
+      if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showAlert) window.Telegram.WebApp.showAlert(msg);
+      else alert(msg);
     };
-    img.src = url;
+    try {
+      const svg = document.getElementById('chart-svg');
+      const serialized = new XMLSerializer().serializeToString(svg);
+      // Раньше здесь была blob-ссылка — в мобильном WebView Telegram (особенно
+      // iOS) Image() иногда молча не грузит SVG из blob: URL, без onload И
+      // без onerror — отсюда и "кнопка ничего не делает". base64 data: URL
+      // надёжнее работает в этом сценарии на мобильных WebView.
+      const svgBase64 = btoa(unescape(encodeURIComponent(serialized)));
+      const img = new Image();
+      img.onerror = () => showError('Не удалось подготовить картинку карты для скачивания.');
+      img.onload = async () => {
+        try {
+          const scale = 3; // повышаем разрешение экспорта для чёткой картинки
+          const canvas = document.createElement('canvas');
+          canvas.width = 400 * scale;
+          canvas.height = 400 * scale;
+          const ctx = canvas.getContext('2d');
+          // У самой SVG нет заливки фона (только рамка) — без этого экспорт
+          // получился бы с прозрачным фоном.
+          ctx.fillStyle = '#FBF8F3';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const dataUrl = canvas.toDataURL('image/png');
+          const fileName = 'Джанма_Кундали.png';
+
+          const tg = window.Telegram && window.Telegram.WebApp;
+          if (tg && typeof tg.downloadFile === 'function') {
+            // Нативное скачивание Telegram требует настоящую HTTPS-ссылку —
+            // blob/data-ссылка для него не подходит.
+            const res = await fetch('/api/chart-image', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ dataUrl })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Ошибка загрузки картинки');
+            tg.downloadFile({ url: data.url, file_name: fileName }, () => {});
+            return;
+          }
+          // Вне Telegram (обычный браузер) — прямое скачивание работает и так.
+          const link = document.createElement('a');
+          link.download = fileName;
+          link.href = dataUrl;
+          link.click();
+        } catch (e) {
+          console.error('Ошибка скачивания карты:', e);
+          showError('Не удалось скачать: ' + e.message);
+        }
+      };
+      img.src = 'data:image/svg+xml;base64,' + svgBase64;
+    } catch (e) {
+      console.error('Ошибка подготовки карты к скачиванию:', e);
+      showError('Не удалось скачать: ' + e.message);
+    }
   });
 
   // --- Аспекты (переиспользуется и в панели "Аспекты", и в детекторе йог) ---
@@ -2867,7 +2912,20 @@
       const jupHouse = chart.planets['Юпитер'].house;
       const distFromMoon = ((jupHouse - moonHouse + 12) % 12) + 1;
       if ([1,4,7,10].includes(distFromMoon)) {
-        yogas.push({ name: 'Гаджакесари-йога', detail: `Юпитер в ${distFromMoon} доме от Луны.`, meaning: 'Устойчивость, доверие окружающих, известность, защита и покровительство Юпитера в эмоциональной сфере.', planets: ['Юпитер','Луна'] });
+        // Реальная проверка ослабления: Юпитер дебилитирован или в дусттхане
+        // (6/8/12 от Лагны) — классически считается ослабляющим йогу, а не
+        // просто "не проверяется".
+        const jupSign = chart.planets['Юпитер'].sign.index;
+        const isDebilitated = DEBILITATION['Юпитер'] === jupSign;
+        const isDusthana = [6,8,12].includes(jupHouse);
+        const weak = isDebilitated || isDusthana;
+        yogas.push({
+          name: 'Гаджакесари-йога' + (weak ? ' (ослаблена)' : ''),
+          detail: `Юпитер в ${distFromMoon} доме от Луны.` + (weak ? ` Юпитер ${isDebilitated ? 'в дебилитации' : `в дусттхане (${jupHouse} дом от Лагны)`} — классически ослабляет йогу.` : ''),
+          meaning: 'Устойчивость, доверие окружающих, известность, защита и покровительство Юпитера в эмоциональной сфере.' + (weak ? ' В ослабленном виде эффект значительно мягче.' : ''),
+          caution: weak,
+          planets: ['Юпитер','Луна']
+        });
       }
     }
 
@@ -2877,8 +2935,13 @@
       const house12 = ((moonHouse - 2 + 12) % 12) + 1;
       const others = Object.keys(chart.planets).filter(n => n !== 'Луна' && n !== 'Солнце');
       const hasNeighbor = others.some(n => chart.planets[n].house === house2 || chart.planets[n].house === house12);
-      if (!hasNeighbor) {
-        yogas.push({ name: 'Кемадрума-йога', detail: 'У Луны нет планет в соседних домах (2-й и 12-й от Луны, без учёта Солнца). Классические отмены (напр. Юпитер аспектирует Луну) здесь не проверяются.', meaning: 'Классически считается неблагоприятной: нестабильность, недостаток поддержки, эмоциональные трудности — часто отменяется другими факторами карты.', caution: true, planets: ['Луна'] });
+      // Реальная классическая отмена (самая устойчиво цитируемая): если ЛЮБАЯ
+      // планета (кроме Солнца) стоит в кендре (1/4/7/10) от Луны — Кемадрума
+      // считается отменённой полностью, а не просто "часто отменяется".
+      const moonKendraHouses = [1,4,7,10].map(k => ((moonHouse - 1 + (k - 1)) % 12) + 1);
+      const hasKendraFromMoon = others.some(n => moonKendraHouses.includes(chart.planets[n].house));
+      if (!hasNeighbor && !hasKendraFromMoon) {
+        yogas.push({ name: 'Кемадрума-йога', detail: 'У Луны нет планет в соседних домах (2-й и 12-й от Луны) и нет планет в кендре от Луны — классическая отмена не сработала.', meaning: 'Классически считается неблагоприятной: нестабильность, недостаток поддержки, эмоциональные трудности.', caution: true, planets: ['Луна'] });
       }
     }
 
@@ -2893,13 +2956,30 @@
     {
       const kendraLords = new Set([1,4,7,10].map(h => houseLord(chart, h)));
       const trikonaLords = new Set([1,5,9].map(h => houseLord(chart, h)));
+      // Проверка силы: лорд дебилитирован, ИЛИ в дусттхане (6/8/12) и при этом
+      // не в своём/экзальтированном знаке там — классически ослабляет йогу.
+      function isPlanetWeak(name) {
+        const p = chart.planets[name];
+        const sign = p.sign.index;
+        const isDebilitated = DEBILITATION[name] === sign;
+        const isOwnOrExalted = (OWN_SIGNS[name] && OWN_SIGNS[name].includes(sign)) || EXALTATION[name] === sign;
+        const isDusthanaWeak = [6,8,12].includes(p.house) && !isOwnOrExalted;
+        return isDebilitated || isDusthanaWeak;
+      }
       kendraLords.forEach(k => {
         trikonaLords.forEach(t => {
           if (k === t) return;
           if (planetsConjunctOrAspect(chart, aspectsList, k, t)) {
-            const name = `Раджа-йога: ${k} и ${t}`;
+            const weak = isPlanetWeak(k) || isPlanetWeak(t);
+            const name = `Раджа-йога: ${k} и ${t}` + (weak ? ' (ослаблена)' : '');
             if (!yogas.some(y => y.name === name)) {
-              yogas.push({ name, detail: `${k} (лорд кендры) и ${t} (лорд триконы) в соединении или аспекте друг с другом.`, meaning: 'Власть, статус, заметное возвышение в жизни.', planets: [k, t] });
+              yogas.push({
+                name,
+                detail: `${k} (лорд кендры) и ${t} (лорд триконы) в соединении или аспекте друг с другом.` + (weak ? ` ${isPlanetWeak(k) ? k : t} дебилитирован или слаб в дусттхане — йога ослаблена.` : ''),
+                meaning: 'Власть, статус, заметное возвышение в жизни.' + (weak ? ' В ослабленном виде эффект значительно мягче.' : ''),
+                caution: weak,
+                planets: [k, t]
+              });
             }
           }
         });
@@ -2909,7 +2989,21 @@
     {
       const l2 = houseLord(chart, 2), l11 = houseLord(chart, 11);
       if (l2 !== l11 && planetsConjunctOrAspect(chart, aspectsList, l2, l11)) {
-        yogas.push({ name: 'Дхана-йога', detail: `Лорд 2 дома (${l2}) и лорд 11 дома (${l11}) в соединении или аспекте.`, meaning: 'Финансовое благополучие, способность накапливать средства.', planets: [l2, l11] });
+        function isPlanetWeak(name) {
+          const p = chart.planets[name];
+          const sign = p.sign.index;
+          const isDebilitated = DEBILITATION[name] === sign;
+          const isOwnOrExalted = (OWN_SIGNS[name] && OWN_SIGNS[name].includes(sign)) || EXALTATION[name] === sign;
+          return isDebilitated || ([6,8,12].includes(p.house) && !isOwnOrExalted);
+        }
+        const weak = isPlanetWeak(l2) || isPlanetWeak(l11);
+        yogas.push({
+          name: 'Дхана-йога' + (weak ? ' (ослаблена)' : ''),
+          detail: `Лорд 2 дома (${l2}) и лорд 11 дома (${l11}) в соединении или аспекте.` + (weak ? ' Один из лордов дебилитирован или слаб в дусттхане.' : ''),
+          meaning: 'Финансовое благополучие, способность накапливать средства.' + (weak ? ' В ослабленном виде эффект значительно мягче.' : ''),
+          caution: weak,
+          planets: [l2, l11]
+        });
       }
     }
 
@@ -3066,7 +3160,7 @@
         html += '<div class="chip-row" id="yoga-chip-list" style="justify-content:flex-start;">' + yogas.map((y, i) => `<span class="chip" data-yoga-idx="${i}" style="cursor:pointer;">${escapeHtml(y.name)}</span>`).join('') + '</div>';
         html += '<div id="yoga-detail" style="font-size:12px;color:var(--taupe);margin-top:10px;"></div>';
       }
-      html += '<div style="font-size:11px;color:var(--taupe);margin-top:10px;">Базовый набор из 8 йог, без учёта классических отмен/усилений — черновая версия.</div>';
+      html += '<div style="font-size:11px;color:var(--taupe);margin-top:10px;">Кемадрума, Гаджакесари, Раджа-йога и Дхана-йога учитывают классическую отмену/ослабление. Остальные — базовая формула без проверки силы вовлечённых планет.</div>';
       panel.innerHTML = html;
 
       panel.querySelectorAll('[data-yoga-idx]').forEach(chip => {
@@ -4141,10 +4235,10 @@
         cell.addEventListener('click', () => {
           const d = data.days.find(x => x.date === cell.dataset.date);
           dayDetail.style.display = 'block';
-          const lines = [...d.favorable.map(f => `✅ ${f}`), ...d.restrictions.map(r => `⚠ ${r}`)];
+          const lines = [...d.favorable.map(f => `✅ ${f}`), ...d.restrictions.map(r => `⚠ ${r}`), ...(d.context || []).map(c => `ℹ ${c}`)];
           dayDetail.innerHTML = `
-            <div class="name" style="margin-bottom:6px;">${d.date.split('-').reverse().join('.')}</div>
-            ${lines.length ? lines.map(l => `<div class="note-item"><div class="note-text">${escapeHtml(l)}</div></div>`).join('') : '<div style="font-size:13px;color:var(--taupe);">Нейтральный день — явных факторов не найдено.</div>'}
+            <div class="name" style="margin-bottom:6px;text-align:left;">${d.date.split('-').reverse().join('.')}</div>
+            ${lines.length ? lines.map(l => `<div class="note-item" style="text-align:left;"><div class="note-text" style="text-align:left;">${escapeHtml(l)}</div></div>`).join('') : '<div style="font-size:13px;color:var(--taupe);text-align:left;">Нейтральный день — явных факторов не найдено.</div>'}
           `;
         });
       });
