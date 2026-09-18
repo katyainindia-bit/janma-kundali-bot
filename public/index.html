@@ -1831,7 +1831,8 @@
           const tFs = tHere.length > 4 ? 6.5 : tHere.length >= 3 ? 8 : 10;
           const tColGap = tFs * 5.4;
           const tRowGap = tFs * 1.9;
-          let tStartY = cy + dir*(gridH/2 + fs*1.2 + 12) + (dir > 0 ? 0 : -(tRows-1)*tRowGap);
+          const houseOneExtra = h === 1 ? 34 : 0;
+          let tStartY = cy + dir*(gridH/2 + fs*1.2 + 12 + houseOneExtra) + (dir > 0 ? 0 : -(tRows-1)*tRowGap);
           // Жёсткая защита от выхода за пределы холста по вертикали — не даёт
           // блоку транзитов дотянуться до чисел соседнего дома или до края.
           const tMarginY = 20;
@@ -2816,7 +2817,7 @@
           ctx.fillRect(0, 0, canvas.width, canvas.height);
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
           const dataUrl = canvas.toDataURL('image/png');
-          const fileName = 'Джанма_Кундали.png';
+          const fileName = 'Janma_Kundali.png';
 
           const tg = window.Telegram && window.Telegram.WebApp;
           if (tg && typeof tg.downloadFile === 'function') {
