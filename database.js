@@ -420,12 +420,12 @@ function listNotes(chartId) {
   return db.prepare('SELECT * FROM chart_notes WHERE chart_id = ? ORDER BY created_at ASC').all(chartId);
 }
 
-function updateNote(noteId, noteText) {
-  return db.prepare('UPDATE chart_notes SET note = ? WHERE id = ?').run(noteText, noteId);
+function updateNote(chartId, noteId, noteText) {
+  return db.prepare('UPDATE chart_notes SET note = ? WHERE id = ? AND chart_id = ?').run(noteText, noteId, chartId);
 }
 
-function deleteNote(noteId) {
-  return db.prepare('DELETE FROM chart_notes WHERE id = ?').run(noteId);
+function deleteNote(chartId, noteId) {
+  return db.prepare('DELETE FROM chart_notes WHERE id = ? AND chart_id = ?').run(noteId, chartId);
 }
 
 module.exports = {

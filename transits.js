@@ -22,7 +22,12 @@ function computeCurrentTransits(natalChart, atDate = new Date()) {
     utcOffset: 0,
     lat: 0,
     lon: 0,
-    ayanamshaType: 'lahiri',
+    // Берём ТУ ЖЕ аянамшу/узел, что и у натальной карты — иначе транзитные
+    // дома сравниваются со знаком асцендента, посчитанным по другим
+    // настройкам, и результат оказывается внутренне противоречивым.
+    ayanamshaType: natalChart.ayanamshaType || 'lahiri',
+    nodeType: natalChart.nodeType || 'mean',
+    customAyanamshaBase: natalChart.customAyanamshaBase || null,
   };
   // Долгота планет геоцентрическая и не зависит от места наблюдения,
   // поэтому lat/lon/utcOffset здесь используются только формально

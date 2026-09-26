@@ -360,6 +360,18 @@ function ramanAyanamsha(jd) {
   return ramanAyanamshaFallback(jd);
 }
 
+// Единая точка выбора аянамши по типу — чтобы не дублировать (и не
+// рассинхронизировать) эту развилку в модулях за пределами движка
+// (панчанга, транзиты и т.п.), которым нужно сидерическое положение
+// планеты, но не нужна вся карта целиком.
+function ayanamshaFor(jd, ayanamshaType, customAyanamshaBase) {
+  if (ayanamshaType === 'tropical') return 0;
+  if (ayanamshaType === 'raman') return ramanAyanamsha(jd);
+  if (ayanamshaType === 'krishnamurti') return krishnamurtiAyanamsha(jd);
+  if (ayanamshaType === 'custom') return customAyanamsha(jd, customAyanamshaBase);
+  return lahiriAyanamsha(jd);
+}
+
 // --- Sidereal time & Ascendant ---
 function gmstDegrees(jd) {
   const T = J2000Century(jd);
@@ -409,8 +421,12 @@ const NAKSHATRA_LORDS = [
 
 function nakshatraOf(siderealLon) {
   const span = 360 / 27; // 13°20'
-  const idx = Math.floor(siderealLon / span);
-  const posInNakshatra = siderealLon - idx * span;
+  // pmod + защита от idx=27: при накоплении погрешности плавающей точки
+  // siderealLon иногда округляется ровно до 360°, и Math.floor(360/span)
+  // даёт 27 — индекс за пределами массива (undefined вместо накшатры).
+  const lon = pmod(siderealLon, 360);
+  const idx = Math.min(26, Math.floor(lon / span));
+  const posInNakshatra = lon - idx * span;
   const pada = Math.floor(posInNakshatra / (span / 4)) + 1;
   return { name: NAKSHATRAS[idx], lord: NAKSHATRA_LORDS[idx], pada };
 }
@@ -419,8 +435,9 @@ const SIGNS = ['Овен','Телец','Близнецы','Рак','Лев','Д�
 const SIGN_LORDS = ['Мангал','Шукра','Буддха','Чандра','Сурья','Буддха','Шукра','Мангал','Гуру','Шани','Шани','Гуру'];
 
 function signOf(siderealLon) {
-  const idx = Math.floor(siderealLon / 30);
-  return { name: SIGNS[idx], index: idx, lord: SIGN_LORDS[idx], degInSign: siderealLon % 30 };
+  const lon = pmod(siderealLon, 360);
+  const idx = Math.min(11, Math.floor(lon / 30));
+  return { name: SIGNS[idx], index: idx, lord: SIGN_LORDS[idx], degInSign: lon % 30 };
 }
 
 // --- Main chart calculation ---
@@ -616,8 +633,16 @@ function calculateChartSwisseph(params) {
 }
 
 function calculateChart(params) {
-  if (SWISSEPH_AVAILABLE) return calculateChartSwisseph(params);
-  return calculateChartFallback(params);
+  const chart = SWISSEPH_AVAILABLE ? calculateChartSwisseph(params) : calculateChartFallback(params);
+  // Запоминаем на самой карте, с какими настройками (аянамша/узел/кастомная
+  // база) она была построена — это единственное надёжное место, откуда
+  // производные расчёты (транзиты, Саде Сати, уведомления и т.д.) могут
+  // повторно взять ТЕ ЖЕ настройки, а не тихо откатиться на Лахири по
+  // умолчанию, если пользователь выбрал другую аянамшу/зодиак.
+  chart.ayanamshaType = params.ayanamshaType || 'lahiri';
+  chart.nodeType = params.nodeType || 'mean';
+  chart.customAyanamshaBase = params.customAyanamshaBase || null;
+  return chart;
 }
 
 // Сидерический асцендент на произвольный момент — нужен для поиска
@@ -651,6 +676,7 @@ if (typeof window !== 'undefined') {
 if (typeof module !== 'undefined') {
   module.exports = {
     calculateChart, jdFromDate, lahiriAyanamsha, ramanAyanamsha, krishnamurtiAyanamsha,
+    customAyanamsha, ayanamshaFor,
     sunLongitude, moonLongitude, ascendantSidereal, SWISSEPH_AVAILABLE,
   };
 }

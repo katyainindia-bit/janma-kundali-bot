@@ -64,6 +64,16 @@ function parseBound(str) {
  * @param {object} group - запись из CITY_GROUPS
  * @param {Date} date - дата (UTC) на момент рождения
  * @returns {number|null} смещение в часах, либо null если дата вне известного диапазона
+ *
+ * ВАЖНО для вызывающего кода: null означает "для этой даты точных данных нет"
+ * (обычно — дата раньше начала самого раннего периода группы). Использовать
+ * null напрямую как число нельзя: `час - null` в JS молча превращается в
+ * `час - 0`, то есть тихо трактуется как UTC+0 без единого предупреждения.
+ * Все места в bot.js/webapp.js, которые используют resolveCity(), проверяют
+ * `found.utcOffset !== null` и в этом случае считают город "не найденным
+ * точно", переходя на запасной путь (геокодер по всему миру, который берёт
+ * пояс из базы IANA/tz — она тоже может ошибаться для очень старых дат, но
+ * хотя бы не притворяется точной).
  */
 function resolveOffset(group, date) {
   for (const period of group.periods) {
@@ -598,10 +608,34 @@ function findCity(query) {
  * @param {string} cityName
  * @param {Date} dateUTC - дата рождения в UTC (для разрешения часового пояса)
  */
-function resolveCity(cityName, dateUTC) {
+/**
+ * @param {string} cityName
+ * @param {Date} dateUTC - приближение: местная дата рождения, взятая как
+ *   полдень UTC (используется для первого прохода — достаточно, чтобы понять
+ *   исторический период почти всегда).
+ * @param {number} [hour] - местные час/минута рождения — если переданы,
+ *   делается второй, уточняющий проход (см. комментарий ниже), который важен
+ *   для рождений вплотную к границе перехода на летнее/зимнее время.
+ * @param {number} [minute]
+ */
+function resolveCity(cityName, dateUTC, hour, minute) {
   const found = findCity(cityName);
   if (!found) return null;
-  const offset = resolveOffset(found.group, dateUTC);
+  let offset = resolveOffset(found.group, dateUTC);
+  if (offset !== null && hour !== undefined && minute !== undefined) {
+    // Уточнение: dateUTC выше — это лишь ПРИБЛИЖЕНИЕ (местная дата рождения,
+    // взятая как полдень UTC), потому что до вычисления смещения мы не знаем
+    // точный момент UTC. Теперь, когда offset уже известен, считаем настоящий
+    // момент UTC рождения и заново разрешаем период/сезон по НЕМУ. Для
+    // рождений в последние часы суток вплотную к дате перехода на летнее
+    // время (когда "местная дата" и "полдень UTC этой даты" могут оказаться
+    // по разные стороны границы) второй проход может дать другое, более
+    // верное смещение.
+    const y = dateUTC.getUTCFullYear(), m = dateUTC.getUTCMonth(), d = dateUTC.getUTCDate();
+    const actualUTC = new Date(Date.UTC(y, m, d, hour, minute, 0) - offset * 3600000);
+    const refined = resolveOffset(found.group, actualUTC);
+    if (refined !== null) offset = refined;
+  }
   return {
     city: found.city,
     lat: found.coords[0],

@@ -79,6 +79,65 @@ function polyCentroid(poly) {
   return [x / poly.length, y / poly.length];
 }
 
+// Прямоугольник, описывающий фигуру дома (кайт для 1/4/7/10, треугольник для
+// остальных). Используется, чтобы не дать блокам планет (натальных и особенно
+// транзитных, которых может быть много одновременно) выйти за пределы СВОЕГО
+// дома — раньше проверялись только границы всего холста (0..400), из-за чего
+// в узких угловых треугольниках длинный список транзитов легко пересекал
+// диагональ и наезжал на соседний дом (проверено стресс-тестом: 5 планет
+// натально + 5 транзитом в одном угловом доме давали текст поверх соседнего).
+function polyBBox(poly) {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const [x, y] of poly) {
+    if (x < minX) minX = x; if (x > maxX) maxX = x;
+    if (y < minY) minY = y; if (y > maxY) maxY = y;
+  }
+  return { minX, maxX, minY, maxY };
+}
+
+// Клампит v в [lo, hi]; если диапазон вырожден (lo > hi — блок физически шире
+// самого дома, край случай с очень большим числом планет в одном месте),
+// возвращает середину диапазона, а не пытается втиснуть невозможное.
+function clampRange(v, lo, hi) {
+  return hi >= lo ? Math.max(lo, Math.min(hi, v)) : (lo + hi) / 2;
+}
+
+// Точная (не приближённая bbox'ом) ширина фигуры дома на конкретной высоте y —
+// пересекает горизонтальную линию y=const со всеми рёбрами многоугольника.
+// Нужна для угловых треугольников: у них ширина сильно меняется от широкого
+// основания к узкой вершине, и просто ограничиться прямоугольником вокруг
+// фигуры недостаточно — блок текста всё равно может пересечь диагональную
+// границу дома ближе к вершине. Возвращает [minX, maxX] на этой высоте,
+// либо null, если y вне фигуры по вертикали.
+// Подбирает наибольший размер шрифта (не выше baseSize), при котором строка
+// умещается в maxWidth — нужно для строки таблицы "натал"/"транзит": при
+// стеллиуме из 4-5 планет в одном доме список на фиксированном 12px мог
+// упереться в соседнюю колонку и визуально слиться с ней.
+function fitFontSize(ctx, str, fontFamily, baseSize, maxWidth, minSize = 8) {
+  let size = baseSize;
+  while (size > minSize) {
+    ctx.font = `${size}px ${fontFamily}`;
+    if (ctx.measureText(str).width <= maxWidth) break;
+    size -= 0.5;
+  }
+  return size;
+}
+
+function polyXRangeAtY(poly, y) {
+  const xs = [];
+  for (let i = 0; i < poly.length; i++) {
+    const [x1, y1] = poly[i];
+    const [x2, y2] = poly[(i + 1) % poly.length];
+    if (y1 === y2) continue;
+    if ((y >= y1 && y <= y2) || (y >= y2 && y <= y1)) {
+      const t = (y - y1) / (y2 - y1);
+      xs.push(x1 + t * (x2 - x1));
+    }
+  }
+  if (xs.length === 0) return null;
+  return [Math.min(...xs), Math.max(...xs)];
+}
+
 function signNumberPosition(poly) {
   let nearest = poly[0], bestDist = Infinity;
   for (const v of poly) {
@@ -265,8 +324,13 @@ function renderNorthIndianPNG(chart, opts = {}) {
     const rowGap = fontSize * 2.9;
     const gridW = (cols - 1) * colGap;
     const gridH = (rows - 1) * rowGap;
-    const startX = cx - gridW / 2;
-    const startY = cy - gridH / 2;
+    // Клампим сетку планет в пределы фигуры дома (не всего холста) —
+    // иначе в доме с 4+ планетами сетка могла вылезти за пределы узкого
+    // угла и наехать на соседний дом.
+    const bbox = polyBBox(poly);
+    const padIn = 16;
+    const startX = clampRange(cx - gridW / 2, bbox.minX + padIn, bbox.maxX - padIn - gridW);
+    const startY = clampRange(cy - gridH / 2, bbox.minY + padIn, bbox.maxY - padIn - gridH);
 
     planetsHere.forEach((item, i) => {
       const col = i % cols, row = Math.floor(i / cols);
@@ -387,8 +451,11 @@ function renderSouthIndianPNG(natalChart, opts = {}) {
     const rowGap = fontSize * 2.7;
     const gridW = (cols - 1) * colGap;
     const gridH = (rows - 1) * rowGap;
-    const startX = cx - gridW / 2;
-    const startY = cy - gridH / 2;
+    // Клампим в пределы своей клетки (квадрат cellSize×cellSize) — та же
+    // страховка, что и для North Indian, хоть здесь клетка и просторнее.
+    const padIn = 14;
+    const startX = clampRange(cx - gridW / 2, cx0 + padIn, cx0 + cellSize - padIn - gridW);
+    const startY = clampRange(cy - gridH / 2, cy0 + padIn, cy0 + cellSize - padIn - gridH);
 
     planetsHere.forEach((item, i) => {
       const col = i % cols, row = Math.floor(i / cols);
@@ -519,8 +586,13 @@ function renderNorthIndianWithTransitsPNG(natalChart, transitsResult, opts = {})
     const rowGap = fontSize * 2.9;
     const gridW = (cols - 1) * colGap;
     const gridH = (rows - 1) * rowGap;
-    const startX = cx - gridW / 2;
-    const startY = cy - gridH / 2;
+    // Клампим сетку планет в пределы фигуры дома (не всего холста) —
+    // иначе в доме с 4+ планетами сетка могла вылезти за пределы узкого
+    // угла и наехать на соседний дом.
+    const bbox = polyBBox(poly);
+    const padIn = 16;
+    const startX = clampRange(cx - gridW / 2, bbox.minX + padIn, bbox.maxX - padIn - gridW);
+    const startY = clampRange(cy - gridH / 2, bbox.minY + padIn, bbox.maxY - padIn - gridH);
 
     planetsHere.forEach((item, i) => {
       const col = i % cols, row = Math.floor(i / cols);
@@ -537,19 +609,50 @@ function renderNorthIndianWithTransitsPNG(natalChart, transitsResult, opts = {})
 
     const transitsHere = transitsByHouse[h] || [];
     if (transitsHere.length > 0) {
-      // Всегда один столбец — см. пояснение в public/index.html: метка
-      // "символ + градус" длиннее натального символа, две колонки наезжали.
-      // Растим блок транзитов В СТОРОНУ ЦЕНТРА карты, а не всегда вниз:
-      // в нижней половине карты рост вниз быстро упирался в край холста
+      // Растим блок транзитов В СТОРОНУ ЦЕНТРА карты, а не всегда вниз: в
+      // нижней половине карты рост вниз быстро упирался в край холста
       // (особенно в маленьких угловых домах без натальных планет).
       const dir = cy <= C ? 1 : -1;
-      const tFontSize = transitsHere.length > 3 ? 9 : 10;
+      // При 4+ транзитных планетах одна колонка растягивается по вертикали
+      // настолько, что пересекает границу дома (проверено стресс-тестом:
+      // 5 планет транзитом в угловом треугольнике залезали на соседний дом
+      // прямо через диагональ) — переходим на две колонки, как и для
+      // натальных планет.
+      const tCols = transitsHere.length > 3 ? 2 : 1;
+      const tRows = Math.ceil(transitsHere.length / tCols);
+      const tFontSize = transitsHere.length > 5 ? 7 : transitsHere.length > 3 ? 8 : 10;
+      const tColGap = tFontSize * 5.6; // метка "символ + градус" длиннее одного натального символа
       const tRowGap = tFontSize * 2.3;
-      const tStartY = cy + dir * (gridH / 2 + fontSize * 1.15 + 16);
+      const tGridH = (tRows - 1) * tRowGap;
+
+      // Отталкиваемся от РЕАЛЬНОГО края натальной сетки (startY/gridH уже
+      // могли быть сдвинуты клампом выше, если в доме тесно) — а не от
+      // исходного предположения "натальная сетка стоит строго по центру
+      // дома", которое при большом числе и натальных, и транзитных планет
+      // сразу давало наложение (натальный блок после клампа оказывался не
+      // там, где ожидал блок транзитов).
+      const natalBottomY = startY + gridH + fontSize * 1.15 + 10;
+      const natalTopY = startY - 10;
+      let tStartY = dir > 0 ? natalBottomY : natalTopY - tGridH;
+      const padIn = 10;
+      // Сначала грубая защита прямоугольником дома (не даёт блоку вообще
+      // "убежать" за пределы холста или в дом через один)...
+      tStartY = clampRange(tStartY, bbox.minY + padIn, bbox.maxY - padIn - tGridH);
 
       transitsHere.forEach((item, i) => {
-        const py = tStartY + dir * i * tRowGap;
-        text(ctx, `${PLANET_SYMBOLS[item.name]} ${dmsFromDeg(item.t.sign.degInSign)}`, cx, py, { font: `600 ${tFontSize}px JKSans`, color: TRANSIT_COLOR, align: 'center' });
+        const col = i % tCols, row = Math.floor(i / tCols);
+        const py = tStartY + row * tRowGap;
+        // ...а на каждой конкретной строке — точная ширина ФИГУРЫ дома на
+        // этой высоте (у треугольника она сужается к вершине), чтобы текст
+        // не пересекал диагональную границу с соседним домом даже в нижних
+        // строках длинного списка.
+        const rangeAtRow = polyXRangeAtY(poly, py) || [bbox.minX, bbox.maxX];
+        const rowMinX = Math.max(bbox.minX, rangeAtRow[0]) + padIn;
+        const rowMaxX = Math.min(bbox.maxX, rangeAtRow[1]) - padIn;
+        const tGridWRow = (tCols - 1) * tColGap;
+        const rowStartX = clampRange(cx - tGridWRow / 2, rowMinX, rowMaxX - tGridWRow);
+        const px = rowStartX + col * tColGap;
+        text(ctx, `${PLANET_SYMBOLS[item.name]} ${dmsFromDeg(item.t.sign.degInSign)}`, px, py, { font: `600 ${tFontSize}px JKSans`, color: TRANSIT_COLOR, align: 'center' });
       });
     }
   }
@@ -582,13 +685,18 @@ function renderNorthIndianWithTransitsPNG(natalChart, transitsResult, opts = {})
     const natalStr = natalHere.length
       ? natalHere.map(item => `${PLANET_SYMBOLS[item.name]} ${dmsFromDeg(item.p.sign.degInSign)}`).join('   ')
       : '—';
-    text(ctx, natalStr, 220, y, { font: '12px JKSans', color: COLORS.ink });
+    // Стеллиум из 4-5 планет на фиксированном шрифте мог дотянуться до
+    // колонки "транзит" (x=530) и визуально слиться с ней — подбираем
+    // шрифт под доступную ширину колонки.
+    const natalFs = fitFontSize(ctx, natalStr, 'JKSans', 12, 530 - 220 - 14);
+    text(ctx, natalStr, 220, y, { font: `${natalFs}px JKSans`, color: COLORS.ink });
 
     const transitHere = transitsByHouse[h];
     const transitStr = transitHere.length
       ? transitHere.map(item => `${PLANET_SYMBOLS[item.name]} ${dmsFromDeg(item.t.sign.degInSign)}`).join('   ')
       : '—';
-    text(ctx, transitStr, 530, y, { font: '12px JKSans', color: TRANSIT_COLOR });
+    const transitFs = fitFontSize(ctx, transitStr, 'JKSans', 12, (width - 40) - 530 - 4);
+    text(ctx, transitStr, 530, y, { font: `${transitFs}px JKSans`, color: TRANSIT_COLOR });
   }
 
   return canvas.toBuffer('image/png');
@@ -662,8 +770,13 @@ function renderDivisionalPNG(d9chart, opts = {}) {
     const rowGap = fontSize * 2.9;
     const gridW = (cols - 1) * colGap;
     const gridH = (rows - 1) * rowGap;
-    const startX = cx - gridW / 2;
-    const startY = cy - gridH / 2;
+    // Клампим сетку планет в пределы фигуры дома (не всего холста) —
+    // иначе в доме с 4+ планетами сетка могла вылезти за пределы узкого
+    // угла и наехать на соседний дом.
+    const bbox = polyBBox(poly);
+    const padIn = 16;
+    const startX = clampRange(cx - gridW / 2, bbox.minX + padIn, bbox.maxX - padIn - gridW);
+    const startY = clampRange(cy - gridH / 2, bbox.minY + padIn, bbox.maxY - padIn - gridH);
 
     planetsHere.forEach((item, i) => {
       const col = i % cols, row = Math.floor(i / cols);

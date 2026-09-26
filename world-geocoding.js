@@ -9,6 +9,21 @@
 const tzlookup = require('tz-lookup');
 
 const USER_AGENT = 'JanmaKundaliBot/1.0 (https://t.me/janma_kundali_bot)';
+const GEOCODE_TIMEOUT_MS = 8000;
+
+// Без явного таймаута зависший ответ Nominatim подвешивал бы диалог с
+// пользователем в боте (или запрос в мини-приложении) бесконечно —
+// try/catch тут не спасает, потому что зависший fetch не отклоняется
+// сам по себе, он просто не завершается.
+async function fetchWithTimeout(url, options = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), GEOCODE_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /**
  * Ищет город по названию через Nominatim (OpenStreetMap).
@@ -19,7 +34,7 @@ const USER_AGENT = 'JanmaKundaliBot/1.0 (https://t.me/janma_kundali_bot)';
 async function geocodeCityCandidatesRaw(query, limit = 5) {
   const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=${limit}&accept-language=ru`;
   try {
-    const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
+    const res = await fetchWithTimeout(url, { headers: { 'User-Agent': USER_AGENT } });
     if (!res.ok) return [];
     const data = await res.json();
     if (!Array.isArray(data)) return [];
@@ -59,17 +74,32 @@ function getOffsetHours(timeZone, date) {
   return (asUTC - date.getTime()) / 3600000;
 }
 
+// Уточняет смещение по фактическому моменту UTC рождения, а не только по
+// приближению (местная дата, взятая как полдень UTC) — см. тот же приём и
+// подробное объяснение в ru-timezone.js/resolveCity. Для рождений вплотную
+// к границе перехода на летнее/зимнее время первое приближение может выбрать
+// не ту сторону границы; второй проход почти всегда это исправляет.
+function refineOffset(timezone, approxDateUTC, hour, minute) {
+  const offset1 = getOffsetHours(timezone, approxDateUTC);
+  if (hour === undefined || minute === undefined) return offset1;
+  const y = approxDateUTC.getUTCFullYear(), m = approxDateUTC.getUTCMonth(), d = approxDateUTC.getUTCDate();
+  const actualUTC = new Date(Date.UTC(y, m, d, hour, minute, 0) - offset1 * 3600000);
+  return getOffsetHours(timezone, actualUTC);
+}
+
 /**
  * Полный поиск: город (любая страна) → координаты + исторически верный
  * часовой пояс на заданную дату.
  * @param {string} cityName
  * @param {Date} approxDateUTC - примерная дата (для определения сезона/DST)
+ * @param {number} [hour] - местные час/минута рождения, для уточняющего прохода
+ * @param {number} [minute]
  */
-async function resolveWorldCity(cityName, approxDateUTC) {
+async function resolveWorldCity(cityName, approxDateUTC, hour, minute) {
   const geo = await geocodeCity(cityName);
   if (!geo) return null;
   const timezone = tzlookup(geo.lat, geo.lon);
-  const utcOffset = getOffsetHours(timezone, approxDateUTC);
+  const utcOffset = refineOffset(timezone, approxDateUTC, hour, minute);
   return {
     city: geo.displayName,
     lat: geo.lat,
@@ -84,11 +114,11 @@ async function resolveWorldCity(cityName, approxDateUTC) {
  * когда несколько городов подходят под запрос, решение остаётся за человеком,
  * а не молча берётся первый ответ Nominatim.
  */
-async function resolveWorldCityCandidates(cityName, approxDateUTC, limit = 5) {
+async function resolveWorldCityCandidates(cityName, approxDateUTC, limit = 5, hour, minute) {
   const geos = await geocodeCityCandidatesRaw(cityName, limit);
   return geos.map(geo => {
     const timezone = tzlookup(geo.lat, geo.lon);
-    const utcOffset = getOffsetHours(timezone, approxDateUTC);
+    const utcOffset = refineOffset(timezone, approxDateUTC, hour, minute);
     return { city: geo.displayName, lat: geo.lat, lon: geo.lon, utcOffset, timezone };
   });
 }
@@ -97,9 +127,9 @@ async function resolveWorldCityCandidates(cityName, approxDateUTC, limit = 5) {
  * Определяет часовой пояс напрямую по координатам, без поиска города —
  * для случая, когда человек вводит широту/долготу вручную.
  */
-function resolveTimezoneForCoords(lat, lon, approxDateUTC) {
+function resolveTimezoneForCoords(lat, lon, approxDateUTC, hour, minute) {
   const timezone = tzlookup(lat, lon);
-  const utcOffset = getOffsetHours(timezone, approxDateUTC);
+  const utcOffset = refineOffset(timezone, approxDateUTC, hour, minute);
   return { timezone, utcOffset };
 }
 
@@ -114,7 +144,7 @@ function resolveTimezoneForCoords(lat, lon, approxDateUTC) {
 async function reverseGeocode(lat, lon) {
   const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=ru`;
   try {
-    const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
+    const res = await fetchWithTimeout(url, { headers: { 'User-Agent': USER_AGENT } });
     if (!res.ok) return null;
     const data = await res.json();
     return data && data.display_name ? data.display_name : null;

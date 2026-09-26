@@ -26,11 +26,11 @@ const SIGN_SCAN_SETTINGS = {
   'Кету': { step: 20, maxDays: 700 },
 };
 
-function planetSignIndexAt(planetName, date, lat, lon, utcOffset) {
+function planetSignIndexAt(planetName, date, lat, lon, utcOffset, ayanamshaType, customAyanamshaBase) {
   const chart = calculateChart({
     year: date.getUTCFullYear(), month: date.getUTCMonth() + 1, day: date.getUTCDate(),
     hour: date.getUTCHours(), minute: date.getUTCMinutes(), second: 0,
-    lat, lon, utcOffset, ayanamshaType: 'lahiri',
+    lat, lon, utcOffset, ayanamshaType: ayanamshaType || 'lahiri', customAyanamshaBase,
   });
   return chart.planets[planetName].sign.index;
 }
@@ -40,15 +40,17 @@ function planetSignIndexAt(planetName, date, lat, lon, utcOffset) {
  * Возвращает { daysAhead, date } либо null, если в пределах разумного
  * диапазона сканирования смены знака не произошло (не ошибка — просто
  * планета ещё долго будет в этом знаке дольше, чем мы сканируем).
+ * ayanamshaType/customAyanamshaBase — те же настройки, что у натальной карты
+ * пользователя (иначе "выход из знака" считается не в той системе отсчёта).
  */
-function findSignExitDate(planetName, now, lat, lon, utcOffset) {
+function findSignExitDate(planetName, now, lat, lon, utcOffset, ayanamshaType, customAyanamshaBase) {
   const settings = SIGN_SCAN_SETTINGS[planetName];
   if (!settings) return null;
-  const currentSign = planetSignIndexAt(planetName, now, lat, lon, utcOffset);
+  const currentSign = planetSignIndexAt(planetName, now, lat, lon, utcOffset, ayanamshaType, customAyanamshaBase);
   const dayMs = 24 * 3600 * 1000;
   for (let d = settings.step; d <= settings.maxDays; d += settings.step) {
     const checkDate = new Date(now.getTime() + d * dayMs);
-    const signAtCheck = planetSignIndexAt(planetName, checkDate, lat, lon, utcOffset);
+    const signAtCheck = planetSignIndexAt(planetName, checkDate, lat, lon, utcOffset, ayanamshaType, customAyanamshaBase);
     if (signAtCheck !== currentSign) {
       return { daysAhead: d, date: checkDate.toISOString().slice(0, 10) };
     }

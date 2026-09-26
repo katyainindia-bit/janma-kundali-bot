@@ -54,7 +54,7 @@ function relevantLords(chart, goalKey) {
 function dayQuality(chart, natalMoonNakIdx, dateUTC, lat, lon, utcOffset) {
   const p = computePanchanga(
     dateUTC.getUTCFullYear(), dateUTC.getUTCMonth() + 1, dateUTC.getUTCDate(), 12, 0,
-    lat, lon, utcOffset
+    lat, lon, utcOffset, chart.ayanamshaType, chart.customAyanamshaBase
   );
   const taraBala = computeTaraBala(natalMoonNakIdx, p.nakshatraOfDayIdx);
   return { taraBala, tithi: p.tithi, nakshatraOfDay: p.nakshatraOfDay };
@@ -110,7 +110,7 @@ function computeCalendarMonth(chart, birthDateUTC, year, month, lat, lon, utcOff
 function computeDayDetail(chart, birthDateUTC, year, month, day, lat, lon, utcOffset) {
   const dateAtNoonUTC = new Date(Date.UTC(year, month - 1, day, 12, 0, 0) - utcOffset * 3600000);
 
-  const panchanga = computePanchanga(year, month, day, 12, 0, lat, lon, utcOffset);
+  const panchanga = computePanchanga(year, month, day, 12, 0, lat, lon, utcOffset, chart.ayanamshaType, chart.customAyanamshaBase);
 
   const nakSpan = 360 / 27;
   const natalMoonNakIdx = Math.floor(chart.planets['Луна'].siderealLon / nakSpan);
@@ -212,6 +212,13 @@ function computeDayDetail(chart, birthDateUTC, year, month, day, lat, lon, utcOf
 function computeDateSearch(chart, birthDateUTC, lat, lon, utcOffset, goalKey, fromDateUTC, toDateUTC) {
   const goal = GOALS[goalKey];
   if (!goal) throw new Error('Неизвестная цель поиска');
+  // Раньше при toDateUTC < fromDateUTC totalDays получался <= 0, цикл просто
+  // не выполнялся ни разу, и вызывающая сторона получала пустой результат —
+  // неотличимый от "в этом диапазоне подходящих дней не нашлось". Явная
+  // ошибка честнее и не скрывает перепутанные местами даты.
+  if (!(toDateUTC instanceof Date) || !(fromDateUTC instanceof Date) || isNaN(toDateUTC) || isNaN(fromDateUTC) || toDateUTC < fromDateUTC) {
+    throw new Error('Некорректный диапазон дат: конечная дата раньше начальной');
+  }
   const lords = relevantLords(chart, goalKey);
 
   const nakSpan = 360 / 27;
@@ -287,6 +294,9 @@ module.exports = { GOALS, computeCalendarMonth, computeDateSearch, computeDayDet
 function computeActionDateSearch(chart, birthDateUTC, lat, lon, utcOffset, actionKey, fromDateUTC, toDateUTC, travelDirection) {
   const action = ACTIONS[actionKey];
   if (!action) throw new Error('Неизвестное действие: ' + actionKey);
+  if (!(toDateUTC instanceof Date) || !(fromDateUTC instanceof Date) || isNaN(toDateUTC) || isNaN(fromDateUTC) || toDateUTC < fromDateUTC) {
+    throw new Error('Некорректный диапазон дат: конечная дата раньше начальной');
+  }
 
   const nakSpan = 360 / 27;
   const natalMoonNakIdx = Math.floor(chart.planets['Луна'].siderealLon / nakSpan);
@@ -303,7 +313,7 @@ function computeActionDateSearch(chart, birthDateUTC, lat, lon, utcOffset, actio
   const days = [];
   for (let i = 0; i < totalDays; i++) {
     const dateUTC = new Date(fromDateUTC.getTime() + i * dayMs);
-    const p = computePanchanga(dateUTC.getUTCFullYear(), dateUTC.getUTCMonth() + 1, dateUTC.getUTCDate(), 12, 0, lat, lon, utcOffset);
+    const p = computePanchanga(dateUTC.getUTCFullYear(), dateUTC.getUTCMonth() + 1, dateUTC.getUTCDate(), 12, 0, lat, lon, utcOffset, chart.ayanamshaType, chart.customAyanamshaBase);
     const taraBala = computeTaraBala(natalMoonNakIdx, p.nakshatraOfDayIdx);
     const chain = findCurrentDashaChain(mahadashas, dateUTC);
 

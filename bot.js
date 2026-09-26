@@ -16,6 +16,7 @@ const { resolveCity } = require('./ru-timezone.js');
 const { resolveWorldCity } = require('./world-geocoding.js');
 const { withLogo } = require('./branding.js');
 const db = require('./database.js');
+const { sendMessageWithBackoff } = require('./telegram-send.js');
 
 // ID администратора (тебя) для команды /broadcast — задаётся переменной окружения ADMIN_ID
 const ADMIN_ID = process.env.ADMIN_ID ? Number(process.env.ADMIN_ID) : null;
@@ -28,6 +29,29 @@ if (!BOT_TOKEN) {
 
 const bot = new Telegraf(BOT_TOKEN);
 
+// Глобальный перехватчик ошибок Telegraf: без него необработанная ошибка
+// (или отклонённый промис) внутри ЛЮБОГО обработчика — падает мимо всех
+// локальных try/catch и по умолчанию на современном Node.js убивает весь
+// процесс бота, то есть кладёт его для ВСЕХ пользователей одновременно,
+// а не только для того, у кого произошла ошибка. Здесь — последний рубеж:
+// логируем, стараемся вежливо ответить пользователю и продолжаем работать.
+bot.catch((err, ctx) => {
+  console.error(`Необработанная ошибка в обработчике (update ${ctx.updateType}, пользователь ${ctx.from && ctx.from.id}):`, err);
+  if (ctx && typeof ctx.reply === 'function') {
+    ctx.reply('Что-то пошло не так. Попробуйте ещё раз или напишите /menu.').catch(() => {});
+  }
+});
+
+// Дополнительная страховка на случай ошибки вне контекста Telegraf-апдейта
+// (например, в планировщике уведомлений или веб-сервере мини-приложения) —
+// только логируем и продолжаем работу, никогда не завершаем процесс сами.
+process.on('unhandledRejection', (reason) => {
+  console.error('Необработанный отказ промиса (процесс продолжает работу):', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('Неперехваченное исключение (процесс продолжает работу):', err);
+});
+
 // Хранилище последней построенной карты по каждому пользователю.
 // Внимание: это простое хранилище в памяти процесса — при перезапуске бота
 // данные теряются. Для продакшена стоит заменить на файл/базу данных.
@@ -36,6 +60,14 @@ const userCharts = new Map();
 // Проверка "аварийного выхода": если внутри любого шага любого мастера
 // человек написал /start, /menu или нажал «☰ Меню» — выходим из сцены
 // и показываем главное меню, вместо того чтобы упорно ждать первоначальный вопрос.
+// Проверка диапазонов при ручном вводе "широта, долгота, часовой_пояс" —
+// раньше проверялось только !isNaN, поэтому опечатка (например, перепутанные
+// местами широта и долгота, lat=200) молча уходила в расчёт и давала
+// неверную карту без единого предупреждения.
+function isValidManualCoords(lat, lon, tz) {
+  return lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180 && tz >= -12 && tz <= 14;
+}
+
 async function checkGlobalEscape(ctx) {
   const text = (ctx.message && ctx.message.text || '').trim().toLowerCase();
   if (text === '/start' || text === '/menu' || text === '☰ меню') {
@@ -113,22 +145,28 @@ const birthDataWizard = new Scenes.WizardScene(
     const asNumbers = parts.length === 3 ? parts.map(Number) : null;
 
     if (asNumbers && !asNumbers.some(isNaN)) {
+      if (!isValidManualCoords(...asNumbers)) {
+        await ctx.reply('Похоже, координаты выходят за допустимый диапазон (широта от -90 до 90, долгота от -180 до 180, часовой пояс от -12 до 14). Проверьте и отправьте ещё раз, либо введите название города.');
+        return;
+      }
       [lat, lon, tz] = asNumbers;
       placeLabel = `широта ${lat}, долгота ${lon}`;
     } else {
       // Сначала пробуем найти город в базе России (точная историческая таблица)
       const bd = ctx.wizard.state.birthData;
       const dateUTCForTz = new Date(Date.UTC(bd.year, bd.month - 1, bd.day, 12, 0, 0));
-      let found = resolveCity(text, dateUTCForTz);
+      // Передаём час/минуту рождения для уточняющего прохода — важно для
+      // рождений вплотную к границе перехода на летнее/зимнее время.
+      let found = resolveCity(text, dateUTCForTz, bd.hour, bd.minute);
 
-      if (found) {
+      if (found && found.utcOffset !== null) {
         lat = found.lat; lon = found.lon; tz = found.utcOffset;
         placeLabel = `${found.city} (${lat}, ${lon})`;
         await ctx.reply(`Нашла: ${found.city}, часовой пояс на эту дату — UTC${tz >= 0 ? '+' : ''}${tz}`);
       } else {
         // Если не нашли в российской базе — ищем по всему миру
         await ctx.reply('Ищу город...');
-        const worldFound = await resolveWorldCity(text, dateUTCForTz);
+        const worldFound = await resolveWorldCity(text, dateUTCForTz, bd.hour, bd.minute);
         if (!worldFound) {
           await ctx.reply(
             'Не нашла такой город и не смогла распознать координаты.\n\n' +
@@ -306,12 +344,16 @@ const transitWizard = new Scenes.WizardScene(
       const parts = text.split(',').map(s => s.trim());
       const asNumbers = parts.length === 3 ? parts.map(Number) : null;
       if (asNumbers && !asNumbers.some(isNaN)) {
+        if (!isValidManualCoords(...asNumbers)) {
+          await ctx.reply('Похоже, координаты выходят за допустимый диапазон (широта от -90 до 90, долгота от -180 до 180, часовой пояс от -12 до 14). Проверьте и отправьте ещё раз, либо введите название города.');
+          return;
+        }
         const [lat, lon, tz] = asNumbers;
         place = { lat, lon, tz, label: `широта ${lat}, долгота ${lon}` };
       } else {
         const dateForTz = new Date(Date.UTC(td.year, td.month - 1, td.day, 12, 0, 0));
         let found = resolveCity(text, dateForTz);
-        if (found) {
+        if (found && found.utcOffset !== null) {
           place = { lat: found.lat, lon: found.lon, tz: found.utcOffset, label: found.city };
         } else {
           await ctx.reply('Ищу город...');
@@ -424,11 +466,15 @@ const panchangaWizard = new Scenes.WizardScene(
       const parts = text.split(',').map(s => s.trim());
       const asNumbers = parts.length === 3 ? parts.map(Number) : null;
       if (asNumbers && !asNumbers.some(isNaN)) {
+        if (!isValidManualCoords(...asNumbers)) {
+          await ctx.reply('Похоже, координаты выходят за допустимый диапазон (широта от -90 до 90, долгота от -180 до 180, часовой пояс от -12 до 14). Проверьте и отправьте ещё раз, либо введите название города.');
+          return;
+        }
         [lat, lon, tz] = asNumbers;
       } else {
         const dateForTz = new Date(Date.UTC(pd.year, pd.month - 1, pd.day, 12, 0, 0));
         let found = resolveCity(text, dateForTz);
-        if (found) {
+        if (found && found.utcOffset !== null) {
           lat = found.lat; lon = found.lon; tz = found.utcOffset;
         } else {
           await ctx.reply('Ищу город...');
@@ -827,7 +873,13 @@ bot.action(/^notes_(\d+)$/, async (ctx) => {
 
 bot.action(/^addnote_(\d+)$/, async (ctx) => {
   await ctx.answerCbQuery();
-  ctx.session.pendingNoteChartId = Number(ctx.match[1]);
+  const chartId = Number(ctx.match[1]);
+  const row = db.getChart(ctx.from.id, chartId);
+  if (!row) {
+    await ctx.reply('Карта не найдена.');
+    return;
+  }
+  ctx.session.pendingNoteChartId = chartId;
   await ctx.reply('Напишите текст заметки:');
 });
 
@@ -839,6 +891,12 @@ bot.on('text', async (ctx, next) => {
     delete ctx.session.pendingNoteChartId;
     const text = ctx.message.text.trim();
     if (text === '☰ Меню' || text === '/menu') return next();
+    // Повторно проверяем владение картой — на случай подмены callback_data.
+    const row = db.getChart(ctx.from.id, chartId);
+    if (!row) {
+      await ctx.reply('Карта не найдена.');
+      return;
+    }
     db.addNote(chartId, text);
     await ctx.reply('Заметка сохранена.');
     return;
@@ -861,7 +919,7 @@ bot.command('broadcast', async (ctx) => {
   let sent = 0, failed = 0;
   for (const id of userIds) {
     try {
-      await bot.telegram.sendMessage(id, text);
+      await sendMessageWithBackoff(bot, id, text);
       sent++;
     } catch (e) {
       failed++;

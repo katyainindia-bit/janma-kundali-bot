@@ -67,6 +67,26 @@ function requireTelegramUser(req, res, next) {
   next();
 }
 
+// Проверка диапазонов даты/времени/координат рождения — то же самое, что
+// уже проверяется в мастере бота (bot.js), но /api/chart раньше принимал
+// эти поля вообще без проверки: месяц=13 или широта=200 тихо уходили в
+// расчёт и давали бессмысленную, но не падающую с ошибкой карту.
+// Возвращает строку с описанием проблемы, либо null, если всё в порядке.
+function validateBirthParams({ day, month, year, hour, minute, lat, lon, utcOffset }) {
+  if (![day, month, year, hour, minute, lat, lon, utcOffset].every(v => typeof v === 'number' && Number.isFinite(v))) {
+    return 'Не все поля даты/времени/места заполнены числами';
+  }
+  if (!Number.isInteger(day) || day < 1 || day > 31) return 'Некорректный день';
+  if (!Number.isInteger(month) || month < 1 || month > 12) return 'Некорректный месяц';
+  if (!Number.isInteger(year) || year < 1900 || year > 2100) return 'Некорректный год (допустимо 1900–2100)';
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23) return 'Некорректный час';
+  if (!Number.isInteger(minute) || minute < 0 || minute > 59) return 'Некорректная минута';
+  if (lat < -90 || lat > 90) return 'Широта должна быть в диапазоне от -90 до 90';
+  if (lon < -180 || lon > 180) return 'Долгота должна быть в диапазоне от -180 до 180';
+  if (utcOffset < -12 || utcOffset > 14) return 'Некорректный часовой пояс';
+  return null;
+}
+
 // Мидлвара: пропускает дальше только пользователей с активным Premium.
 // Использовать ПОСЛЕ requireTelegramUser (нужен req.tgUser).
 function requirePremium(req, res, next) {
@@ -90,12 +110,12 @@ function startWebApp() {
 
   app.post('/api/timezone-for-coords', (req, res) => {
     try {
-      const { lat, lon, day, month, year } = req.body;
+      const { lat, lon, day, month, year, hour, minute } = req.body;
       if (typeof lat !== 'number' || typeof lon !== 'number' || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
         return res.status(400).json({ error: 'Некорректные координаты' });
       }
       const dateForTz = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
-      const { utcOffset, timezone } = resolveTimezoneForCoords(lat, lon, dateForTz);
+      const { utcOffset, timezone } = resolveTimezoneForCoords(lat, lon, dateForTz, hour, minute);
       res.json({ utcOffset, timezone });
     } catch (e) {
       console.error(e);
@@ -161,10 +181,10 @@ function startWebApp() {
 
   app.post('/api/geocode', async (req, res) => {
     try {
-      const { city, day, month, year } = req.body;
+      const { city, day, month, year, hour, minute } = req.body;
       const dateForTz = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
-      let found = resolveCity(city, dateForTz);
-      if (found) {
+      let found = resolveCity(city, dateForTz, hour, minute);
+      if (found && found.utcOffset !== null) {
         // Наша курируемая база даёт точные координаты и верный исторический
         // часовой пояс, но хранит название без региона — непонятно, тот ли
         // это Орёл (город) или его тёзка. Дополняем настоящим адресом через
@@ -176,7 +196,7 @@ function startWebApp() {
         // Небольшая курируемая база городов России даёт однозначный ответ сразу —
         // за её пределами используем открытый геокодер и, если он находит
         // несколько похожих городов, отдаём список на выбор, а не молча первый.
-        const candidates = await resolveWorldCityCandidates(city, dateForTz);
+        const candidates = await resolveWorldCityCandidates(city, dateForTz, 5, hour, minute);
         if (candidates.length === 0) return res.status(404).json({ error: 'Город не найден' });
         if (candidates.length === 1) {
           found = { city: candidates[0].city, lat: candidates[0].lat, lon: candidates[0].lon, utcOffset: candidates[0].utcOffset };
@@ -194,6 +214,8 @@ function startWebApp() {
   app.post('/api/chart', (req, res) => {
     try {
       const { day, month, year, hour, minute, lat, lon, utcOffset, ayanamshaType, nodeType, observationMode, initData } = req.body;
+      const validationError = validateBirthParams({ day, month, year, hour, minute, lat, lon, utcOffset });
+      if (validationError) return res.status(400).json({ error: validationError });
       // Настройки зодиака/узла берём из сохранённого профиля пользователя, если он
       // авторизован через Telegram initData — иначе (или если явно передали
       // параметром) используем классический дефолт: сидерический Лахири, средний узел.
@@ -443,7 +465,8 @@ function startWebApp() {
       if (!note || !note.trim()) return res.status(400).json({ error: 'Пустая заметка' });
       const row = db.getChart(req.tgUser.id, chartId);
       if (!row) return res.status(404).json({ error: 'Карта не найдена' });
-      db.updateNote(noteId, note.trim());
+      const info = db.updateNote(chartId, noteId, note.trim());
+      if (!info.changes) return res.status(404).json({ error: 'Заметка не найдена' });
       res.json({ ok: true });
     } catch (e) {
       console.error(e);
@@ -456,7 +479,8 @@ function startWebApp() {
       const { chartId, noteId } = req.body;
       const row = db.getChart(req.tgUser.id, chartId);
       if (!row) return res.status(404).json({ error: 'Карта не найдена' });
-      db.deleteNote(noteId);
+      const info = db.deleteNote(chartId, noteId);
+      if (!info.changes) return res.status(404).json({ error: 'Заметка не найдена' });
       res.json({ ok: true });
     } catch (e) {
       console.error(e);
@@ -482,7 +506,7 @@ function startWebApp() {
       const natalMoonNakIdx = Math.floor(chart.planets['Луна'].siderealLon / nakSpan);
       const todayPanchanga = computePanchanga(
         now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate(), now.getUTCHours(), now.getUTCMinutes(),
-        lat, lon, utcOffset
+        lat, lon, utcOffset, chart.ayanamshaType, chart.customAyanamshaBase
       );
       const taraBala = computeTaraBala(natalMoonNakIdx, todayPanchanga.nakshatraOfDayIdx);
 
@@ -741,7 +765,10 @@ function startWebApp() {
   app.post('/api/transit-end-date', requireTelegramUser, requirePremium, (req, res) => {
     try {
       const { planet, lat, lon, utcOffset } = req.body;
-      const result = findSignExitDate(planet, new Date(), lat, lon, utcOffset);
+      const row = db.getUser(req.tgUser.id);
+      const ayanamshaType = (row && row.zodiac_type !== 'tropical') ? (row.ayanamsha_variant || 'lahiri') : 'lahiri';
+      const customAyanamshaBase = row ? row.custom_ayanamsha_base : null;
+      const result = findSignExitDate(planet, new Date(), lat, lon, utcOffset, ayanamshaType, customAyanamshaBase);
       res.json(result || { daysAhead: null, date: null });
     } catch (e) {
       console.error(e);

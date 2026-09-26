@@ -16,6 +16,7 @@ const { computeVimshottariDasha, findCurrentDashaChain } = require('./dasha.js')
 const { computeCurrentTransits } = require('./transits.js');
 const { computePanchanga, computeTaraBala } = require('./panchanga.js');
 const { getEventsForDate } = require('./calendar-events.js');
+const { sendMessageWithBackoff } = require('./telegram-send.js');
 
 const NOTABLE_TARA_QUALITIES = ['наиболее благоприятно', 'неблагоприятно', 'наименее благоприятно'];
 
@@ -41,7 +42,7 @@ async function runRitualDailyCheck(bot) {
   const users = db.listRitualNotifiableUsers();
   for (const u of users) {
     try {
-      await bot.telegram.sendMessage(u.telegram_id, text);
+      await sendMessageWithBackoff(bot, u.telegram_id, text);
     } catch (e) {
       console.error(`Ошибка ритуального уведомления для ${u.telegram_id}:`, e);
     }
@@ -65,9 +66,15 @@ function birthDateUTCFromRow(row) {
  * отправить пользователю сегодня, и обновляет его notify_state — если ничего
  * нового, notifyState возвращается без изменений.
  */
-function buildNotificationsForUser(chartRow, prevState) {
+function buildNotificationsForUser(chartRow, prevState, userSettings) {
   const params = chartParamsFromRow(chartRow);
-  const chart = calculateChart({ ...params, second: 0, ayanamshaType: 'lahiri' });
+  // Берём ту же аянамшу/узел/кастомную базу, что пользователь выбрал в
+  // настройках — иначе уведомления (даши, транзиты, тара-бала) считаются
+  // по другой карте, чем та, которую пользователь видит в приложении.
+  const ayanamshaType = (userSettings && userSettings.zodiac_type !== 'tropical') ? ((userSettings && userSettings.ayanamsha_variant) || 'lahiri') : 'lahiri';
+  const nodeType = (userSettings && userSettings.node_type === 'true') ? 'true' : 'mean';
+  const customAyanamshaBase = userSettings ? userSettings.custom_ayanamsha_base : null;
+  const chart = calculateChart({ ...params, second: 0, ayanamshaType, nodeType, customAyanamshaBase });
   const now = new Date();
 
   const messages = [];
@@ -98,7 +105,7 @@ function buildNotificationsForUser(chartRow, prevState) {
   if (prevState.lastTaraNotifiedDate !== todayISO) {
     const todayPanchanga = computePanchanga(
       now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate(), now.getUTCHours(), now.getUTCMinutes(),
-      params.lat, params.lon, params.utcOffset
+      params.lat, params.lon, params.utcOffset, ayanamshaType, customAyanamshaBase
     );
     const taraBala = computeTaraBala(natalMoonNakIdx, todayPanchanga.nakshatraOfDayIdx);
     if (NOTABLE_TARA_QUALITIES.includes(taraBala.quality)) {
@@ -136,10 +143,11 @@ async function runDailyCheck(bot) {
   const users = db.listNotifiableUsers();
   for (const u of users) {
     try {
-      const { messages, newState } = buildNotificationsForUser(u.chart, u.notifyState);
+      const userSettings = db.getUser(u.telegramId);
+      const { messages, newState } = buildNotificationsForUser(u.chart, u.notifyState, userSettings);
       if (messages.length > 0) {
         const text = `✨ ${u.chart.label}\n\n` + messages.join('\n\n');
-        await bot.telegram.sendMessage(u.telegramId, text);
+        await sendMessageWithBackoff(bot, u.telegramId, text);
       }
       db.saveNotifyState(u.telegramId, newState);
     } catch (e) {

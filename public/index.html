@@ -468,7 +468,6 @@
     line-height: 1.5;
     color: var(--ink);
     box-shadow: 0 8px 24px rgba(31,31,31,0.16);
-    white-space: pre-line;
     opacity: 0;
     transform: translateY(4px);
     pointer-events: none;
@@ -1407,8 +1406,20 @@
     });
   }
 
-  async function showPlanetDetail(anchorEl, planetName, signIndex, isRetrograde, house, nakName, nakPada, chartRef) {
-    const status = getDignityStatusD1(planetName, signIndex);
+  // Раньше был клик-переключатель — подсказка "залипала" открытой, и было
+  // сложно попасть пальцем мимо неё, чтобы закрыть. Теперь — нажал-держишь,
+  // отпустил-закрылось (на мобильном); на десктопе остаётся наведение.
+  function wirePressAndHold(el, showFn, hideFn) {
+    el.addEventListener('touchstart', (e) => { e.preventDefault(); showFn(); }, { passive: false });
+    el.addEventListener('touchend', hideFn);
+    el.addEventListener('touchcancel', hideFn);
+    el.addEventListener('mousedown', showFn);
+    el.addEventListener('mouseenter', showFn);
+    el.addEventListener('mouseup', hideFn);
+    el.addEventListener('mouseleave', hideFn);
+  }
+
+  async function showPlanetDetail(anchorEl, planetName, signIndex, isRetrograde, house, nakName, nakPada, chartRef) {    const status = getDignityStatusD1(planetName, signIndex);
     const hasDigBala = DIG_BALA_HOUSE[planetName] === house;
     const nakMeaning = NAKSHATRA_MEANINGS_D1[nakName] || '';
     const combust = chartRef && isCombust(chartRef, planetName);
@@ -1422,7 +1433,6 @@
       ${combust ? '<p style="color:#a8654a;margin-bottom:8px;">☉ <b>Сожжена</b> — планета слишком близко к Солнцу, её сила ослаблена.</p>' : ''}
       ${atWar.length ? `<p style="color:#a8654a;margin-bottom:8px;">⚔ <b>Планетная война</b> с ${atWar.join(', ')} — обе планеты в одном градусе, борьба ослабляет проигравшую (кто именно — вопрос спорный между традициями).</p>` : ''}
       ${isRetrograde ? '<p style="color:#a8654a;margin-bottom:8px;">Ретроградность: темы этой планеты разворачиваются внутрь, требуют пересмотра, а не прямого движения вперёд.</p>' : ''}
-      <p style="color:var(--taupe);margin-bottom:8px;">${PLANET_SIGNIFICATIONS_D1[planetName]}</p>
       ${nakName ? `<p style="margin-bottom:0;"><b>Накшатра: ${nakName}</b> (пада ${nakPada})<br><span style="color:var(--taupe);">${nakMeaning}</span></p>` : ''}
     `;
     tip.classList.add('visible');
@@ -1524,42 +1534,74 @@
     let x=0,y=0; for (const p of poly) { x+=p[0]; y+=p[1]; }
     return [x/poly.length, y/poly.length];
   }
+  // Прямоугольник, описывающий фигуру дома — грубая, но дешёвая защита блоков
+  // текста от выхода за пределы СВОЕГО дома (раньше клампилось только в
+  // границы всего холста 0..400, из-за чего в узких угловых треугольниках
+  // длинный список транзитов мог пересечь диагональ и наехать на соседний дом).
+  function polyBBox(poly) {
+    let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
+    for (const [x,y] of poly) { if (x<minX) minX=x; if (x>maxX) maxX=x; if (y<minY) minY=y; if (y>maxY) maxY=y; }
+    return { minX, maxX, minY, maxY };
+  }
+  // Клампит v в [lo,hi]; при вырожденном диапазоне (lo>hi — блок шире самого
+  // дома) возвращает середину, а не пытается втиснуть невозможное.
+  function clampRange(v, lo, hi) {
+    return hi >= lo ? Math.max(lo, Math.min(hi, v)) : (lo+hi)/2;
+  }
+  // Точная (не bbox) ширина фигуры дома на конкретной высоте y — пересекает
+  // горизонтальную линию y=const со всеми рёбрами многоугольника. Нужна для
+  // треугольников: у них ширина сильно меняется от основания к вершине.
+  function polyXRangeAtY(poly, y) {
+    const xs = [];
+    for (let i=0;i<poly.length;i++) {
+      const [x1,y1]=poly[i], [x2,y2]=poly[(i+1)%poly.length];
+      if (y1===y2) continue;
+      if ((y>=y1 && y<=y2) || (y>=y2 && y<=y1)) xs.push(x1 + (y-y1)/(y2-y1)*(x2-x1));
+    }
+    return xs.length ? [Math.min(...xs), Math.max(...xs)] : null;
+  }
   function signNumberPos(poly, rows, extraDist, isKite) {
-    // По образцу J108 (прислан как референс) — номера домов стоят прямо
-    // у точек пересечения линий сетки, в том числе у общего центра карты
-    // для четырёх "воздушных змеев" (это НЕ баг и не "разлетелось" — так
-    // выглядит сам J108, четыре номера рядом у центра). Толкаем номер от
-    // ближайшей к центру вершины фигуры к её центроиду, небольшим фиксированным
-    // шагом — то же самое решение, что было в самой первой версии.
+    // По прямому указанию: цифра дома (номер знака) должна стоять В ЦЕНТРЕ
+    // своей фигуры, а не сбоку и не в углу — но при этом не наезжать на
+    // символы планет, которые тоже рисуются от центра фигуры (centroid).
     //
-    // ВАЖНО: угловые треугольники (не "воздушные змеи" 1/4/7/10) — намного
-    // меньше по площади, и когда в них 2 планеты (2 строки текста), номер
-    // нужно толкать ДАЛЬШЕ, а не ближе — иначе он утыкается прямо в текст
-    // соседней планеты (баг, который реально нашёлся и подтвердился).
-    let nearest = poly[0], best = Infinity, farthest = poly[0], worst = -Infinity;
+    // Угловые треугольники (2,3,5,6,8,9,11,12) — у каждой пары соседних
+    // треугольников ОБЩИЕ две из трёх вершин (и ближняя к центру карты, и
+    // дальняя внешняя) — если толкать номер к любой из них, пара номеров
+    // сходится в одну точку на границе между домами и выглядит "сбоку",
+    // а не по центру каждого своего дома. Третья, СВОЯ вершина (не ближняя
+    // и не дальняя) у каждого треугольника уникальна — толкаем номер от
+    // центроида чуть-чуть в её сторону: он остаётся у центра фигуры, но
+    // два соседних номера расходятся каждый в свою сторону, а не слипаются.
+    //
+    // "Воздушные змеи" (дома 1,4,7,10) — обычный центроид, чуть смещённый
+    // к внешнему кончику (противоположному общей средней точке карты).
+    let nearest = poly[0], bestD = Infinity, farthest = poly[0], worstD = -Infinity, middle = poly[0];
     for (const v of poly) {
-      const d=(v[0]-C)**2+(v[1]-C)**2;
-      if (d<best){best=d;nearest=v;}
-      if (d>worst){worst=d;farthest=v;}
+      const d = (v[0]-C)**2 + (v[1]-C)**2;
+      if (d < bestD) { bestD = d; nearest = v; }
+      if (d > worstD) { worstD = d; farthest = v; }
+    }
+    if (poly.length === 3) {
+      middle = poly.find(v => v !== nearest && v !== farthest) || farthest;
     }
     const c = centroid(poly);
-    // ГЛАВНОЕ ИСПРАВЛЕНИЕ: угловые треугольники (не "воздушные змеи") ВСЕГДА
-    // якорим от ДАЛЬНЕЙ вершины (настоящий внешний угол квадрата), а не от
-    // ближней к центру. Причина — у соседних угловых треугольников общая
-    // именно ВНЕШНЯЯ вершина (проверила по координатам полигонов: дома 2 и 3
-    // оба содержат точку (0,0)) — и в J108 их номера именно поэтому стоят
-    // парами у одного угла. Раньше якорили от БЛИЖНЕЙ вершины и толкали к
-    // своему центроиду — та у пары тоже общая, но толкание идёт в РАЗНЫЕ
-    // стороны (к разным центроидам), и пара расходится в стороны вместо
-    // того чтобы стоять рядом.
-    const anchor = isKite ? nearest : farthest;
-    let dx = c[0]-anchor[0], dy = c[1]-anchor[1];
+    // "Воздушные змеи": общая для всех четырёх вершина — это центр карты
+    // (nearest, расстояние 0), а не внешний кончик. От неё и толкаем номер
+    // к центроиду фигуры — так он остаётся в середине "змея", а не
+    // упирается во внешний кончик (там у дома 1 стоит бейдж ASC).
+    const anchor = isKite ? nearest : c;
+    // Если в треугольнике 2 строки текста планет (2+ планеты) — сетка
+    // планет вытягивается почти во всю высоту фигуры, и "своей" вершины уже
+    // не хватает для разделения. В этом случае толкаем номер к дальней
+    // (внешней) вершине сильнее — как и раньше, это проверенное решение
+    // именно для плотных домов; в остальных случаях остаёмся у "своей"
+    // вершины, чтобы номер не съезжал в общий угол с соседом.
+    const target = isKite ? c : (rows >= 2 ? farthest : middle);
+    let dx = target[0]-anchor[0], dy = target[1]-anchor[1];
     const len = Math.sqrt(dx*dx+dy*dy) || 1;
     dx /= len; dy /= len;
-    const dist = (isKite
-      ? (rows >= 3 ? 4 : rows === 2 ? 10 : 30)
-      : (rows >= 2 ? 28 : 26)
-    ) + (extraDist || 0);
+    const dist = (isKite ? 34 : (rows >= 2 ? 34 : 15)) + (rows === 1 ? 16 : 0) + (extraDist || 0);
     const margin = 14;
     return [
       Math.max(margin, Math.min(400 - margin, anchor[0]+dx*dist)),
@@ -1665,8 +1707,7 @@
 
           const hit = el('circle', { cx: px, cy: py, r: 14, fill: 'transparent', style: 'cursor:pointer;', 'data-planet': item.name });
           const openDetail = () => showPlanetDetail(hit, item.name, item.p.sign.index, item.p.retrograde, houseNum, item.p.nakshatra ? item.p.nakshatra.name : null, item.p.nakshatra ? item.p.nakshatra.pada : null, chart);
-          hit.addEventListener('click', openDetail);
-          hit.addEventListener('mouseenter', openDetail);
+          wirePressAndHold(hit, openDetail, hidePlanetTooltip);
           svg.appendChild(hit);
         });
       }
@@ -1674,13 +1715,17 @@
       if (transitsData) {
         const tHere = transitsBySign[cell.signIndex] || [];
         if (tHere.length) {
-          const tFs = tHere.length > 3 ? 7 : 8;
-          let ty = cell.y + 88;
-          tHere.forEach(({ name, t }) => {
+          const tFs = tHere.length > 5 ? 6 : tHere.length > 3 ? 7 : 8;
+          const rowStep = tFs * 1.4;
+          // Клампим блок в пределы своей клетки — при большом числе
+          // транзитов список, растущий вверх с фиксированной точки, мог
+          // выйти за верхний край клетки и наехать на соседний дом сверху.
+          const topY = clampRange(cell.y + 88 - (tHere.length - 1) * rowStep, cell.y + 12, cell.y + 88);
+          tHere.forEach(({ name, t }, i) => {
+            const ty = topY + (tHere.length - 1 - i) * rowStep;
             const tt = el('text', { x: cell.x + 90, y: ty, 'text-anchor': 'end', 'font-family': 'Inter, sans-serif', 'font-size': tFs, fill: '#B5A88F', 'font-style': 'italic' });
             tt.textContent = `${PLANET_SYMBOLS[name]} ${dms(t.sign.degInSign)}`;
             svg.appendChild(tt);
-            ty -= tFs * 1.4;
           });
         }
       }
@@ -1702,7 +1747,7 @@
   }
 
   function addWatermark(svg, el) {
-    const wm = el('text', {x:6,y:396,'font-family':"'Playfair Display', serif",'font-size':9,fill:'#C8A26B','opacity':0.75});
+    const wm = el('text', {x:200,y:396,'text-anchor':'middle','font-family':"'Playfair Display', serif",'font-size':9,fill:'#C8A26B','opacity':0.75});
     wm.textContent = 'Janma Kundali';
     svg.appendChild(wm);
   }
@@ -1779,14 +1824,17 @@
       // примерно), сетку планет нужно сдвинуть вниз, иначе верхний ряд
       // планет наезжает на подпись градуса Асцендента.
       if (h === 1) startY += 22;
-      // Защита от выхода сетки за пределы холста (0..400) — актуально для
-      // некоторых дробных карт (например, D2, где всего 2 возможных знака и
-      // в одном доме может оказаться 4-5+ планет сразу). Это не полноценное
-      // решение компоновки для таких карт, а страховка от полной обрезки —
-      // сама компоновка для «экстремальных» варг требует отдельной доработки.
-      const margin = 18;
-      startX = Math.max(margin, Math.min(400-margin-gridW, startX));
-      startY = Math.max(margin, Math.min(400-margin-gridH, startY));
+      // Защита от выхода сетки за пределы ФИГУРЫ ДОМА (не всего холста) —
+      // актуально для некоторых дробных карт (например, D2, где всего 2
+      // возможных знака и в одном доме может оказаться 4-5+ планет сразу),
+      // а с учётом слоя транзитов ниже — и для обычных карт при плотном
+      // соединении. Раньше клампилось только в границы холста 0..400, из-за
+      // чего сетка могла остаться формально "на холсте", но вылезти за
+      // пределы своего узкого угла и наехать на соседний дом.
+      const bbox = polyBBox(poly);
+      const padIn = 16;
+      startX = clampRange(startX, bbox.minX + padIn, bbox.maxX - padIn - gridW);
+      startY = clampRange(startY, bbox.minY + padIn, bbox.maxY - padIn - gridH);
 
       planetsHere.forEach((item,i)=>{
         const col=i%cols, row=Math.floor(i/cols);
@@ -1806,8 +1854,7 @@
         // чтобы было проще попасть пальцем на мобильном.
         const hit = el('circle', {cx:px, cy:py, r:16, fill:'transparent', style:'cursor:pointer;', 'data-planet':item.name});
         const openDetail = () => showPlanetDetail(hit, item.name, item.p.sign.index, item.p.retrograde, item.p.house, item.p.nakshatra ? item.p.nakshatra.name : null, item.p.nakshatra ? item.p.nakshatra.pada : null, chart);
-        hit.addEventListener('click', openDetail);
-        hit.addEventListener('mouseenter', openDetail);
+        wirePressAndHold(hit, openDetail, hidePlanetTooltip);
         svg.appendChild(hit);
       });
 
@@ -1822,41 +1869,42 @@
         const tHere = transitsByHouse[h] || [];
         if (tHere.length > 0) {
           const dir = cy <= C ? 1 : -1;
-          // При 5+ планетах в одном доме одна колонка становится слишком
-          // высокой и может выйти за пределы дома — переходим на две
-          // колонки с более мелким шрифтом, тем же приёмом, что уже
-          // работает для натальных планет в этом же доме.
-          const tCols = tHere.length > 4 ? 2 : 1;
+          // При 4+ планетах одна колонка растягивается по вертикали
+          // настолько, что может пересечь границу дома (проверено стресс-
+          // тестом: список транзитов в угловом треугольнике залезал на
+          // соседний дом прямо через диагональ) — переходим на две колонки.
+          const tCols = tHere.length > 3 ? 2 : 1;
           const tRows = Math.ceil(tHere.length / tCols);
-          // Раньше мелкий шрифт включался только при 5+ планетах — но даже
-          // при 3 планетах одна колонка растягивалась настолько, что
-          // дотягивалась до цифр соседнего углового треугольника. Понижаем
-          // порог и делаем сам шаг между строками теснее.
-          const tFs = tHere.length > 4 ? 6.5 : tHere.length >= 3 ? 8 : 10;
-          const tColGap = tFs * 5.4;
+          const tFs = tHere.length > 5 ? 6.5 : tHere.length > 3 ? 7.5 : 10;
+          const tColGap = tFs * 5.6;
           const tRowGap = tFs * 1.9;
           const houseOneExtra = h === 1 ? 34 : 0;
-          let tStartY = cy + dir*(gridH/2 + fs*1.2 + 12 + houseOneExtra) + (dir > 0 ? 0 : -(tRows-1)*tRowGap);
-          // Жёсткая защита от выхода за пределы холста по вертикали — не даёт
-          // блоку транзитов дотянуться до чисел соседнего дома или до края.
-          const tMarginY = 20;
-          const tBlockH = (tRows-1)*tRowGap;
-          if (dir > 0) tStartY = Math.min(tStartY, 400 - tMarginY - tBlockH);
-          else tStartY = Math.max(tStartY, tMarginY);
-          let tStartX = cx - (tCols-1)*tColGap/2;
-          // Та же защита от выхода за холст, что уже есть для натальной
-          // сетки — иначе в маленьких угловых домах у края карты вторая
-          // колонка уходит за границу экрана.
-          // Текст выровнен по центру (text-anchor:middle) — учитываем не только
-          // точку привязки, но и половину ширины самой подписи, иначе край
-          // текста всё равно вылезает за холст, даже если точка внутри.
-          const tMargin = 26;
-          const tGridW = (tCols-1)*tColGap;
-          tStartX = Math.max(tMargin, Math.min(400 - tMargin - tGridW, tStartX));
+          const tGridH = (tRows-1)*tRowGap;
+          // Отталкиваемся от РЕАЛЬНОГО края натальной сетки (startY/gridH
+          // уже могли быть сдвинуты клампом выше), а не от предположения
+          // "натальная сетка стоит строго по центру дома" — при плотном
+          // доме это предположение само по себе давало наложение.
+          const natalBottomY = startY + gridH + fs*1.2 + 10 + houseOneExtra;
+          const natalTopY = startY - 10;
+          let tStartY = dir > 0 ? natalBottomY : natalTopY - tGridH;
+          const padIn = 10;
+          // Грубая защита прямоугольником дома — не даёт блоку "убежать" в
+          // дом через один...
+          tStartY = clampRange(tStartY, bbox.minY + padIn, bbox.maxY - padIn - tGridH);
+
           tHere.forEach((item,i)=>{
             const col = i % tCols, row = Math.floor(i / tCols);
-            const px = tStartX + col*tColGap;
-            const py = tStartY + dir*row*tRowGap;
+            const py = tStartY + row*tRowGap;
+            // ...а на каждой конкретной строке — точная ширина ФИГУРЫ дома
+            // на этой высоте (у треугольника она сужается к вершине), чтобы
+            // текст не пересекал границу с соседним домом даже в нижних
+            // строках длинного списка.
+            const rangeAtRow = polyXRangeAtY(poly, py) || [bbox.minX, bbox.maxX];
+            const rowMinX = Math.max(bbox.minX, rangeAtRow[0]) + padIn;
+            const rowMaxX = Math.min(bbox.maxX, rangeAtRow[1]) - padIn;
+            const tGridWRow = (tCols-1)*tColGap;
+            const rowStartX = clampRange(cx - tGridWRow/2, rowMinX, rowMaxX - tGridWRow);
+            const px = rowStartX + col*tColGap;
             const tt = el('text', {x:px,y:py,'text-anchor':'middle','font-family':'Inter, sans-serif','font-size':tFs,'font-weight':600,fill:'#6b8299'});
             tt.textContent = PLANET_SYMBOLS[item.name] + ' ' + dms(item.t.sign.degInSign);
             svg.appendChild(tt);
@@ -1906,8 +1954,7 @@
 
     container.querySelectorAll('.planet-row[data-planet]').forEach(row => {
       const trigger = () => showPlanetDetail(row, row.dataset.planet, Number(row.dataset.signidx), row.dataset.retro === '1', Number(row.dataset.house), row.dataset.nak, row.dataset.pada, chart);
-      row.addEventListener('click', trigger);
-      row.addEventListener('mouseenter', trigger);
+      wirePressAndHold(row, trigger, hidePlanetTooltip);
     });
   }
 
@@ -2076,6 +2123,9 @@
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
+  function escapeHtmlBr(s) {
+    return escapeHtml(s).replace(/\n/g, '<br>');
+  }
 
   function pickCityCandidate(candidates) {
     return new Promise((resolve) => {
@@ -2102,10 +2152,10 @@
   // его сразу, если несколько похожих — сначала спрашивает, какой из них нужен,
   // вместо того чтобы молча брать первый (это и было причиной путаницы с
   // одноимёнными городами в разных регионах/странах).
-  async function resolveCityWithPicker(city, day, month, year) {
+  async function resolveCityWithPicker(city, day, month, year, hour, minute) {
     const geoRes = await fetch('/api/geocode', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ city, day, month, year })
+      body: JSON.stringify({ city, day, month, year, hour, minute })
     });
     const geo = await geoRes.json();
     if (geo.error) return { error: geo.error };
@@ -2461,13 +2511,13 @@
         if (isNaN(lat) || isNaN(lon)) { errorEl.textContent = 'Введите широту и долготу числами'; errorEl.style.display='block'; return; }
         const tzRes = await fetch('/api/timezone-for-coords', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lat, lon, day, month, year })
+          body: JSON.stringify({ lat, lon, day, month, year, hour, minute })
         });
         const tzData = await tzRes.json();
         if (!tzRes.ok) { errorEl.textContent = tzData.error || 'Не удалось определить часовой пояс'; errorEl.style.display='block'; return; }
         geo = { lat, lon, utcOffset: tzData.utcOffset, city: `${lat}, ${lon}` };
       } else {
-        geo = await resolveCityWithPicker(city, day, month, year);
+        geo = await resolveCityWithPicker(city, day, month, year, hour, minute);
         if (geo.error) { errorEl.textContent = geo.error; errorEl.style.display='block'; return; }
       }
 
@@ -2656,7 +2706,7 @@
     const tip = ensurePeriodTooltip();
     tip.innerHTML = notes.map(n => {
       const label = n.lords.length ? `${fmtDate(n.date)} · ${n.lords.join('–')}` : fmtDate(n.date);
-      return `<span class="period-tooltip-date">${label}</span>${escapeHtml(n.note)}`;
+      return `<span class="period-tooltip-date">${label}</span>${escapeHtmlBr(n.note)}`;
     }).join('<hr style="border:none;border-top:1px solid var(--line);margin:8px 0;">');
     tip.classList.add('visible');
     const rect = targetEl.getBoundingClientRect();
@@ -3328,7 +3378,7 @@
     const [year, month, day] = dateVal.split('-').map(Number);
 
     try {
-      const geo = await resolveCityWithPicker(city, day, month, year);
+      const geo = await resolveCityWithPicker(city, day, month, year, hour, minute);
       if (geo.error) { errorEl.textContent = geo.error; errorEl.style.display='block'; return; }
 
       const pRes = await fetch('/api/panchanga', {

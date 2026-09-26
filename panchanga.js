@@ -3,7 +3,7 @@
 // восход/закат и деление дня на 8 частей (Раху-калам, Ямаганда, Гулика-калам).
 // ============================================================
 
-const { jdFromDate, sunLongitude, moonLongitude, lahiriAyanamsha } = require('./engine.js');
+const { jdFromDate, sunLongitude, moonLongitude, ayanamshaFor } = require('./engine.js');
 
 const D2R = Math.PI / 180;
 const R2D = 180 / Math.PI;
@@ -187,9 +187,7 @@ function computeKarana(sunLon, moonLon) {
 
 // --- Вара (день недели, ведийское название через владыку) ---
 const VARA_NAMES = ['Равивара (воскресенье, Солнце)', 'Сомавара (понедельник, Луна)', 'Мангалавара (вторник, Марс)',
-  'Будхавара (среда, Меркурий)', 'Гуруvara (четверг, Юпитер)', 'Шукравара (пятница, Венера)', 'Шанивара (суббота, Сатурн)'];
-// исправление опечатки Guru
-VARA_NAMES[4] = 'Гурувара (четверг, Юпитер)';
+  'Будхавара (среда, Меркурий)', 'Гурувара (четверг, Юпитер)', 'Шукравара (пятница, Венера)', 'Шанивара (суббота, Сатурн)'];
 
 function computeVara(date) {
   return VARA_NAMES[date.getUTCDay()];
@@ -222,7 +220,12 @@ function segmentToTimeRange(segmentNum, sunriseUTC, sunsetUTC, utcOffset) {
  * @param {number} lat, lon - координаты места
  * @param {number} utcOffset - часовой пояс места (часы от UTC)
  */
-function computePanchanga(year, month, day, hour, minute, lat, lon, utcOffset) {
+// ayanamshaType/customAyanamshaBase — необязательные параметры (по умолчанию
+// классический Лахири — так считает общий календарь/панчанга дня). Их стоит
+// передавать явно только там, где накшатра дня напрямую сравнивается с
+// натальной накшатрой Луны (тара-бала) — чтобы сравнение шло в одной и той
+// же системе отсчёта, что и у аянамши, выбранной пользователем для карты.
+function computePanchanga(year, month, day, hour, minute, lat, lon, utcOffset, ayanamshaType, customAyanamshaBase) {
   if (hour === undefined || hour === null) hour = 12;
   if (minute === undefined || minute === null) minute = 0;
 
@@ -239,9 +242,11 @@ function computePanchanga(year, month, day, hour, minute, lat, lon, utcOffset) {
   const vara = computeVara(new Date(Date.UTC(year, month - 1, day)));
 
   const nakSpan = 360 / 27;
-  const ayanamsha = lahiriAyanamsha(jd);
+  const ayanamsha = ayanamshaFor(jd, ayanamshaType, customAyanamshaBase);
   const moonSidereal = pmod(moonLon - ayanamsha, 360);
-  const moonNakSiderealIdx = Math.floor(moonSidereal / nakSpan);
+  // Math.min защищает от idx=27 (массив NAKSHATRAS из 27 элементов), если
+  // moonSidereal из-за погрешности плавающей точки округлится ровно до 360°.
+  const moonNakSiderealIdx = Math.min(26, Math.floor(moonSidereal / nakSpan));
 
   const NAKSHATRAS = [
     'Ашвини','Бхарани','Криттика','Рохини','Мригашира','Ардра','Пунарвасу','Пушья','Ашлеша',
@@ -254,7 +259,7 @@ function computePanchanga(year, month, day, hour, minute, lat, lon, utcOffset) {
   // и когда наступит следующий. Угловые функции для поиска границы: ---
   const elongFn = (j) => pmod(moonLongitude(j) - sunLongitude(j), 360); // для титхи и караны
   const yogaSumFn = (j) => pmod(sunLongitude(j) + moonLongitude(j), 360);
-  const nakFn = (j) => pmod(moonLongitude(j) - lahiriAyanamsha(j), 360);
+  const nakFn = (j) => pmod(moonLongitude(j) - ayanamshaFor(j, ayanamshaType, customAyanamshaBase), 360);
 
   function withTransitions(obj, angleFn, spanDeg) {
     const startJD = findBoundaryJD(jd, angleFn, spanDeg, -1);
