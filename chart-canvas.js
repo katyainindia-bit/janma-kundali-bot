@@ -138,50 +138,31 @@ function polyXRangeAtY(poly, y) {
   return [Math.min(...xs), Math.max(...xs)];
 }
 
-const SQUARE_CORNERS = [[0,0],[VB,0],[0,VB],[VB,VB]];
-
-// Позиция цифры знака в углу дома. Раньше цифра сдвигалась от внутренней
-// вершины треугольника к его собственному центроиду — но у двух треугольников,
-// делящих один и тот же угол квадрата (например, дома 2 и 3 в верхнем левом
-// углу), центроиды лежат в разных направлениях (один вверх, другой влево),
-// поэтому пара цифр расходилась под прямым углом и выглядела "вкривь и вкось"
-// (как заметила Катя, сравнивая с J108). Правильный ориентир — общая для
-// обоих треугольников диагональ "угол квадрата → внутренняя вершина": обе
-// цифры ставятся вдоль неё на одном и том же удалении и лишь слегка
-// разводятся перпендикулярно (каждая в свою половину), поэтому пара выглядит
-// ровной, как единый диагональный ряд, а не раскоряченной в разные стороны.
+// Позиция цифры знака в доме. Промерено по пиксельным меткам, которые Катя
+// сама расставила на скриншоте (координаты сверены программно, не на глаз):
+// цифра стоит вплотную к общей внутренней вершине дома (для угловых
+// треугольников 2/3/5/6/8/9/11/12 — это точка, где сходится пара треугольников
+// одного угла; для "воздушных змеев" 1/4/7/10 — это сам центр карты), сдвинутая
+// от неё строго в сторону СВОЕГО центроида (а не по диагонали и не к внешнему
+// углу квадрата) на ~18 единиц. У пары соседних треугольников центроиды лежат
+// в разных направлениях (один вверх, другой влево, и т.п.) — поэтому и цифры
+// естественно расходятся каждая в свою сторону, а не наезжают друг на друга.
 function signNumberPosition(poly) {
-  let apex = poly[0], bestDist = Infinity;
+  let nearest = poly[0], bestDist = Infinity;
   for (const v of poly) {
     const d = (v[0]-C)*(v[0]-C) + (v[1]-C)*(v[1]-C);
-    if (d < bestDist) { bestDist = d; apex = v; }
+    if (d < bestDist) { bestDist = d; nearest = v; }
   }
   const centroid = polyCentroid(poly);
-  let corner = null;
-  for (const v of poly) {
-    if (SQUARE_CORNERS.some(([cx, cy]) => Math.abs(cx - v[0]) < 0.5 && Math.abs(cy - v[1]) < 0.5)) { corner = v; break; }
-  }
-  if (corner) {
-    let dx = apex[0] - corner[0], dy = apex[1] - corner[1];
-    const len = Math.sqrt(dx*dx + dy*dy) || 1;
-    dx /= len; dy /= len;
-    const along = 0.32; // доля пути от угла квадрата к внутренней вершине
-    const baseX = corner[0] + dx * len * along;
-    const baseY = corner[1] + dy * len * along;
-    // перпендикуляр к диагонали, разводим цифру в сторону своего треугольника
-    const px = -dy, py = dx;
-    const side = (centroid[0] - baseX) * px + (centroid[1] - baseY) * py;
-    const sign = side >= 0 ? 1 : -1;
-    const nudge = 20;
-    return [baseX + px * nudge * sign, baseY + py * nudge * sign];
-  }
-  // Киты (дома 1/4/7/10): общая внутренняя вершина у них — сам центр карты,
-  // так что прежняя логика (сдвиг к центроиду дома) тут остаётся уместной.
-  let dx = centroid[0] - apex[0], dy = centroid[1] - apex[1];
+  let dx = centroid[0] - nearest[0], dy = centroid[1] - nearest[1];
   const len = Math.sqrt(dx*dx + dy*dy) || 1;
   dx /= len; dy /= len;
-  const offset = 30;
-  return [apex[0] + dx * offset, apex[1] + dy * offset];
+  const offset = 18;
+  // Крошечный общий сдвиг вниз по последней правке Кати — и правильные (в
+  // круге), и почти правильные (подчёркнутые) цифры она попросила опустить
+  // на самую малость, чтобы точно не липли к линиям дома.
+  const DOWN_BIAS = 5;
+  return [nearest[0] + dx * offset, nearest[1] + dy * offset + DOWN_BIAS];
 }
 
 // --- Небольшие обёртки для рисования, аналог SVG-примитивов ---
@@ -340,7 +321,7 @@ function renderNorthIndianPNG(chart, opts = {}) {
 
     const [numX, numY] = signNumberPosition(poly);
     if (h === 1) {
-      text(ctx, String(signNumber), numX, numY, { font: 'bold 17px JKSerif', color: COLORS.gold, align: 'center' });
+      text(ctx, String(signNumber), numX, numY, { font: '15px JKSerif', color: COLORS.gold, align: 'center' });
       roundRect(ctx, cx - 23, cy - 46, 46, 20, 4, COLORS.gold);
       text(ctx, 'ASC', cx, cy - 32, { font: 'bold 11px JKSans', color: COLORS.parchmentCard, align: 'center' });
     } else {
@@ -602,7 +583,7 @@ function renderNorthIndianWithTransitsPNG(natalChart, transitsResult, opts = {})
 
     const [numX, numY] = signNumberPosition(poly);
     if (h === 1) {
-      text(ctx, String(signNumber), numX, numY, { font: 'bold 17px JKSerif', color: COLORS.gold, align: 'center' });
+      text(ctx, String(signNumber), numX, numY, { font: '15px JKSerif', color: COLORS.gold, align: 'center' });
       roundRect(ctx, cx - 23, cy - 46, 46, 20, 4, COLORS.gold);
       text(ctx, 'ASC', cx, cy - 32, { font: 'bold 11px JKSans', color: COLORS.parchmentCard, align: 'center' });
     } else {
@@ -786,7 +767,7 @@ function renderDivisionalPNG(d9chart, opts = {}) {
 
     const [numX, numY] = signNumberPosition(poly);
     if (h === 1) {
-      text(ctx, String(signNumber), numX, numY, { font: 'bold 17px JKSerif', color: COLORS.gold, align: 'center' });
+      text(ctx, String(signNumber), numX, numY, { font: '15px JKSerif', color: COLORS.gold, align: 'center' });
       roundRect(ctx, cx - 23, cy - 46, 46, 20, 4, COLORS.gold);
       text(ctx, 'ASC', cx, cy - 32, { font: 'bold 11px JKSans', color: COLORS.parchmentCard, align: 'center' });
     } else {

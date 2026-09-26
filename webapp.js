@@ -98,6 +98,16 @@ function requirePremium(req, res, next) {
 
 function startWebApp() {
   const app = express();
+  // Railway (и большинство PaaS) завершают HTTPS на своём edge-прокси и
+  // проксируют запрос на наш сервер уже по обычному HTTP, выставляя заголовок
+  // X-Forwarded-Proto: https. Без этой настройки req.protocol в Express
+  // всегда возвращает 'http' — и /api/chart-image собирал ссылку вида
+  // "http://...", хотя сайт публично доступен только по https. Кнопка
+  // скачивания карты использует tg.downloadFile(), а Telegram отклоняет
+  // (молча, без ошибки) не-HTTPS ссылки — из-за этого скачивание не работало
+  // именно внутри самого Telegram, а вне его (в обычном браузере) работало,
+  // так как там используется другой, не зависящий от этого код.
+  app.set('trust proxy', true);
   app.use(express.json());
   app.use(express.static(path.join(__dirname, 'public'), {
     setHeaders: (res) => {

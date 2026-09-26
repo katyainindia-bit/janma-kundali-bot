@@ -1560,59 +1560,30 @@
     }
     return xs.length ? [Math.min(...xs), Math.max(...xs)] : null;
   }
-  const SQUARE_CORNERS = [[0,0],[VB,0],[0,VB],[VB,VB]];
+  // Позиция цифры знака в доме. Промерено по пиксельным меткам, которые Катя
+  // сама расставила на скриншоте (координаты сверены программно): цифра стоит
+  // вплотную к общей внутренней вершине дома (для угловых треугольников
+  // 2/3/5/6/8/9/11/12 — точка, где сходится пара треугольников одного угла;
+  // для "воздушных змеев" 1/4/7/10 — сам центр карты), сдвинутая от неё строго
+  // в сторону СВОЕГО центроида (а не по диагонали и не к внешнему углу
+  // квадрата) на ~18 единиц. У пары соседних треугольников центроиды лежат в
+  // разных направлениях (один вверх, другой влево и т.п.) — поэтому цифры
+  // естественно расходятся каждая в свою сторону, а не наезжают друг на друга.
   function signNumberPos(poly, rows, extraDist, isKite) {
-    // "Воздушные змеи" (дома 1,4,7,10) — общая для всех четырёх вершина это
-    // центр карты; толкаем номер от неё к центроиду фигуры, к внешнему концу.
-    const c = centroid(poly);
-    if (isKite) {
-      let nearest = poly[0], bestD = Infinity;
-      for (const v of poly) {
-        const d = (v[0]-C)**2 + (v[1]-C)**2;
-        if (d < bestD) { bestD = d; nearest = v; }
-      }
-      let dx = c[0]-nearest[0], dy = c[1]-nearest[1];
-      const len = Math.sqrt(dx*dx+dy*dy) || 1;
-      dx /= len; dy /= len;
-      const dist = 34 + (extraDist || 0);
-      return [nearest[0]+dx*dist, nearest[1]+dy*dist];
-    }
-    // Угловые треугольники (2,3,5,6,8,9,11,12) — у каждой пары соседей,
-    // делящих один угол квадрата, ОБЩАЯ и внутренняя вершина (ближняя к
-    // центру карты), и сам угол квадрата (дальняя вершина) — это одна и та
-    // же диагональ для обоих треугольников пары. Раньше номер толкало почти
-    // вплотную к дальней вершине (внешнему углу холста), из-за чего при 2+
-    // планетах в доме он утыкался в границу диаграммы и выглядел обрезанным
-    // и "съехавшим". Теперь ставим номер на фиксированную долю ЭТОЙ
-    // диагонали и лишь слегка разводим перпендикулярно (в сторону своего
-    // треугольника) — так пара номеров одного угла выглядит ровным
-    // диагональным рядом (как в J108), а не расползается каждый в свою
-    // сторону.
-    let apex = poly[0], bestD = Infinity, corner = null;
+    let nearest = poly[0], bestD = Infinity;
     for (const v of poly) {
       const d = (v[0]-C)**2 + (v[1]-C)**2;
-      if (d < bestD) { bestD = d; apex = v; }
-      if (!corner && SQUARE_CORNERS.some(([cx,cy]) => Math.abs(cx-v[0]) < 0.5 && Math.abs(cy-v[1]) < 0.5)) corner = v;
+      if (d < bestD) { bestD = d; nearest = v; }
     }
-    if (!corner) corner = apex;
-    let dx = apex[0]-corner[0], dy = apex[1]-corner[1];
+    const c = centroid(poly);
+    let dx = c[0]-nearest[0], dy = c[1]-nearest[1];
     const len = Math.sqrt(dx*dx+dy*dy) || 1;
     dx /= len; dy /= len;
-    // Фиксированная доля независимо от числа планет: раньше при 2+ планетах
-    // (rows>=2) доля увеличивалась, а это подтягивало номер ближе к центру
-    // фигуры — прямо туда, где рисуется вторая строка списка планет (было
-    // видно наложение цифры на текст градуса, напр. "2" поверх "1°02'").
-    // along=0.32 и nudge=20 подобраны и проверены синтетическими данными
-    // (см. chart-canvas.js, тот же алгоритм) так, чтобы номер не наезжал
-    // на список планет, но и не утыкался в дальний угол диаграммы.
-    const along = 0.32;
-    const baseX = corner[0] + dx*len*along;
-    const baseY = corner[1] + dy*len*along;
-    const px = -dy, py = dx;
-    const side = (c[0]-baseX)*px + (c[1]-baseY)*py;
-    const sign = side >= 0 ? 1 : -1;
-    const nudge = 20 + (extraDist || 0);
-    return [baseX + px*nudge*sign, baseY + py*nudge*sign];
+    const offset = 18 + (extraDist || 0);
+    // Крошечный общий сдвиг вниз по последней правке Кати — все цифры чуть
+    // ниже, чтобы точно не липли к линиям дома.
+    const DOWN_BIAS = 5;
+    return [nearest[0]+dx*offset, nearest[1]+dy*offset+DOWN_BIAS];
   }
 
   // Южно-индийский стиль: фиксированная сетка знаков 4×4 (центр 2×2 пустой),
@@ -1796,8 +1767,8 @@
       const numCols = numPlanetsHere>2?2:1;
       const numRows = Math.ceil(numPlanetsHere/numCols) || 0;
       const isKite = h===1 || h===4 || h===7 || h===10;
-      const [nx,ny] = signNumberPos(poly, numRows, h===1?22:0, isKite);
-      const numText = el('text', {x:nx,y:ny,'text-anchor':'middle','font-family':'Playfair Display, serif','font-size':h===1?17:15,fill:h===1?'#C8A26B':'#7A6B5A','font-weight':h===1?700:400});
+      const [nx,ny] = signNumberPos(poly, numRows, 0, isKite);
+      const numText = el('text', {x:nx,y:ny,'text-anchor':'middle','font-family':'Playfair Display, serif','font-size':15,fill:h===1?'#C8A26B':'#7A6B5A','font-weight':400});
       numText.textContent = signIdx+1;
       svg.appendChild(numText);
 
