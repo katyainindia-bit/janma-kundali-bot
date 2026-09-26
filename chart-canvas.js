@@ -138,18 +138,50 @@ function polyXRangeAtY(poly, y) {
   return [Math.min(...xs), Math.max(...xs)];
 }
 
+const SQUARE_CORNERS = [[0,0],[VB,0],[0,VB],[VB,VB]];
+
+// Позиция цифры знака в углу дома. Раньше цифра сдвигалась от внутренней
+// вершины треугольника к его собственному центроиду — но у двух треугольников,
+// делящих один и тот же угол квадрата (например, дома 2 и 3 в верхнем левом
+// углу), центроиды лежат в разных направлениях (один вверх, другой влево),
+// поэтому пара цифр расходилась под прямым углом и выглядела "вкривь и вкось"
+// (как заметила Катя, сравнивая с J108). Правильный ориентир — общая для
+// обоих треугольников диагональ "угол квадрата → внутренняя вершина": обе
+// цифры ставятся вдоль неё на одном и том же удалении и лишь слегка
+// разводятся перпендикулярно (каждая в свою половину), поэтому пара выглядит
+// ровной, как единый диагональный ряд, а не раскоряченной в разные стороны.
 function signNumberPosition(poly) {
-  let nearest = poly[0], bestDist = Infinity;
+  let apex = poly[0], bestDist = Infinity;
   for (const v of poly) {
     const d = (v[0]-C)*(v[0]-C) + (v[1]-C)*(v[1]-C);
-    if (d < bestDist) { bestDist = d; nearest = v; }
+    if (d < bestDist) { bestDist = d; apex = v; }
   }
   const centroid = polyCentroid(poly);
-  let dx = centroid[0] - nearest[0], dy = centroid[1] - nearest[1];
+  let corner = null;
+  for (const v of poly) {
+    if (SQUARE_CORNERS.some(([cx, cy]) => Math.abs(cx - v[0]) < 0.5 && Math.abs(cy - v[1]) < 0.5)) { corner = v; break; }
+  }
+  if (corner) {
+    let dx = apex[0] - corner[0], dy = apex[1] - corner[1];
+    const len = Math.sqrt(dx*dx + dy*dy) || 1;
+    dx /= len; dy /= len;
+    const along = 0.32; // доля пути от угла квадрата к внутренней вершине
+    const baseX = corner[0] + dx * len * along;
+    const baseY = corner[1] + dy * len * along;
+    // перпендикуляр к диагонали, разводим цифру в сторону своего треугольника
+    const px = -dy, py = dx;
+    const side = (centroid[0] - baseX) * px + (centroid[1] - baseY) * py;
+    const sign = side >= 0 ? 1 : -1;
+    const nudge = 20;
+    return [baseX + px * nudge * sign, baseY + py * nudge * sign];
+  }
+  // Киты (дома 1/4/7/10): общая внутренняя вершина у них — сам центр карты,
+  // так что прежняя логика (сдвиг к центроиду дома) тут остаётся уместной.
+  let dx = centroid[0] - apex[0], dy = centroid[1] - apex[1];
   const len = Math.sqrt(dx*dx + dy*dy) || 1;
   dx /= len; dy /= len;
   const offset = 30;
-  return [nearest[0] + dx*offset, nearest[1] + dy*offset];
+  return [apex[0] + dx * offset, apex[1] + dy * offset];
 }
 
 // --- Небольшие обёртки для рисования, аналог SVG-примитивов ---
