@@ -665,12 +665,6 @@
           <button class="chart-extra-btn" data-extra="lords" title="Управители домов">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="1"/><path d="M4 10 12 4l8 6"/><path d="M9 20v-5h6v5"/></svg>
           </button>
-          <button class="chart-extra-btn" data-extra="karakas" title="Караки домов">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/></svg>
-          </button>
-          <button class="chart-extra-btn" id="chart-download-btn" title="Скачать карту">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13M7 11l5 5 5-5"/><path d="M4 19h16"/></svg>
-          </button>
         </div>
         <div id="chart-extras-panel" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--line);"></div>
       </div>
@@ -857,61 +851,17 @@
 
 </div>
 
-<div id="page-panchanga" style="display:none;">
-  <div class="form-card">
-    <h2>Панчанга дня</h2>
-    <p style="font-size:12px;color:var(--taupe);margin:-8px 0 14px;">Это общие рекомендации на день — без учёта твоей личной натальной карты.</p>
-    <div class="field">
-      <label for="p-date">Дата</label>
-      <input type="date" id="p-date">
-    </div>
-    <div class="field">
-      <label for="p-time">Точное время</label>
-      <input type="text" id="p-time" value="12:00" placeholder="12:00">
-    </div>
-    <div class="field">
-      <label for="p-city">Место</label>
-      <input type="text" id="p-city" placeholder="Например: Москва">
-    </div>
-    <button class="btn-primary" id="p-build-btn">Показать панчангу</button>
-    <div class="error-msg" id="p-error-msg"></div>
-  </div>
-
-  <div id="panchanga-result" style="display:none;">
-    <div class="info-card" style="display:block;">
-      <div class="name" id="p-res-title" style="margin-bottom:8px;">—</div>
-      <div class="current-period-row"><span class="label">Вара</span><span class="value" id="p-vara">—</span></div>
-      <div class="current-period-row"><span class="label">Титхи</span><span class="value" id="p-tithi">—</span></div>
-      <div class="current-period-row"><span class="label">Накшатра дня</span><span class="value" id="p-nakshatra">—</span></div>
-      <div class="current-period-row"><span class="label">Йога</span><span class="value" id="p-yoga">—</span></div>
-      <div class="current-period-row"><span class="label">Карана</span><span class="value" id="p-karana">—</span></div>
-    </div>
-    <div class="info-card" style="display:block;">
-      <div class="current-period-row"><span class="label">🌅 Восход</span><span class="value" id="p-sunrise">—</span></div>
-      <div class="current-period-row"><span class="label">🌇 Закат</span><span class="value" id="p-sunset">—</span></div>
-      <div class="current-period-row" style="color:#a8654a;"><span class="label">⚠️ Раху-калам</span><span class="value" id="p-rahu">—</span></div>
-      <div class="current-period-row"><span class="label">Ямаганда</span><span class="value" id="p-yama">—</span></div>
-      <div class="current-period-row"><span class="label">Гулика-калам</span><span class="value" id="p-gulika">—</span></div>
-      <div class="current-period-row" style="color:#4f7a52;"><span class="label">✦ Абхиджит мухурта</span><span class="value" id="p-abhijit">—</span></div>
-    </div>
-    <details class="form-card" style="padding:14px 16px;">
-      <summary style="cursor:pointer;font-size:13px;color:var(--gold);font-weight:600;">Что означают эти термины?</summary>
-      <div style="margin-top:10px;font-size:13px;line-height:1.6;color:var(--ink);">
-        <p style="margin-bottom:8px;"><b>Вара</b> — день недели, у каждого свой планетный управитель.</p>
-        <p style="margin-bottom:8px;"><b>Титхи</b> — лунные сутки: фаза Луны относительно Солнца (всего 30 за лунный месяц), влияет на общий характер дня.</p>
-        <p style="margin-bottom:8px;"><b>Накшатра дня</b> — созвездие (одно из 27), в котором сегодня находится Луна — у каждой своя природа.</p>
-        <p style="margin-bottom:8px;"><b>Йога</b> — сочетание положений Солнца и Луны, ещё один самостоятельный слой качества дня.</p>
-        <p style="margin-bottom:8px;"><b>Карана</b> — половина титхи, более короткий цикл внутри лунных суток.</p>
-        <p style="margin-bottom:8px;"><b>Раху-калам</b> — самый известный и строгий из трёх периодов, связан с планетой Раху: считается, что помрачает рассудок, худшее время для любых начинаний.</p>
-        <p style="margin-bottom:8px;"><b>Ямаганда</b> — «время Ямы» (владыки смерти), отдельный период дня со схожей строгостью — тоже не для начинаний.</p>
-        <p style="margin-bottom:8px;"><b>Гулика-калам</b> — управляется Гуликой (сыном Сатурна), обычно считается менее строгим из трёх: не подходит для нового, но традиционно годится для благотворительности и повторения уже однажды удавшихся дел.</p>
-        <p style="margin-bottom:0;"><b>Абхиджит мухурта</b> — короткий период вокруг истинного солнечного полудня (8-я из 15 равных долей дня), классически считается благоприятным почти для любых начинаний — в отличие от трёх периодов выше.</p>
-      </div>
-    </details>
-  </div>
-</div>
-
 <div id="page-days" style="display:none;">
+
+  <!-- Вкладки видны всегда — Панчанга не требует Premium/карты, поэтому она
+       не должна прятаться вместе с остальными вкладками "Дней", когда у
+       человека нет тарифа или ещё не построена карта. -->
+  <div class="tabs" id="days-tabs">
+    <button class="tab-btn active" data-daystab="calendar">Календарь</button>
+    <button class="tab-btn" data-daystab="search">Поиск по цели</button>
+    <button class="tab-btn" data-daystab="year">Праздники года</button>
+    <button class="tab-btn" data-daystab="panchanga">Панчанга</button>
+  </div>
 
   <div id="days-locked" class="form-card" style="padding:20px;text-align:center;display:none;">
     <div style="font-size:32px;margin-bottom:8px;">🔒</div>
@@ -927,11 +877,6 @@
   </div>
 
   <div id="days-content" style="display:none;">
-    <div class="tabs" id="days-tabs">
-      <button class="tab-btn active" data-daystab="calendar">Календарь</button>
-      <button class="tab-btn" data-daystab="search">Поиск по цели</button>
-      <button class="tab-btn" data-daystab="year">Праздники года</button>
-    </div>
 
     <div class="tab-content active" id="daystab-calendar">
       <div class="form-card" style="padding:16px;">
@@ -999,6 +944,61 @@
         </div>
       </div>
       <div id="year-events-list"></div>
+    </div>
+  </div>
+
+  <!-- Вне зон Premium/no-chart — общая панчанга дня доступна всем и без карты. -->
+  <div class="tab-content" id="daystab-panchanga">
+    <div class="form-card">
+      <h2>Панчанга дня</h2>
+      <p style="font-size:12px;color:var(--taupe);margin:-8px 0 14px;">Это общие рекомендации на день — без учёта твоей личной натальной карты.</p>
+      <div class="field">
+        <label for="p-date">Дата</label>
+        <input type="date" id="p-date">
+      </div>
+      <div class="field">
+        <label for="p-time">Точное время</label>
+        <input type="text" id="p-time" value="12:00" placeholder="12:00">
+      </div>
+      <div class="field">
+        <label for="p-city">Место</label>
+        <input type="text" id="p-city" placeholder="Например: Москва">
+      </div>
+      <button class="btn-primary" id="p-build-btn">Показать панчангу</button>
+      <div class="error-msg" id="p-error-msg"></div>
+    </div>
+
+    <div id="panchanga-result" style="display:none;">
+      <div class="info-card" style="display:block;">
+        <div class="name" id="p-res-title" style="margin-bottom:8px;">—</div>
+        <div class="current-period-row"><span class="label">Вара</span><span class="value" id="p-vara">—</span></div>
+        <div class="current-period-row"><span class="label">Титхи</span><span class="value" id="p-tithi">—</span></div>
+        <div class="current-period-row"><span class="label">Накшатра дня</span><span class="value" id="p-nakshatra">—</span></div>
+        <div class="current-period-row"><span class="label">Йога</span><span class="value" id="p-yoga">—</span></div>
+        <div class="current-period-row"><span class="label">Карана</span><span class="value" id="p-karana">—</span></div>
+      </div>
+      <div class="info-card" style="display:block;">
+        <div class="current-period-row"><span class="label">🌅 Восход</span><span class="value" id="p-sunrise">—</span></div>
+        <div class="current-period-row"><span class="label">🌇 Закат</span><span class="value" id="p-sunset">—</span></div>
+        <div class="current-period-row" style="color:#a8654a;"><span class="label">⚠️ Раху-калам</span><span class="value" id="p-rahu">—</span></div>
+        <div class="current-period-row"><span class="label">Ямаганда</span><span class="value" id="p-yama">—</span></div>
+        <div class="current-period-row"><span class="label">Гулика-калам</span><span class="value" id="p-gulika">—</span></div>
+        <div class="current-period-row" style="color:#4f7a52;"><span class="label">✦ Абхиджит мухурта</span><span class="value" id="p-abhijit">—</span></div>
+      </div>
+      <details class="form-card" style="padding:14px 16px;">
+        <summary style="cursor:pointer;font-size:13px;color:var(--gold);font-weight:600;">Что означают эти термины?</summary>
+        <div style="margin-top:10px;font-size:13px;line-height:1.6;color:var(--ink);">
+          <p style="margin-bottom:8px;"><b>Вара</b> — день недели, у каждого свой планетный управитель.</p>
+          <p style="margin-bottom:8px;"><b>Титхи</b> — лунные сутки: фаза Луны относительно Солнца (всего 30 за лунный месяц), влияет на общий характер дня.</p>
+          <p style="margin-bottom:8px;"><b>Накшатра дня</b> — созвездие (одно из 27), в котором сегодня находится Луна — у каждой своя природа.</p>
+          <p style="margin-bottom:8px;"><b>Йога</b> — сочетание положений Солнца и Луны, ещё один самостоятельный слой качества дня.</p>
+          <p style="margin-bottom:8px;"><b>Карана</b> — половина титхи, более короткий цикл внутри лунных суток.</p>
+          <p style="margin-bottom:8px;"><b>Раху-калам</b> — самый известный и строгий из трёх периодов, связан с планетой Раху: считается, что помрачает рассудок, худшее время для любых начинаний.</p>
+          <p style="margin-bottom:8px;"><b>Ямаганда</b> — «время Ямы» (владыки смерти), отдельный период дня со схожей строгостью — тоже не для начинаний.</p>
+          <p style="margin-bottom:8px;"><b>Гулика-калам</b> — управляется Гуликой (сыном Сатурна), обычно считается менее строгим из трёх: не подходит для нового, но традиционно годится для благотворительности и повторения уже однажды удавшихся дел.</p>
+          <p style="margin-bottom:0;"><b>Абхиджит мухурта</b> — короткий период вокруг истинного солнечного полудня (8-я из 15 равных долей дня), классически считается благоприятным почти для любых начинаний — в отличие от трёх периодов выше.</p>
+        </div>
+      </details>
     </div>
   </div>
 
@@ -1208,10 +1208,6 @@
     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9a1 1 0 0 0 1 1H9a1 1 0 0 0 1-1v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1h2.5a1 1 0 0 0 1-1v-9"/></svg>
     Главная
   </button>
-  <button class="nav-item" data-nav="panchanga">
-    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5.5" width="16" height="15" rx="1.5"/><path d="M8 3.5v4M16 3.5v4M4 10h16"/><circle cx="12" cy="15" r="2.6"/></svg>
-    Панчанга
-  </button>
   <button class="nav-item" data-nav="days">
     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5.5" width="16" height="15" rx="1.5"/><path d="M8 3.5v4M16 3.5v4M4 10h16"/><path d="M8 14h2M14 14h2M8 17h2M14 17h2"/></svg>
     Дни
@@ -1316,23 +1312,83 @@
     neutral: 'Нейтральный знак', enemy: 'Враждебный знак', debilitation: 'Падение',
   };
   const DIGNITY_TEXTS_D1 = {
-    exaltation: 'Планета здесь чувствует себя сильнее всего — её качества раскрываются наиболее полно и естественно, без внутреннего сопротивления.',
-    own: 'Планета находится в своей стихии — она действует уверенно, устойчиво и по-своему, без необходимости подстраиваться под чужие правила.',
-    friend: 'Планета попадает в дружественную для себя обстановку — её проявления смягчаются и находят поддержку, действовать становится легче.',
-    neutral: 'Планета здесь ни в выигрышном, ни в невыгодном положении — она проявляется ровно, без явных усилений или ослаблений от самого знака.',
-    enemy: 'Планета оказывается в напряжённой для себя обстановке — её качества проявляются с трудом, через сопротивление или искажение.',
-    debilitation: 'Планета здесь ослаблена сильнее всего — её естественные качества проявляются с наибольшим трудом, через дискомфорт или неуверенность, пока не найдётся способ их компенсировать.',
+    exaltation: '{Pron} раскрывается здесь сильнее всего — качества проявляются наиболее полно и естественно, без внутреннего сопротивления.',
+    own: '{Pron} чувствует себя в своей стихии — действует уверенно, устойчиво и по-своему, без необходимости подстраиваться под чужие правила.',
+    friend: '{Pron} попадает в дружественную для себя обстановку — проявления смягчаются и находят поддержку, действовать становится легче.',
+    neutral: '{Pron} находится здесь в ровном положении — без явных усилений или ослаблений от самого знака.',
+    enemy: '{Pron} оказывается в напряжённой для себя обстановке — качества проявляются с трудом, через сопротивление или искажение.',
+    debilitation: '{Pron} ослабляется здесь сильнее всего — естественные качества проявляются с наибольшим трудом, через дискомфорт или неуверенность, пока не найдётся способ их компенсировать.',
   };
+  const PLANET_GENDER_D1 = {
+    Солнце: 'n', Луна: 'f', Меркурий: 'm', Венера: 'f', Марс: 'm',
+    Юпитер: 'm', Сатурн: 'm', Раху: 'm', Кету: 'm',
+  };
+  const POSSESSIVE_D1 = { m: 'Ваш', f: 'Ваша', n: 'Ваше' };
+  const PRON_CAP_D1 = { m: 'Он', f: 'Она', n: 'Оно' };
+  function possessiveFor(planetName) {
+    return POSSESSIVE_D1[PLANET_GENDER_D1[planetName] || 'm'];
+  }
+  function dignityTextFor(status, planetName) {
+    const pron = PRON_CAP_D1[PLANET_GENDER_D1[planetName] || 'm'];
+    return (DIGNITY_TEXTS_D1[status] || '').replace('{Pron}', pron);
+  }
+  const HOUSE_MEANINGS_D1 = {
+    1: 'тело, внешность и то, как человек проявляет себя во внешний мир — первое впечатление, которое считывают окружающие',
+    2: 'финансы, речь и семью — то, чем человек владеет и что говорит',
+    3: 'смелость, инициативу, короткие поездки, общение с братьями/сёстрами',
+    4: 'дом, эмоциональный комфорт и мать — внутреннюю опору',
+    5: 'творчество, детей, обучение и романтику',
+    6: 'работу, здоровье, конфликты и рутинные дела — то, с чем приходится справляться',
+    7: 'партнёрство, отношения и договорённости — то, что делается вместе с другими',
+    8: 'трансформацию, кризисы и скрытое — то, что меняет человека изнутри',
+    9: 'путешествия, философию, удачу и учителей',
+    10: 'карьеру, статус и общественную роль — то, как человека видят в обществе',
+    11: 'доход, дружбу, цели и сообщества',
+    12: 'уединение, потери, завершение и духовную работу',
+  };
+  const SIGN_ESSENCE_D1 = {
+    'Овен': 'это про инициативу, напор и готовность действовать первым — энергия быстрая, прямая, не терпящая промедления.',
+    'Телец': 'это про устойчивость, чувственность и упорство — энергия неторопливая, ценит комфорт, красоту и надёжность.',
+    'Близнецы': 'это про любопытство, общительность и подвижность ума — энергия лёгкая, разносторонняя, быстро переключается.',
+    'Рак': 'это про чувствительность, заботу и привязанность к дому — энергия мягкая, эмоционально глубокая, ищет защищённости.',
+    'Лев': 'это про уверенность, творческое самовыражение и желание быть замеченным — энергия яркая, щедрая, лидерская.',
+    'Дева': 'это про внимание к деталям, анализ и стремление к порядку — энергия скромная, но требовательная к качеству и точности.',
+    'Весы': 'это про баланс, партнёрство и чувство прекрасного — энергия дипломатичная, ищет гармонию и умеет видеть чужую сторону.',
+    'Скорпион': 'это про глубину, интенсивность и стремление к трансформации — энергия скрытная, но мощная, идёт до самой сути.',
+    'Стрелец': 'это про смысл, широту взглядов и оптимизм — энергия свободолюбивая, философская, тянется к расширению горизонтов.',
+    'Козерог': 'это про дисциплину, амбиции и терпение — энергия сдержанная, ориентирована на результат и долгий путь.',
+    'Водолей': 'это про независимость, оригинальность мышления и интерес к общему — энергия нестандартная, немного отстранённая.',
+    'Рыбы': 'это про интуицию, сострадание и склонность к мечтательности — энергия текучая, чувствительная, тянется к духовному поиску.',
+  };
+  function buildPlanetStory(planetName, signIndex, house, status, nakName, nakPada) {
+    const pron = possessiveFor(planetName);
+    const sign = SIGN_NAMES_PREP_D1[signIndex];
+    const signif = PLANET_SIGNIFICATIONS_D1[planetName] || '';
+    const houseMeaning = HOUSE_MEANINGS_D1[house];
+    const signNom = SIGN_NAMES_D1[signIndex];
+    const signEssence = SIGN_ESSENCE_D1[signNom];
+    const dignityTail = dignityTextFor(status, planetName);
+    let p1 = `${pron} ${planetName} — в ${house} доме, в ${sign}. ${planetName} ${signif}.`;
+    if (houseMeaning) p1 += ` В ${house} доме эта энергия направлена на ${houseMeaning},`;
+    if (signEssence) p1 += `${houseMeaning ? ' а' : ' Здесь она'} проявляется через стиль знака ${signNom} — ${signEssence}`;
+    if (dignityTail) p1 += ` ${dignityTail}`;
+    let p2 = '';
+    if (nakName) {
+      const nakMeaning = NAKSHATRA_MEANINGS_D1[nakName] || '';
+      p2 = `Также ${planetName} находится в накшатре «${nakName}»${nakPada ? ' (пада ' + nakPada + ')' : ''}, и это ${nakMeaning}`;
+    }
+    return { p1, p2 };
+  }
   const PLANET_SIGNIFICATIONS_D1 = {
-    Солнце: 'Отвечает за самоощущение, волю и жизненную силу, за отца и авторитетные фигуры, за то, как человек проявляет себя вовне и стремится быть замеченным. Стихия — огонь.',
-    Луна: 'Отвечает за эмоции, внутреннее восприятие и чувство безопасности, за мать и повседневные привычки, за то, как человек реагирует на мир на уровне чувств, а не разума. Стихия — вода.',
-    Меркурий: 'Отвечает за мышление, речь и обучаемость, за то, как человек анализирует, общается и обрабатывает информацию. Связан с логикой, торговлей и коммуникацией.',
-    Венера: 'Отвечает за любовь, отношения и чувство прекрасного, за удовольствие, гармонию и то, что человек ценит и к чему тянется. Связана с партнёрством и искусством. Стихия — вода.',
-    Марс: 'Отвечает за энергию, действие и напор, за смелость, конкуренцию и способность отстаивать себя. Связан с физической силой и инициативой. Стихия — огонь.',
-    Юпитер: 'Отвечает за рост, мудрость и убеждения, за учителей, веру и стремление к смыслу. Связан с удачей, изобилием и расширением возможностей.',
-    Сатурн: 'Отвечает за дисциплину, ограничения и время, за терпение, ответственность и то, чему приходится учиться через трудности. Связан со структурой и зрелостью.',
-    Раху: 'Точка неудержимого желания и одержимости — тянет туда, где нет готового опыта, толкает за привычные границы, часто через беспокойство и жажду нового.',
-    Кету: 'Точка отрешённости и завершённых уроков прошлого — склоняет к отпусканию и внутреннему поиску, там, где человек уже «всё попробовал» на уровне души.',
+    Солнце: 'отвечает за самоощущение, волю и жизненную силу, за отца и авторитетные фигуры, за то, как человек проявляет себя вовне и стремится быть замеченным (стихия — огонь)',
+    Луна: 'отвечает за эмоции, внутреннее восприятие и чувство безопасности, за мать и повседневные привычки, за то, как человек реагирует на мир на уровне чувств, а не разума (стихия — вода)',
+    Меркурий: 'отвечает за мышление, речь и обучаемость, за то, как человек анализирует, общается и обрабатывает информацию — связан с логикой, торговлей и коммуникацией',
+    Венера: 'отвечает за любовь, отношения и чувство прекрасного, за удовольствие, гармонию и то, что человек ценит и к чему тянется — связана с партнёрством и искусством (стихия — вода)',
+    Марс: 'отвечает за энергию, действие и напор, за смелость, конкуренцию и способность отстаивать себя — связан с физической силой и инициативой (стихия — огонь)',
+    Юпитер: 'отвечает за рост, мудрость и убеждения, за учителей, веру и стремление к смыслу — связан с удачей, изобилием и расширением возможностей',
+    Сатурн: 'отвечает за дисциплину, ограничения и время, за терпение, ответственность и то, чему приходится учиться через трудности — связан со структурой и зрелостью',
+    Раху: 'отвечает за неудержимое желание и одержимость — тянет туда, где нет готового опыта, толкает за привычные границы, часто через беспокойство и жажду нового',
+    Кету: 'отвечает за отрешённость и завершённые уроки прошлого — склоняет к отпусканию и внутреннему поиску, там, где человек уже «всё попробовал» на уровне души',
   };
 
   function getDignityStatusD1(planetName, signIndex) {
@@ -1346,6 +1402,7 @@
   }
 
   const SIGN_NAMES_D1 = ['Овен','Телец','Близнецы','Рак','Лев','Дева','Весы','Скорпион','Стрелец','Козерог','Водолей','Рыбы'];
+  const SIGN_NAMES_PREP_D1 = ['Овне','Тельце','Близнецах','Раке','Льве','Деве','Весах','Скорпионе','Стрельце','Козероге','Водолее','Рыбах'];
 
   const NAKSHATRA_MEANINGS_D1 = {
     'Ашвини': 'Быстрая, целительная энергия — инициатива, скорость, новые начинания.',
@@ -1421,18 +1478,36 @@
 
   async function showPlanetDetail(anchorEl, planetName, signIndex, isRetrograde, house, nakName, nakPada, chartRef) {    const status = getDignityStatusD1(planetName, signIndex);
     const hasDigBala = DIG_BALA_HOUSE[planetName] === house;
-    const nakMeaning = NAKSHATRA_MEANINGS_D1[nakName] || '';
     const combust = chartRef && isCombust(chartRef, planetName);
     const atWar = chartRef ? planetsAtWarWith(chartRef, planetName) : [];
+    const karaka = chartRef ? computeCharaKarakas(chartRef)[planetName] : null;
+    const story = buildPlanetStory(planetName, signIndex, house, status, nakName, nakPada);
     const tip = ensurePlanetTooltip();
     tip.innerHTML = `
-      <div style="font-weight:600;margin-bottom:4px;">${planetName} в ${house} доме, в ${SIGN_NAMES_D1[signIndex]}</div>
+      <div style="font-weight:600;margin-bottom:4px;">${planetName} в ${house} доме, в ${SIGN_NAMES_PREP_D1[signIndex]}</div>
       <div style="font-size:11px;color:var(--gold);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:.03em;">${DIGNITY_LABELS_D1[status]}${isRetrograde ? ' · Ретроградна' : ''}</div>
-      <p style="margin-bottom:8px;">${DIGNITY_TEXTS_D1[status]}</p>
+      <p style="margin-bottom:8px;">${story.p1}</p>
+      ${story.p2 ? `<p style="margin-bottom:8px;">${story.p2}</p>` : ''}
+      ${karaka ? `<p style="margin-bottom:8px;"><b>${CHARA_KARAKA_NAMES[karaka]} (${karaka})</b> — ${CHARA_KARAKA_MEANINGS[karaka]}.</p>` : ''}
       ${hasDigBala ? '<p style="margin-bottom:8px;">◈ <b>Есть диг-бала</b> — планета в доме своей направленной силы, это усиливает её.</p>' : ''}
       ${combust ? '<p style="color:#a8654a;margin-bottom:8px;">☉ <b>Сожжена</b> — планета слишком близко к Солнцу, её сила ослаблена.</p>' : ''}
       ${atWar.length ? `<p style="color:#a8654a;margin-bottom:8px;">⚔ <b>Планетная война</b> с ${atWar.join(', ')} — обе планеты в одном градусе, борьба ослабляет проигравшую (кто именно — вопрос спорный между традициями).</p>` : ''}
       ${isRetrograde ? '<p style="color:#a8654a;margin-bottom:8px;">Ретроградность: темы этой планеты разворачиваются внутрь, требуют пересмотра, а не прямого движения вперёд.</p>' : ''}
+    `;
+    tip.classList.add('visible');
+    positionTooltipNear(tip, anchorEl);
+  }
+
+  // Подсказка для транзитной планеты — градус на самой карте больше не
+  // печатается (см. renderChartSVGNorth), чтобы не наезжать на натальные
+  // планеты; точный градус, знак и накшатру показываем здесь по нажатию.
+  function showTransitDetail(anchorEl, planetName, signIndex, degInSign, nakName, nakPada, transitHouse) {
+    const status = getDignityStatusD1(planetName, signIndex);
+    const nakMeaning = NAKSHATRA_MEANINGS_D1[nakName] || '';
+    const tip = ensurePlanetTooltip();
+    tip.innerHTML = `
+      <div style="font-weight:600;margin-bottom:4px;">${planetName} транзитом в ${SIGN_NAMES_D1[signIndex]}, ${transitHouse} дом</div>
+      <div style="font-size:11px;color:var(--gold);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:.03em;">${dms(degInSign)} · ${DIGNITY_LABELS_D1[status]}</div>
       ${nakName ? `<p style="margin-bottom:0;"><b>Накшатра: ${nakName}</b> (пада ${nakPada})<br><span style="color:var(--taupe);">${nakMeaning}</span></p>` : ''}
     `;
     tip.classList.add('visible');
@@ -1509,6 +1584,36 @@
   }
   function planetsAtWarWith(chart, planetName) {
     return detectPlanetaryWar(chart).filter(w => w.includes(planetName)).map(w => w.find(n => n !== planetName));
+  }
+
+  // Чара-караки (Джайминовы) — классическая семи-каракная схема: 7 планет
+  // (Раху/Кету не участвуют), ранжированные по градусу внутри знака — от
+  // наибольшего к наименьшему. У кого больше градус — тот сильнее выражает
+  // эту роль. Ретроградность на ранжирование не влияет (используем градус
+  // "как есть" — так же считает J108).
+  const CHARA_KARAKA_ORDER = ['АК', 'АмК', 'БК', 'МК', 'ПК', 'ГК', 'ДК'];
+  const CHARA_KARAKA_NAMES = {
+    'АК': 'Атмакарака', 'АмК': 'Аматьякарака', 'БК': 'Бхратрикарака',
+    'МК': 'Матрикарака', 'ПК': 'Путракарака', 'ГК': 'Гнатикарака', 'ДК': 'Даракарака',
+  };
+  const CHARA_KARAKA_MEANINGS = {
+    'АК': 'сигнификатор души, главная жизненная тема и путь',
+    'АмК': 'сигнификатор карьеры, статуса, советников',
+    'БК': 'сигнификатор братьев/сестёр, мужества, инициативы',
+    'МК': 'сигнификатор матери, дома, эмоционального фундамента',
+    'ПК': 'сигнификатор детей, творчества, интеллекта',
+    'ГК': 'сигнификатор родственников, конкурентов, преград',
+    'ДК': 'сигнификатор партнёра, брака, отношений',
+  };
+  function computeCharaKarakas(chart) {
+    const planets = ['Солнце', 'Луна', 'Марс', 'Меркурий', 'Юпитер', 'Венера', 'Сатурн'];
+    const withDeg = planets
+      .filter(name => chart.planets[name])
+      .map(name => ({ name, deg: chart.planets[name].sign.degInSign }));
+    withDeg.sort((a, b) => b.deg - a.deg);
+    const result = {};
+    withDeg.forEach((item, i) => { result[item.name] = CHARA_KARAKA_ORDER[i]; });
+    return result;
   }
 
   function dignityColor(name, signIdx) {
@@ -1788,105 +1893,111 @@
       }
 
       const planetsHere = signPlanets[signIdx] || [];
-      const count = planetsHere.length;
-      const cols = count>2?2:1;
-      const rows = Math.ceil(count/cols);
-      const fs = count>3?12:count>1?13.5:15;
-      const colGap = count>3 ? fs*2.35 : fs*2.6;
-      const rowGap = fs*2.9;
-      const degFs = count>3 ? 7.5 : 9;
-      const gridW=(cols-1)*colGap, gridH=(rows-1)*rowGap;
-      let startX=cx-gridW/2, startY=cy-gridH/2;
-      // Дом 1 — сверху уже занято бейджем ASC и его градусом (до cy-14
-      // примерно), сетку планет нужно сдвинуть вниз, иначе верхний ряд
-      // планет наезжает на подпись градуса Асцендента.
-      if (h === 1) startY += 22;
-      // Защита от выхода сетки за пределы ФИГУРЫ ДОМА (не всего холста) —
-      // актуально для некоторых дробных карт (например, D2, где всего 2
-      // возможных знака и в одном доме может оказаться 4-5+ планет сразу),
-      // а с учётом слоя транзитов ниже — и для обычных карт при плотном
-      // соединении. Раньше клампилось только в границы холста 0..400, из-за
-      // чего сетка могла остаться формально "на холсте", но вылезти за
-      // пределы своего узкого угла и наехать на соседний дом.
+      const tHere = transitsData ? (transitsByHouse[h] || []) : [];
+      const hasTransits = tHere.length > 0;
+
+      // Защита от выхода за пределы ФИГУРЫ ДОМА (не всего холста) — актуально
+      // для некоторых дробных карт (например, D2, где всего 2 возможных
+      // знака и в одном доме может оказаться 4-5+ планет сразу). Раньше
+      // клампилось только в границы холста 0..400, из-за чего сетка могла
+      // остаться формально "на холсте", но вылезти за пределы своего узкого
+      // угла и наехать на соседний дом.
       const bbox = polyBBox(poly);
       const padIn = 16;
-      startX = clampRange(startX, bbox.minX + padIn, bbox.maxX - padIn - gridW);
-      startY = clampRange(startY, bbox.minY + padIn, bbox.maxY - padIn - gridH);
 
-      planetsHere.forEach((item,i)=>{
-        const col=i%cols, row=Math.floor(i/cols);
-        const px=startX+col*colGap, py=startY+row*rowGap;
-        planetPixelPos[item.name] = { x: px, y: py };
-        const color = dignityColor(item.name, item.p.sign.index);
-        const t = el('text', {x:px,y:py,'text-anchor':'middle','dominant-baseline':'central','font-family':'Inter, sans-serif','font-size':fs,'font-weight':700,fill:color});
-        t.textContent = PLANET_SYMBOLS[item.name];
-        svg.appendChild(t);
-        if (item.p.retrograde) addRetroBar(svg, t, color);
-        const dt = el('text', {x:px,y:py+fs*1.2,'text-anchor':'middle','font-family':'Inter, sans-serif','font-size':degFs,fill:'#7A6B5A'});
-        dt.textContent = dms(item.p.sign.degInSign);
-        svg.appendChild(dt);
+      // Как в J108: натальные и транзитные планеты стоят В ОДНОЙ сетке по
+      // центру дома, просто рядом друг с другом (транзитные — другим,
+      // приглушённым цветом и чуть мельче), без разнесения по разным
+      // половинам дома. Если все помещаются — ставим в один ряд; если нет —
+      // переносим на следующую строку.
+      const combined = planetsHere.map(item => ({ kind: 'natal', item }))
+        .concat(tHere.map(item => ({ kind: 'transit', item })));
+      const totalCount = combined.length;
 
-        // Кликабельная/наводимая область вокруг символа планеты — на самой карте,
-        // не только в списке планет под ней. Прозрачный круг шире самого текста,
-        // чтобы было проще попасть пальцем на мобильном.
-        const hit = el('circle', {cx:px, cy:py, r:16, fill:'transparent', style:'cursor:pointer;', 'data-planet':item.name});
-        const openDetail = () => showPlanetDetail(hit, item.name, item.p.sign.index, item.p.retrograde, item.p.house, item.p.nakshatra ? item.p.nakshatra.name : null, item.p.nakshatra ? item.p.nakshatra.pada : null, chart);
-        wirePressAndHold(hit, openDetail, hidePlanetTooltip);
-        svg.appendChild(hit);
-      });
+      if (totalCount > 0) {
+        const fs = totalCount > 4 ? 11 : totalCount > 2 ? 13 : 15;
+        const tFs = fs - 1;
+        const degFs = totalCount > 4 ? 6.5 : totalCount > 2 ? 7.5 : 8.5;
+        const colGap = fs * 2.1;
+        const rowGap = fs * 2.5;
+        // В маленьких угловых домах ряд из 3-4 планет по ширине может физически
+        // не поместиться — считаем, сколько столбцов реально влезает по ширине
+        // дома в его середине, и не даём желаемому числу столбцов превысить это.
+        const baseY = h === 1 ? cy + 11 : cy;
+        const rangeAtBase = polyXRangeAtY(poly, baseY) || [bbox.minX, bbox.maxX];
+        const availWidth = Math.max(30, (Math.min(bbox.maxX, rangeAtBase[1]) - padIn) - (Math.max(bbox.minX, rangeAtBase[0]) + padIn));
+        const maxCols = Math.max(1, Math.floor(availWidth / colGap) + 1);
+        let cols = totalCount <= 3 ? totalCount : Math.ceil(totalCount / 2);
+        if (cols > maxCols) cols = maxCols;
+        const rows = Math.ceil(totalCount / cols);
+        const gridH = (rows - 1) * rowGap;
 
-      // Слой транзитов — компактно рядом с натальными планетами, приглушённым цветом.
-      // Всегда один столбец: у метки формат "символ + градус", он длиннее
-      // одного натального символа, и при двух колонках текст наезжал друг
-      // на друга. В столбик — надёжно при любом числе планет в доме.
-      // Растим блок В СТОРОНУ ЦЕНТРА карты, а не всегда вниз: в нижней
-      // половине карты рост вниз быстро упирался в край холста —
-      // особенно в маленьких угловых домах без натальных планет.
-      if (transitsData) {
-        const tHere = transitsByHouse[h] || [];
-        if (tHere.length > 0) {
-          const dir = cy <= C ? 1 : -1;
-          // При 4+ планетах одна колонка растягивается по вертикали
-          // настолько, что может пересечь границу дома (проверено стресс-
-          // тестом: список транзитов в угловом треугольнике залезал на
-          // соседний дом прямо через диагональ) — переходим на две колонки.
-          const tCols = tHere.length > 3 ? 2 : 1;
-          const tRows = Math.ceil(tHere.length / tCols);
-          const tFs = tHere.length > 5 ? 6.5 : tHere.length > 3 ? 7.5 : 10;
-          const tColGap = tFs * 5.6;
-          const tRowGap = tFs * 1.9;
-          const houseOneExtra = h === 1 ? 34 : 0;
-          const tGridH = (tRows-1)*tRowGap;
-          // Отталкиваемся от РЕАЛЬНОГО края натальной сетки (startY/gridH
-          // уже могли быть сдвинуты клампом выше), а не от предположения
-          // "натальная сетка стоит строго по центру дома" — при плотном
-          // доме это предположение само по себе давало наложение.
-          const natalBottomY = startY + gridH + fs*1.2 + 10 + houseOneExtra;
-          const natalTopY = startY - 10;
-          let tStartY = dir > 0 ? natalBottomY : natalTopY - tGridH;
-          const padIn = 10;
-          // Грубая защита прямоугольником дома — не даёт блоку "убежать" в
-          // дом через один...
-          tStartY = clampRange(tStartY, bbox.minY + padIn, bbox.maxY - padIn - tGridH);
+        let startY = cy - gridH / 2;
+        // Дом 1 — сверху уже занято бейджем ASC и его градусом (до cy-14
+        // примерно), сетку планет нужно сдвинуть вниз, иначе верхний ряд
+        // планет наезжает на подпись градуса Асцендента.
+        if (h === 1) startY += 22;
+        startY = clampRange(startY, bbox.minY + padIn, bbox.maxY - padIn - gridH);
 
-          tHere.forEach((item,i)=>{
-            const col = i % tCols, row = Math.floor(i / tCols);
-            const py = tStartY + row*tRowGap;
-            // ...а на каждой конкретной строке — точная ширина ФИГУРЫ дома
-            // на этой высоте (у треугольника она сужается к вершине), чтобы
-            // текст не пересекал границу с соседним домом даже в нижних
-            // строках длинного списка.
-            const rangeAtRow = polyXRangeAtY(poly, py) || [bbox.minX, bbox.maxX];
-            const rowMinX = Math.max(bbox.minX, rangeAtRow[0]) + padIn;
-            const rowMaxX = Math.min(bbox.maxX, rangeAtRow[1]) - padIn;
-            const tGridWRow = (tCols-1)*tColGap;
-            const rowStartX = clampRange(cx - tGridWRow/2, rowMinX, rowMaxX - tGridWRow);
-            const px = rowStartX + col*tColGap;
-            const tt = el('text', {x:px,y:py,'text-anchor':'middle','font-family':'Inter, sans-serif','font-size':tFs,'font-weight':600,fill:'#6b8299'});
-            tt.textContent = PLANET_SYMBOLS[item.name] + ' ' + dms(item.t.sign.degInSign);
+        combined.forEach((entry, i) => {
+          const col = i % cols, row = Math.floor(i / cols);
+          const py = startY + row * rowGap;
+
+          // Точная ширина ФИГУРЫ дома именно на этой строке (у треугольника
+          // она сужается к вершине) — центрируем ряд внутри неё, чтобы не
+          // пересечь границу с соседним домом даже в узких строках.
+          const rangeAtRow = polyXRangeAtY(poly, py) || [bbox.minX, bbox.maxX];
+          let rowMinX = Math.max(bbox.minX, rangeAtRow[0]) + padIn;
+          let rowMaxX = Math.min(bbox.maxX, rangeAtRow[1]) - padIn;
+          // Если эта строка сетки почти на той же высоте, что и цифра знака —
+          // не даём ряду наехать на неё (актуально в тесных угловых домах при
+          // большом числе планет сразу).
+          // Полоса, которую эта строка реально занимает на холсте — символ
+          // плюс подпись градуса под ним. Если цифра знака попадает в эту
+          // полосу по высоте — не даём строке дотянуться до неё по ширине.
+          if (ny >= py - fs * 0.6 - 10 && ny <= py + fs * 1.6 + 10) {
+            if (nx >= cx) rowMaxX = Math.min(rowMaxX, nx - 14);
+            else rowMinX = Math.max(rowMinX, nx + 14);
+          }
+          const itemsInRow = Math.min(cols, totalCount - row * cols);
+          const rowGridW = (itemsInRow - 1) * colGap;
+          const rowStartX = clampRange(cx - rowGridW / 2, rowMinX, rowMaxX - rowGridW);
+          const px = rowStartX + col * colGap;
+
+          if (entry.kind === 'natal') {
+            const { item } = entry;
+            planetPixelPos[item.name] = { x: px, y: py };
+            const color = dignityColor(item.name, item.p.sign.index);
+            const t = el('text', {x:px,y:py,'text-anchor':'middle','dominant-baseline':'central','font-family':'Inter, sans-serif','font-size':fs,'font-weight':700,fill:color});
+            t.textContent = PLANET_SYMBOLS[item.name];
+            svg.appendChild(t);
+            if (item.p.retrograde) addRetroBar(svg, t, color);
+            const dt = el('text', {x:px,y:py+fs*1.15,'text-anchor':'middle','font-family':'Inter, sans-serif','font-size':degFs,fill:'#7A6B5A'});
+            dt.textContent = dms(item.p.sign.degInSign);
+            svg.appendChild(dt);
+
+            // Кликабельная/наводимая область вокруг символа планеты — на самой
+            // карте, не только в списке планет под ней. Прозрачный круг шире
+            // самого текста, чтобы было проще попасть пальцем на мобильном.
+            const hit = el('circle', {cx:px, cy:py, r:16, fill:'transparent', style:'cursor:pointer;', 'data-planet':item.name});
+            const openDetail = () => showPlanetDetail(hit, item.name, item.p.sign.index, item.p.retrograde, item.p.house, item.p.nakshatra ? item.p.nakshatra.name : null, item.p.nakshatra ? item.p.nakshatra.pada : null, chart);
+            wirePressAndHold(hit, openDetail, hidePlanetTooltip);
+            svg.appendChild(hit);
+          } else {
+            const { item } = entry;
+            const tt = el('text', {x:px,y:py,'text-anchor':'middle','dominant-baseline':'central','font-family':'Inter, sans-serif','font-size':tFs,'font-weight':600,fill:'#6b8299'});
+            tt.textContent = PLANET_SYMBOLS[item.name];
             svg.appendChild(tt);
-          });
-        }
+            const tdt = el('text', {x:px,y:py+tFs*1.15,'text-anchor':'middle','font-family':'Inter, sans-serif','font-size':degFs,fill:'#8a9aa8'});
+            tdt.textContent = dms(item.t.sign.degInSign);
+            svg.appendChild(tdt);
+
+            const hit = el('circle', {cx:px, cy:py, r:11, fill:'transparent', style:'cursor:pointer;', 'data-planet':item.name});
+            const openTDetail = () => showTransitDetail(hit, item.name, item.t.sign.index, item.t.sign.degInSign, item.t.nakshatra ? item.t.nakshatra.name : null, item.t.nakshatra ? item.t.nakshatra.pada : null, item.t.transitHouse);
+            wirePressAndHold(hit, openTDetail, hidePlanetTooltip);
+            svg.appendChild(hit);
+          }
+        });
       }
     }
     addWatermark(svg, el);
@@ -1914,15 +2025,17 @@
       <div class="pdeg">${dms(asc.sign.degInSign)}</div>
       <div class="psign">${asc.sign.name}<br><span style="font-size:11px;">${asc.nakshatra.name} (пада ${asc.nakshatra.pada})</span></div>
     </div>`;
+    const karakas = computeCharaKarakas(chart);
     html += order.map(name => {
       const p = chart.planets[name];
       const color = dignityColor(name, p.sign.index);
       const hasDigBala = DIG_BALA_HOUSE[name] === p.house;
       const combust = isCombust(chart, name);
       const atWar = planetsAtWarWith(chart, name);
+      const karaka = karakas[name];
       return `<div class="planet-row" data-planet="${name}" data-signidx="${p.sign.index}" data-retro="${p.retrograde ? '1' : '0'}" data-house="${p.house}" data-nak="${p.nakshatra.name}" data-pada="${p.nakshatra.pada}">
         <div class="sym" style="color:${color}">${p.retrograde ? `<span style="display:inline-block;border-top:2px solid currentColor;padding-top:3px;">${PLANET_SYMBOLS[name]}</span>` : PLANET_SYMBOLS[name]}</div>
-        <div class="pname">${name}${hasDigBala ? ' <span title="Диг-бала — направленная сила" style="color:var(--gold);font-size:11px;">◈</span>' : ''}${combust ? ' <span title="Сожжена (близко к Солнцу)" style="color:#a8654a;font-size:11px;">☉</span>' : ''}${atWar.length ? ` <span title="Планетная война с ${atWar.join(', ')}" style="color:#a8654a;font-size:11px;">⚔</span>` : ''}</div>
+        <div class="pname">${name}${karaka ? ` <span title="${CHARA_KARAKA_NAMES[karaka]} — ${CHARA_KARAKA_MEANINGS[karaka]}" style="color:var(--gold);font-size:11px;font-weight:700;border:1px solid var(--gold);border-radius:3px;padding:0 3px;">${karaka}</span>` : ''}${hasDigBala ? ' <span title="Диг-бала — направленная сила" style="color:var(--gold);font-size:11px;">◈</span>' : ''}${combust ? ' <span title="Сожжена (близко к Солнцу)" style="color:#a8654a;font-size:11px;">☉</span>' : ''}${atWar.length ? ` <span title="Планетная война с ${atWar.join(', ')}" style="color:#a8654a;font-size:11px;">⚔</span>` : ''}</div>
         <div class="pdeg">${dms(p.sign.degInSign)}</div>
         <div class="psign">${p.sign.name}<br><span style="font-size:11px;">${p.nakshatra.name} (пада ${p.nakshatra.pada})</span></div>
       </div>`;
@@ -1946,7 +2059,7 @@
     });
   });
 
-  const PAGES = ['home', 'panchanga', 'days', 'archive', 'profile', 'settings'];
+  const PAGES = ['home', 'days', 'archive', 'profile', 'settings'];
   document.querySelectorAll('.nav-item').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
@@ -2820,65 +2933,9 @@
     });
   });
 
-  document.getElementById('chart-download-btn').addEventListener('click', () => {
-    const showError = (msg) => {
-      if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showAlert) window.Telegram.WebApp.showAlert(msg);
-      else alert(msg);
-    };
-    try {
-      const svg = document.getElementById('chart-svg');
-      const serialized = new XMLSerializer().serializeToString(svg);
-      // Раньше здесь была blob-ссылка — в мобильном WebView Telegram (особенно
-      // iOS) Image() иногда молча не грузит SVG из blob: URL, без onload И
-      // без onerror — отсюда и "кнопка ничего не делает". base64 data: URL
-      // надёжнее работает в этом сценарии на мобильных WebView.
-      const svgBase64 = btoa(unescape(encodeURIComponent(serialized)));
-      const img = new Image();
-      img.onerror = () => showError('Не удалось подготовить картинку карты для скачивания.');
-      img.onload = async () => {
-        try {
-          const scale = 3; // повышаем разрешение экспорта для чёткой картинки
-          const canvas = document.createElement('canvas');
-          canvas.width = 400 * scale;
-          canvas.height = 400 * scale;
-          const ctx = canvas.getContext('2d');
-          // У самой SVG нет заливки фона (только рамка) — без этого экспорт
-          // получился бы с прозрачным фоном.
-          ctx.fillStyle = '#FBF8F3';
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          const dataUrl = canvas.toDataURL('image/png');
-          const fileName = 'Janma_Kundali.png';
-
-          const tg = window.Telegram && window.Telegram.WebApp;
-          if (tg && typeof tg.downloadFile === 'function') {
-            // Нативное скачивание Telegram требует настоящую HTTPS-ссылку —
-            // blob/data-ссылка для него не подходит.
-            const res = await fetch('/api/chart-image', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ dataUrl })
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Ошибка загрузки картинки');
-            tg.downloadFile({ url: data.url, file_name: fileName }, () => {});
-            return;
-          }
-          // Вне Telegram (обычный браузер) — прямое скачивание работает и так.
-          const link = document.createElement('a');
-          link.download = fileName;
-          link.href = dataUrl;
-          link.click();
-        } catch (e) {
-          console.error('Ошибка скачивания карты:', e);
-          showError('Не удалось скачать: ' + e.message);
-        }
-      };
-      img.src = 'data:image/svg+xml;base64,' + svgBase64;
-    } catch (e) {
-      console.error('Ошибка подготовки карты к скачиванию:', e);
-      showError('Не удалось скачать: ' + e.message);
-    }
-  });
+  // Кнопку "скачать карту как PNG" убрали по просьбе Кати — для скачивания
+  // теперь используется только полноценный PDF-экспорт (кнопка "Скачать PDF"),
+  // он и так покрывает эту задачу.
 
   // --- Аспекты (переиспользуется и в панели "Аспекты", и в детекторе йог) ---
   function computeAspectsClient(chart) {
@@ -3132,20 +3189,6 @@
   function renderChartExtraPanel(type) {
     const panel = document.getElementById('chart-extras-panel');
     if (!currentChart) { panel.innerHTML = '<div style="font-size:13px;color:var(--taupe);">Сначала постройте карту.</div>'; return; }
-
-    if (type === 'karakas') {
-      const HOUSE_KARAKAS = {
-        1: 'Солнце', 2: 'Юпитер', 3: 'Марс', 4: 'Луна, Венера', 5: 'Юпитер',
-        6: 'Марс, Сатурн', 7: 'Венера', 8: 'Сатурн', 9: 'Юпитер, Солнце',
-        10: 'Меркурий, Юпитер, Сатурн', 11: 'Юпитер', 12: 'Сатурн',
-      };
-      let html = '<div class="name" style="margin-bottom:6px;">Караки домов</div><div style="font-size:11px;color:var(--taupe);margin-bottom:10px;">Классические постоянные значения — не зависят от конкретной карты.</div>';
-      for (let h = 1; h <= 12; h++) {
-        html += `<div class="current-period-row"><span class="label">${h} дом</span><span class="value">${HOUSE_KARAKAS[h]}</span></div>`;
-      }
-      panel.innerHTML = html;
-      return;
-    }
 
     if (type === 'lords') {
       function housesRuledBy(planetName) {
@@ -4067,6 +4110,7 @@
       document.getElementById('daystab-calendar').classList.toggle('active', btn.dataset.daystab === 'calendar');
       document.getElementById('daystab-search').classList.toggle('active', btn.dataset.daystab === 'search');
       document.getElementById('daystab-year').classList.toggle('active', btn.dataset.daystab === 'year');
+      document.getElementById('daystab-panchanga').classList.toggle('active', btn.dataset.daystab === 'panchanga');
       if (btn.dataset.daystab === 'year') renderYearEvents();
     });
   });

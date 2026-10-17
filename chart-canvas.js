@@ -591,81 +591,80 @@ function renderNorthIndianWithTransitsPNG(natalChart, transitsResult, opts = {})
     }
 
     const planetsHere = signPlanets[signIdx] || [];
-    const count = planetsHere.length;
-    const cols = count > 2 ? 2 : 1;
-    const rows = Math.ceil(count / cols);
-    const fontSize = count > 3 ? 12 : count > 1 ? 13.5 : 15;
-    const colGap = fontSize * 2.6;
-    const rowGap = fontSize * 2.9;
-    const gridW = (cols - 1) * colGap;
-    const gridH = (rows - 1) * rowGap;
-    // Клампим сетку планет в пределы фигуры дома (не всего холста) —
-    // иначе в доме с 4+ планетами сетка могла вылезти за пределы узкого
-    // угла и наехать на соседний дом.
+    const transitsHere = transitsByHouse[h] || [];
+    const hasTransits = transitsHere.length > 0;
+
     const bbox = polyBBox(poly);
     const padIn = 16;
-    const startX = clampRange(cx - gridW / 2, bbox.minX + padIn, bbox.maxX - padIn - gridW);
-    const startY = clampRange(cy - gridH / 2, bbox.minY + padIn, bbox.maxY - padIn - gridH);
 
-    planetsHere.forEach((item, i) => {
-      const col = i % cols, row = Math.floor(i / cols);
-      const px = startX + col * colGap, py = startY + row * rowGap;
-      const color = COLORS[dignityOf(item.name, item.p.sign.index)];
-      text(ctx, PLANET_SYMBOLS[item.name], px, py, { font: `bold ${fontSize}px JKSans`, color, align: 'center', baseline: 'middle' });
-      if (item.p.retrograde) drawRetroBar(ctx, PLANET_SYMBOLS[item.name], px, py, { font: `bold ${fontSize}px JKSans`, color, align: 'center', baseline: 'middle' });
-    });
-    planetsHere.forEach((item, i) => {
-      const col = i % cols, row = Math.floor(i / cols);
-      const px = startX + col * colGap, py = startY + row * rowGap;
-      text(ctx, dmsFromDeg(item.p.sign.degInSign), px, py + fontSize * 1.15, { font: '9px JKSans', color: COLORS.inkSoft, align: 'center' });
-    });
+    // Как в J108: натальные и транзитные планеты стоят В ОДНОЙ сетке по
+    // центру дома, просто рядом друг с другом (транзитные — другим,
+    // приглушённым цветом и чуть мельче), без разнесения по разным
+    // половинам дома. Если все помещаются — ставим в один ряд; если нет —
+    // переносим на следующую строку.
+    const combined = planetsHere.map(item => ({ kind: 'natal', item }))
+      .concat(transitsHere.map(item => ({ kind: 'transit', item })));
+    const totalCount = combined.length;
 
-    const transitsHere = transitsByHouse[h] || [];
-    if (transitsHere.length > 0) {
-      // Растим блок транзитов В СТОРОНУ ЦЕНТРА карты, а не всегда вниз: в
-      // нижней половине карты рост вниз быстро упирался в край холста
-      // (особенно в маленьких угловых домах без натальных планет).
-      const dir = cy <= C ? 1 : -1;
-      // При 4+ транзитных планетах одна колонка растягивается по вертикали
-      // настолько, что пересекает границу дома (проверено стресс-тестом:
-      // 5 планет транзитом в угловом треугольнике залезали на соседний дом
-      // прямо через диагональ) — переходим на две колонки, как и для
-      // натальных планет.
-      const tCols = transitsHere.length > 3 ? 2 : 1;
-      const tRows = Math.ceil(transitsHere.length / tCols);
-      const tFontSize = transitsHere.length > 5 ? 7 : transitsHere.length > 3 ? 8 : 10;
-      const tColGap = tFontSize * 5.6; // метка "символ + градус" длиннее одного натального символа
-      const tRowGap = tFontSize * 2.3;
-      const tGridH = (tRows - 1) * tRowGap;
+    if (totalCount > 0) {
+      const fontSize = totalCount > 4 ? 11 : totalCount > 2 ? 13 : 15;
+      const tFontSize = fontSize - 1;
+      const degFontSize = totalCount > 4 ? 6.5 : totalCount > 2 ? 7.5 : 8.5;
+      const colGap = fontSize * 2.1;
+      const rowGap = fontSize * 2.5;
+      // В маленьких угловых домах ряд из 3-4 планет по ширине может физически
+      // не поместиться — считаем, сколько столбцов реально влезает по ширине
+      // дома в его середине, и не даём желаемому числу столбцов превысить это.
+      const baseY = h === 1 ? cy + 11 : cy;
+      const rangeAtBase = polyXRangeAtY(poly, baseY) || [bbox.minX, bbox.maxX];
+      const availWidth = Math.max(30, (Math.min(bbox.maxX, rangeAtBase[1]) - padIn) - (Math.max(bbox.minX, rangeAtBase[0]) + padIn));
+      const maxCols = Math.max(1, Math.floor(availWidth / colGap) + 1);
+      let cols = totalCount <= 3 ? totalCount : Math.ceil(totalCount / 2);
+      if (cols > maxCols) cols = maxCols;
+      const rows = Math.ceil(totalCount / cols);
+      const gridH = (rows - 1) * rowGap;
 
-      // Отталкиваемся от РЕАЛЬНОГО края натальной сетки (startY/gridH уже
-      // могли быть сдвинуты клампом выше, если в доме тесно) — а не от
-      // исходного предположения "натальная сетка стоит строго по центру
-      // дома", которое при большом числе и натальных, и транзитных планет
-      // сразу давало наложение (натальный блок после клампа оказывался не
-      // там, где ожидал блок транзитов).
-      const natalBottomY = startY + gridH + fontSize * 1.15 + 10;
-      const natalTopY = startY - 10;
-      let tStartY = dir > 0 ? natalBottomY : natalTopY - tGridH;
-      const padIn = 10;
-      // Сначала грубая защита прямоугольником дома (не даёт блоку вообще
-      // "убежать" за пределы холста или в дом через один)...
-      tStartY = clampRange(tStartY, bbox.minY + padIn, bbox.maxY - padIn - tGridH);
+      let startY = cy - gridH / 2;
+      if (h === 1) startY += 22;
+      startY = clampRange(startY, bbox.minY + padIn, bbox.maxY - padIn - gridH);
 
-      transitsHere.forEach((item, i) => {
-        const col = i % tCols, row = Math.floor(i / tCols);
-        const py = tStartY + row * tRowGap;
-        // ...а на каждой конкретной строке — точная ширина ФИГУРЫ дома на
-        // этой высоте (у треугольника она сужается к вершине), чтобы текст
-        // не пересекал диагональную границу с соседним домом даже в нижних
-        // строках длинного списка.
+      combined.forEach((entry, i) => {
+        const col = i % cols, row = Math.floor(i / cols);
+        const py = startY + row * rowGap;
+
+        // Точная ширина ФИГУРЫ дома именно на этой строке (у треугольника
+        // она сужается к вершине) — центрируем ряд внутри неё, чтобы не
+        // пересечь границу с соседним домом даже в узких строках.
         const rangeAtRow = polyXRangeAtY(poly, py) || [bbox.minX, bbox.maxX];
-        const rowMinX = Math.max(bbox.minX, rangeAtRow[0]) + padIn;
-        const rowMaxX = Math.min(bbox.maxX, rangeAtRow[1]) - padIn;
-        const tGridWRow = (tCols - 1) * tColGap;
-        const rowStartX = clampRange(cx - tGridWRow / 2, rowMinX, rowMaxX - tGridWRow);
-        const px = rowStartX + col * tColGap;
-        text(ctx, `${PLANET_SYMBOLS[item.name]} ${dmsFromDeg(item.t.sign.degInSign)}`, px, py, { font: `600 ${tFontSize}px JKSans`, color: TRANSIT_COLOR, align: 'center' });
+        let rowMinX = Math.max(bbox.minX, rangeAtRow[0]) + padIn;
+        let rowMaxX = Math.min(bbox.maxX, rangeAtRow[1]) - padIn;
+        // Если эта строка сетки почти на той же высоте, что и цифра знака —
+        // не даём ряду наехать на неё (актуально в тесных угловых домах при
+        // большом числе планет сразу).
+        // Полоса, которую эта строка реально занимает на холсте — символ плюс
+        // подпись градуса под ним (у натальных она чуть ниже, чем у
+        // транзитных). Если цифра знака попадает в эту полосу по высоте — не
+        // даём строке дотянуться до неё по ширине.
+        if (numY >= py - fontSize * 0.6 - 10 && numY <= py + fontSize * 1.6 + 10) {
+          if (numX >= cx) rowMaxX = Math.min(rowMaxX, numX - 14);
+          else rowMinX = Math.max(rowMinX, numX + 14);
+        }
+        const itemsInRow = Math.min(cols, totalCount - row * cols);
+        const rowGridW = (itemsInRow - 1) * colGap;
+        const rowStartX = clampRange(cx - rowGridW / 2, rowMinX, rowMaxX - rowGridW);
+        const px = rowStartX + col * colGap;
+
+        if (entry.kind === 'natal') {
+          const { item } = entry;
+          const color = COLORS[dignityOf(item.name, item.p.sign.index)];
+          text(ctx, PLANET_SYMBOLS[item.name], px, py, { font: `bold ${fontSize}px JKSans`, color, align: 'center', baseline: 'middle' });
+          if (item.p.retrograde) drawRetroBar(ctx, PLANET_SYMBOLS[item.name], px, py, { font: `bold ${fontSize}px JKSans`, color, align: 'center', baseline: 'middle' });
+          text(ctx, dmsFromDeg(item.p.sign.degInSign), px, py + fontSize * 1.15, { font: `${degFontSize}px JKSans`, color: COLORS.inkSoft, align: 'center' });
+        } else {
+          const { item } = entry;
+          text(ctx, PLANET_SYMBOLS[item.name], px, py, { font: `600 ${tFontSize}px JKSans`, color: TRANSIT_COLOR, align: 'center', baseline: 'middle' });
+          text(ctx, dmsFromDeg(item.t.sign.degInSign), px, py + tFontSize * 1.15, { font: `${degFontSize}px JKSans`, color: '#8a9aa8', align: 'center' });
+        }
       });
     }
   }

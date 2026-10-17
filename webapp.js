@@ -99,14 +99,10 @@ function requirePremium(req, res, next) {
 function startWebApp() {
   const app = express();
   // Railway (и большинство PaaS) завершают HTTPS на своём edge-прокси и
-  // проксируют запрос на наш сервер уже по обычному HTTP, выставляя заголовок
-  // X-Forwarded-Proto: https. Без этой настройки req.protocol в Express
-  // всегда возвращает 'http' — и /api/chart-image собирал ссылку вида
-  // "http://...", хотя сайт публично доступен только по https. Кнопка
-  // скачивания карты использует tg.downloadFile(), а Telegram отклоняет
-  // (молча, без ошибки) не-HTTPS ссылки — из-за этого скачивание не работало
-  // именно внутри самого Telegram, а вне его (в обычном браузере) работало,
-  // так как там используется другой, не зависящий от этого код.
+  // проксируют запрос на наш сервер уже по обычному HTTP — без этой настройки
+  // req.protocol в Express всегда возвращает 'http', даже когда сайт публично
+  // доступен только по https. Полезно для любого кода, который сам собирает
+  // абсолютную ссылку на сервер (сейчас таких нет, но пусть будет на будущее).
   app.set('trust proxy', true);
   app.use(express.json());
   app.use(express.static(path.join(__dirname, 'public'), {
@@ -150,43 +146,6 @@ function startWebApp() {
       console.error(e);
       res.json({ candidates: [] }); // тихо — это лишь подсказки, не критичный путь
     }
-  });
-
-  // Временное хранилище картинок карты — нужно специально для скачивания
-  // внутри Telegram: их нативный web_app_request_file_download требует
-  // настоящую HTTPS-ссылку, blob-ссылка (которую даёт canvas на телефоне
-  // напрямую) для него не подходит. Храним в памяти недолго, только на
-  // время самого скачивания — не архив, не файловое хранилище пользователя.
-  const chartImageStore = new Map(); // id -> { buffer, expiresAt }
-  setInterval(() => {
-    const now = Date.now();
-    for (const [id, entry] of chartImageStore) {
-      if (entry.expiresAt < now) chartImageStore.delete(id);
-    }
-  }, 60 * 1000);
-
-  app.post('/api/chart-image', (req, res) => {
-    try {
-      const { dataUrl } = req.body;
-      if (!dataUrl || !dataUrl.startsWith('data:image/png;base64,')) {
-        return res.status(400).json({ error: 'Ожидается PNG в формате data URL' });
-      }
-      const buffer = Buffer.from(dataUrl.slice('data:image/png;base64,'.length), 'base64');
-      const id = crypto.randomBytes(16).toString('hex');
-      chartImageStore.set(id, { buffer, expiresAt: Date.now() + 5 * 60 * 1000 });
-      const url = `${req.protocol}://${req.get('host')}/api/chart-image/${id}.png`;
-      res.json({ url });
-    } catch (e) {
-      console.error(e);
-      res.status(500).json({ error: e.message });
-    }
-  });
-
-  app.get('/api/chart-image/:id.png', (req, res) => {
-    const entry = chartImageStore.get(req.params.id);
-    if (!entry) return res.status(404).end();
-    res.set('Content-Type', 'image/png');
-    res.send(entry.buffer);
   });
 
   app.post('/api/geocode', async (req, res) => {
