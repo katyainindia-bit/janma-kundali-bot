@@ -5,7 +5,7 @@
 // ============================================================
 
 const { computeVimshottariDasha, findCurrentDashaChain } = require('./dasha.js');
-const { computePanchanga, computeTaraBala } = require('./panchanga.js');
+const { computePanchanga, computeTaraBala, computeDayNakshatraSegments } = require('./panchanga.js');
 const { computeCurrentTransits } = require('./transits.js');
 const { ACTIONS, ACTION_ICONS, NICHE_ACTION_KEYS, evaluateAction } = require('./muhurta.js');
 const { getEventsForDate } = require('./calendar-events.js');
@@ -46,6 +46,21 @@ function relevantLords(chart, goalKey) {
   return [...lords];
 }
 
+
+// Отрезок дня для клиента: накшатра/тара + Луна/Чандра-бала + общий тон (good/moderate/bad)
+function segOut(sg) {
+  return {
+    nakshatra: sg.nakshatra, from: sg.from, to: sg.to, fromDate: sg.fromDate, toDate: sg.toDate, share: sg.share,
+    taraName: sg.tara.name, taraQuality: sg.tara.quality,
+    moonSign: sg.moonSign,
+    chandraHouse: sg.chandra ? sg.chandra.house : null,
+    chandraQuality: sg.chandra ? sg.chandra.quality : null,
+    tone: sg.tone,
+    paksha: sg.paksha,
+  };
+}
+const natalMoonSignOf = (chart) => Math.floor(chart.planets['Луна'].siderealLon / 30) % 12;
+
 /**
  * Считает "качество дня" на конкретную дату: тара-бала + текущая цепочка даш.
  * Время внутри дня берём условно (полдень по месту) — здесь важен день,
@@ -56,8 +71,15 @@ function dayQuality(chart, natalMoonNakIdx, dateUTC, lat, lon, utcOffset) {
     dateUTC.getUTCFullYear(), dateUTC.getUTCMonth() + 1, dateUTC.getUTCDate(), 12, 0,
     lat, lon, utcOffset, chart.ayanamshaType, chart.customAyanamshaBase
   );
-  const taraBala = computeTaraBala(natalMoonNakIdx, p.nakshatraOfDayIdx);
-  return { taraBala, tithi: p.tithi, nakshatraOfDay: p.nakshatraOfDay };
+  // Тара-бала дня — по накшатре на ВОСХОД; если в течение дня накшатра
+  // меняется, остальные отрезки лежат в segments (единый расчёт для
+  // календаря, «Сегодня» и деталей дня).
+  const day = computeDayNakshatraSegments(
+    dateUTC.getUTCFullYear(), dateUTC.getUTCMonth() + 1, dateUTC.getUTCDate(),
+    lat, lon, utcOffset, natalMoonNakIdx, chart.ayanamshaType, chart.customAyanamshaBase, natalMoonSignOf(chart)
+  );
+  const first = day.segments[0];
+  return { taraBala: first.tara, tithi: p.tithi, nakshatraOfDay: first.nakshatra, segments: day.segments, sunrise: day.sunrise };
 }
 
 /**
@@ -93,6 +115,8 @@ function computeCalendarMonth(chart, birthDateUTC, year, month, lat, lon, utcOff
       day: d,
       taraName: q.taraBala.name,
       taraQuality: q.taraBala.quality,
+      tone: q.segments[0].tone,
+      segments: q.segments.map(segOut),
       tithi: q.tithi.name,
       dashaChange,
       vara: q.vara,
@@ -114,7 +138,9 @@ function computeDayDetail(chart, birthDateUTC, year, month, day, lat, lon, utcOf
 
   const nakSpan = 360 / 27;
   const natalMoonNakIdx = Math.floor(chart.planets['Луна'].siderealLon / nakSpan);
-  const taraBala = computeTaraBala(natalMoonNakIdx, panchanga.nakshatraOfDayIdx);
+  // Тара дня — по накшатре на восход (как в календаре); все отрезки дня — в daySegments
+  const dayNak = computeDayNakshatraSegments(year, month, day, lat, lon, utcOffset, natalMoonNakIdx, chart.ayanamshaType, chart.customAyanamshaBase, natalMoonSignOf(chart));
+  const taraBala = dayNak.segments[0].tara;
 
   const mahadashas = computeVimshottariDasha(chart, birthDateUTC);
   const chain = findCurrentDashaChain(mahadashas, dateAtNoonUTC);
@@ -147,7 +173,7 @@ function computeDayDetail(chart, birthDateUTC, year, month, day, lat, lon, utcOf
 
   const dayCtx = {
     tithiNumber: panchanga.tithi.number,
-    nakshatraIdx: panchanga.nakshatraOfDayIdx,
+    nakshatraIdx: dayNak.segments[0].nakshatraIdx,
     weekdayIdx: new Date(Date.UTC(year, month - 1, day)).getUTCDay(),
     taraBala,
     dashaChangeToday,
@@ -186,6 +212,10 @@ function computeDayDetail(chart, birthDateUTC, year, month, day, lat, lon, utcOf
     date: `${String(day).padStart(2, '0')}.${String(month).padStart(2, '0')}.${year}`,
     panchanga,
     taraBala,
+    daySegments: dayNak.segments.map(segOut),
+    dayTone: dayNak.segments[0].tone,
+    sunrise: dayNak.sunrise,
+    nextSunrise: dayNak.nextSunrise,
     chain,
     dashaChangeToday,
     moonTransitHouse,

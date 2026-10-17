@@ -342,4 +342,99 @@ function computeTaraBala(natalMoonNakshatraIdx, dayNakshatraIdx) {
   return { count, ...TARA_NAMES[taraIdx] };
 }
 
-module.exports = { computePanchanga, computeTaraBala, sunriseSunsetMinutesUTC, jdToLocalDateTimeStr };
+// --- Накшатры в течение ведического дня (от восхода до следующего восхода) ---
+// Единый источник для календаря, «Сегодня» и деталей дня: день делится на
+// отрезки по смене накшатры (обычно 1–2), у каждого — своя тара-бала.
+const NAKSHATRA_NAMES_SEG = [
+  'Ашвини','Бхарани','Криттика','Рохини','Мригашира','Ардра','Пунарвасу','Пушья','Ашлеша',
+  'Магха','Пурва Пхалгуни','Уттара Пхалгуни','Хаста','Читра','Свати','Вишакха','Анурадха','Джьештха',
+  'Мула','Пурва Ашадха','Уттара Ашадха','Шравана','Дханишта','Шатабхиша','Пурва Бхадрапада','Уттара Бхадрапада','Ревати'
+];
+
+function sunriseJD(year, month, day, lat, lon, utcOffset) {
+  const noonDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0) - utcOffset * 3600 * 1000);
+  const st = sunriseSunsetMinutesUTC(noonDate, lat, lon);
+  if (st.sunriseUTC === undefined) {
+    // полярный день/ночь: условный «восход» в 06:00 по местному времени
+    return jdFromDate(year, month, day, 6, 0, 0, utcOffset);
+  }
+  const utcMidnightJD = jdFromDate(noonDate.getUTCFullYear(), noonDate.getUTCMonth() + 1, noonDate.getUTCDate(), 0, 0, 0, 0);
+  return utcMidnightJD + st.sunriseUTC / 1440;
+}
+
+// --- Чандра-бала: Луна дня (знак) относительно НАТАЛЬНОГО знака Луны ---
+// Благоприятные позиции: 1, 3, 6, 7, 10, 11. Неблагоприятные: 2, 4, 5, 8, 9, 12.
+const CHANDRA_GOOD_HOUSES = [1, 3, 6, 7, 10, 11];
+const SIGN_NAMES_SEG = ['Овен','Телец','Близнецы','Рак','Лев','Дева','Весы','Скорпион','Стрелец','Козерог','Водолей','Рыбы'];
+
+function taraTone(quality) {
+  if (quality === 'благоприятно' || quality === 'наиболее благоприятно') return 'good';
+  if (quality === 'неблагоприятно' || quality === 'наименее благоприятно') return 'bad';
+  return 'neutral'; // Джанма
+}
+// Приоритет зависит от пакши: Шукла (растущая Луна) — главная Чандра-бала,
+// Кришна (убывающая) — главная тара-бала.
+// good     — оба показателя благоприятны;
+// moderate — главный благоприятен, второй нет;
+// bad      — главный неблагоприятен (что бы ни показывал второй).
+// Джанма-тара (нейтральная) считается как «не благоприятная».
+function combineTone(paksha, taraT, chandraGood) {
+  const taraGood = taraT === 'good';
+  const priorityGood = paksha === 'shukla' ? chandraGood : taraGood;
+  const otherGood = paksha === 'shukla' ? taraGood : chandraGood;
+  if (priorityGood && otherGood) return 'good';
+  if (priorityGood) return 'moderate';
+  return 'bad';
+}
+
+function computeDayNakshatraSegments(year, month, day, lat, lon, utcOffset, natalMoonNakIdx, ayanamshaType, customAyanamshaBase, natalMoonSignIdx) {
+  const nakSpan = 360 / 27;
+  const nakFn = (j) => pmod(moonLongitude(j) - ayanamshaFor(j, ayanamshaType, customAyanamshaBase), 360);
+  const elongFn = (j) => pmod(moonLongitude(j) - sunLongitude(j), 360);
+
+  const startJD = sunriseJD(year, month, day, lat, lon, utcOffset);
+  const next = new Date(Date.UTC(year, month - 1, day) + 24 * 3600 * 1000);
+  const endJD = sunriseJD(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate(), lat, lon, utcOffset);
+
+  const hhmm = (jd) => jdToLocalDateTimeStr(jd, utcOffset).slice(11);
+  const dmy = (jd) => jdToLocalDateTimeStr(jd, utcOffset).slice(0, 10);
+
+  const segments = [];
+  let cur = startJD;
+  for (let i = 0; i < 5; i++) {
+    const lonNow = nakFn(cur + 1e-6);
+    const idx = Math.min(26, Math.floor(lonNow / nakSpan));
+    const signIdx = Math.floor(lonNow / 30) % 12;
+    // Ближайшая граница: смена накшатры ИЛИ смена знака Луны
+    const bNak = findBoundaryJD(cur + 1e-6, nakFn, nakSpan, 1);
+    const bSign = findBoundaryJD(cur + 1e-6, nakFn, 30, 1);
+    // смена пакши (Пурнима/Амавасья) тоже граница: от неё зависит приоритет показателей
+    const bPak = findBoundaryJD(cur + 1e-6, elongFn, 180, 1);
+    const cands = [bNak, bSign, bPak].filter(b => b !== null);
+    const boundary = cands.length ? Math.min(...cands) : null;
+    const last = boundary === null || boundary >= endJD;
+    const to = last ? endJD : boundary;
+
+    const paksha = elongFn(cur + 1e-6) < 180 ? 'shukla' : 'krishna';
+    const tara = natalMoonNakIdx === undefined || natalMoonNakIdx === null ? null : computeTaraBala(natalMoonNakIdx, idx);
+    let chandra = null, tone = null;
+    if (natalMoonSignIdx !== undefined && natalMoonSignIdx !== null && tara) {
+      const house = ((signIdx - natalMoonSignIdx + 12) % 12) + 1;
+      const good = CHANDRA_GOOD_HOUSES.includes(house);
+      chandra = { house, good, quality: good ? 'благоприятна' : 'неблагоприятна', sign: SIGN_NAMES_SEG[signIdx] };
+      tone = combineTone(paksha, taraTone(tara.quality), good);
+    }
+    segments.push({
+      nakshatra: NAKSHATRA_NAMES_SEG[idx], nakshatraIdx: idx, moonSign: SIGN_NAMES_SEG[signIdx],
+      from: hhmm(cur), fromDate: dmy(cur), to: hhmm(to), toDate: dmy(to),
+      fromJD: cur, toJD: to,
+      share: (to - cur) / (endJD - startJD),
+      tara, chandra, tone, paksha,
+    });
+    if (last) break;
+    cur = to;
+  }
+  return { sunrise: hhmm(startJD), nextSunrise: hhmm(endJD), startJD, endJD, segments };
+}
+
+module.exports = { computePanchanga, computeTaraBala, sunriseSunsetMinutesUTC, jdToLocalDateTimeStr, computeDayNakshatraSegments };

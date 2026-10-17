@@ -267,6 +267,7 @@
   }
   .cal-day.good { background: #E3F0E0; color: #3f6b3a; }
   .cal-day.bad { background: #F5E3E0; color: #a8654a; }
+  .cal-day.moderate { background: #F6EBC8; color: #7a6230; }
   .cal-event-icon { position: absolute; top: 0px; right: 1px; line-height: 1; }
   .cal-event-icon svg { width: 13px; height: 13px; margin-right: 0; vertical-align: baseline; }
   .cal-day .dot-change {
@@ -885,12 +886,12 @@
           <div class="name" id="cal-month-label" style="margin-bottom:0;">—</div>
           <button class="btn-secondary" id="cal-next-btn" style="width:auto;margin-bottom:0;padding:8px 14px;">→</button>
         </div>
-        <p style="font-size:12px;color:var(--taupe);margin:0 0 12px;">Цвет дня — по твоей карте (тара-бала и даши). Значки событий (🌕🌑🌙 и т.п.) — общие, одинаковые для всех.</p>
+        <p style="font-size:12px;color:var(--taupe);margin:0 0 12px;">Цвет дня — по твоей карте: тара-бала и Чандра-бала (в растущую Луну главная Чандра-бала, в убывающую — тара). Если оценка меняется в течение дня, клетка делится по времени. Значки событий (🌕🌑🌙 и т.п.) — общие, одинаковые для всех.</p>
         <div id="cal-grid" class="cal-grid"></div>
         <div class="chip-row" style="margin-top:14px;">
           <span class="chip" style="cursor:default;">🟢 благоприятно</span>
           <span class="chip" style="cursor:default;">🔴 неблагоприятно</span>
-          <span class="chip" style="cursor:default;">бежевый — нейтрально</span>
+          <span class="chip" style="cursor:default;">🟡 умеренно благоприятно</span>
           <span class="chip" style="cursor:default;">◆ смена периода</span>
         </div>
         <div class="chip-row" id="cal-event-legend" style="margin-top:8px;"></div>
@@ -3930,19 +3931,24 @@
       document.getElementById('today-pratyantar').innerHTML = chain && chain.pratyantardasha
         ? `${chain.pratyantardasha.lord}<br><span class="sub">до ${fmtDate(chain.pratyantardasha.end)}</span>` : '—';
 
-      document.getElementById('today-energy-descriptor').textContent = data.energyDescriptor || '';
-      document.getElementById('today-tara').innerHTML = `${data.taraBala.name} <span class="sub">(${data.taraBala.quality})</span>`;
+      // Цвет дня — пара «тара + Чандра-бала». Фразы-заголовки из мухурты показываем только для
+      // особых дней (затмение, Экадаши/Амавасья, смена даши) — обычные «хорошее время для шагов»
+      // могли спорить с цветом.
+      const specialTier = ['eclipse', 'inward', 'dashaChange'].includes(data.dayTierKey);
+      document.getElementById('today-energy-descriptor').textContent = specialTier ? (data.energyDescriptor || '') : '';
+      document.getElementById('today-tara').innerHTML = `${data.taraBala.name} <span class="sub">(${data.taraBala.quality})</span>`
+        + (data.daySegments && data.daySegments.length
+          ? `<div style="margin-top:6px;text-align:left;">${daySegmentsHtml(data.daySegments, data.currentSegmentIndex)}</div>` : '');
       document.getElementById('today-tithi').textContent = `${data.tithi.name} (№${data.tithi.number}, ${data.tithi.paksha})`;
       document.getElementById('today-nak').textContent = data.nakshatraOfDay;
       document.getElementById('today-moon-house').textContent = data.moonHouseMeaning || `${data.moonTransitHouse}-й дом`;
 
-      const ENERGY_TONE = { 'Благоприятный': '#4f7a52', 'Нейтральный': '#C8A26B', 'Напряжённый': '#a8654a' };
-      document.getElementById('today-summary-text').innerHTML = data.dayEnergy
-        ? `<div style="display:flex;align-items:center;justify-content:center;gap:7px;margin-bottom:6px;">
-             <span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${ENERGY_TONE[data.dayEnergy.label] || 'var(--gold)'};"></span>
-             <span style="font-size:15px;">${escapeHtml(data.dayEnergy.label)}</span>
-           </div>${escapeHtml(data.daySummary || '')}`
-        : escapeHtml(data.daySummary || '');
+      const toneKey = data.dayTone || 'moderate';
+      document.getElementById('today-summary-text').innerHTML =
+        `<div style="display:flex;align-items:center;justify-content:center;gap:7px;margin-bottom:6px;">
+           <span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${TONE_DOT[toneKey]};"></span>
+           <span style="font-size:15px;">${TONE_LABEL[toneKey]}</span>
+         </div>${specialTier ? escapeHtml(data.daySummary || '') : ''}`;
 
       const eventsCard = document.getElementById('today-events-card');
       if (data.events && data.events.length > 0) {
@@ -4162,6 +4168,35 @@
 
   const MONTH_NAMES = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
 
+  // Единая шкала дня: календарь, «Сегодня» и детали дня берут отсюда.
+  // Тон отрезка = пара «тара-бала + Чандра-бала» (считает сервер): good / moderate / bad.
+  const TONE_BG = { good: '#E3F0E0', moderate: '#F6EBC8', bad: '#F5E3E0' };
+  const TONE_DOT = { good: '#4f7a52', moderate: '#C8A26B', bad: '#a8654a' };
+  const TONE_LABEL = { good: 'Благоприятный', moderate: 'Умеренно благоприятный', bad: 'Неблагоприятный' };
+  // Соседние отрезки с одинаковым тоном сливаем — для окраски клетки календаря
+  function mergeToneSegments(segs) {
+    const out = [];
+    segs.forEach(sg => {
+      const last = out[out.length - 1];
+      if (last && last.tone === sg.tone) last.share += sg.share;
+      else out.push({ tone: sg.tone, share: sg.share });
+    });
+    return out;
+  }
+  function daySegmentsHtml(segs, currentIdx) {
+    return segs.map((sg, i) => {
+      const timeRange = segs.length === 1 ? 'весь день' : (sg.toDate && sg.fromDate && sg.toDate !== sg.fromDate ? `с ${sg.from} до восхода` : `${sg.from}–${sg.to}`);
+      const isNow = i === currentIdx;
+      const priorityNote = sg.paksha === 'shukla' ? 'растущая Луна — главная Чандра-бала' : (sg.paksha === 'krishna' ? 'убывающая Луна — главная тара' : '');
+      const chandra = sg.chandraHouse ? `Луна в знаке ${escapeHtml(sg.moonSign)} — ${sg.chandraHouse}-й от натальной Луны, Чандра-бала ${escapeHtml(sg.chandraQuality)}` : '';
+      return `<div style="display:flex;gap:8px;align-items:flex-start;margin:6px 0;font-size:13px;line-height:1.4;">
+        <span style="width:10px;height:10px;border-radius:50%;background:${TONE_DOT[sg.tone] || TONE_DOT.moderate};margin-top:4px;flex-shrink:0;"></span>
+        <span>${isNow ? '<b>' : ''}${timeRange} · ${TONE_LABEL[sg.tone] || ''}${isNow ? ' · сейчас</b>' : ''}<br>
+        <span style="color:var(--taupe);">${escapeHtml(sg.nakshatra)} — тара ${escapeHtml(sg.taraName)} (${escapeHtml(sg.taraQuality)})${chandra ? '<br>' + chandra : ''}${priorityNote ? '<br><i>' + priorityNote + '</i>' : ''}</span></span>
+      </div>`;
+    }).join('');
+  }
+
   async function renderCalendarMonth() {
     const errorEl = document.getElementById('days-error-msg');
     errorEl.style.display = 'none';
@@ -4185,10 +4220,23 @@
       let html = '';
       for (let i = 0; i < firstDow; i++) html += '<div></div>';
       data.days.forEach(d => {
-        const cls = d.taraQuality.includes('наименее') || d.taraQuality === 'неблагоприятно' ? 'bad'
-          : (d.taraQuality.includes('наиболее') || d.taraQuality === 'благоприятно') ? 'good' : '';
+        const toneSegs = mergeToneSegments(d.segments && d.segments.length ? d.segments : [{ tone: d.tone || 'moderate', share: 1 }]);
+        let cellStyle = '';
+        let cellCls = toneSegs[0].tone;
+        // Оценка меняется в течение дня — клетка делится на части по времени смены
+        if (toneSegs.length > 1) {
+          const stops = [];
+          let acc = 0;
+          toneSegs.forEach((sg, i) => {
+            const w = i === toneSegs.length - 1 ? 1 - acc : Math.min(0.78, Math.max(0.22, sg.share));
+            stops.push(`${TONE_BG[sg.tone]} ${(acc * 100).toFixed(1)}% ${((acc + w) * 100).toFixed(1)}%`);
+            acc += w;
+          });
+          cellStyle = ` style="background:linear-gradient(105deg, ${stops.join(', ')});color:#5a4a3a;"`;
+          cellCls = '';
+        }
         const eventIcon = (d.events && d.events[0]) ? `<span class="cal-event-icon">${eventIconSvg(d.events[0].type)}</span>` : '';
-        html += `<div class="cal-day ${cls}" data-day="${d.day}">${d.day}${d.dashaChange ? '<span class="dot-change"></span>' : ''}${eventIcon}</div>`;
+        html += `<div class="cal-day ${cellCls}"${cellStyle} data-day="${d.day}">${d.day}${d.dashaChange ? '<span class="dot-change"></span>' : ''}${eventIcon}</div>`;
       });
       grid.innerHTML = html;
 
@@ -4214,10 +4262,9 @@
               ${dd.events.length ? `<div style="margin-bottom:8px;">${dd.events.map(ev => `<div class="note-item"><div class="note-text">${eventIconSvg(ev.type)}${escapeHtml(ev.label)}</div></div>`).join('')}</div>` : ''}
               <div class="current-period-row"><span class="label">Вара</span><span class="value">${pn.vara}</span></div>
               <div class="current-period-row"><span class="label">Титхи</span><span class="value">${pn.tithi.name} (${pn.tithi.paksha})</span></div>
-              <div class="current-period-row"><span class="label">Накшатра дня</span><span class="value">${pn.nakshatraOfDay}</span></div>
               <div class="current-period-row"><span class="label">Йога</span><span class="value">${pn.yoga.name}</span></div>
               <div class="current-period-row"><span class="label">Карана</span><span class="value">${pn.karana.name}</span></div>
-              <div class="current-period-row"><span class="label">Тара-бала</span><span class="value">${dd.taraBala.name} (${dd.taraBala.quality})</span></div>
+              <div style="margin:10px 0 4px;"><b style="font-size:13px;">Накшатра и тара-бала</b><div style="font-size:11px;color:var(--taupe);">день от восхода ${dd.sunrise} до следующего восхода ${dd.nextSunrise}</div>${daySegmentsHtml(dd.daySegments, -1)}</div>
               ${dd.dashaChangeToday ? `<div class="current-period-row"><span class="label">Смена периода</span><span class="value">${dd.dashaChangeToday.level}: ${dd.dashaChangeToday.lord}</span></div>` : ''}
               <div class="current-period-row"><span class="label">🌅 Восход</span><span class="value">${pn.sunrise||'—'}</span></div>
               <div class="current-period-row"><span class="label">🌇 Закат</span><span class="value">${pn.sunset||'—'}</span></div>

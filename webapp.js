@@ -7,11 +7,11 @@ const express = require('express');
 const path = require('path');
 const crypto = require('crypto');
 
-const { calculateChart } = require('./engine.js');
+const { calculateChart, jdFromDate } = require('./engine.js');
 const { bhriguBindu, specialLagnas } = require('./special-points.js');
 const { computeVimshottariDasha, findCurrentDashaChain } = require('./dasha.js');
 const { computeCurrentTransits, transitDignity } = require('./transits.js');
-const { computePanchanga, computeTaraBala } = require('./panchanga.js');
+const { computePanchanga, computeTaraBala, computeDayNakshatraSegments } = require('./panchanga.js');
 const { calculateNavamsha } = require('./navamsha.js');
 const { calculateDashamsha } = require('./dashamsha.js');
 const { calculateVarga: calculateOtherVarga, VARGA_DEFS } = require('./divisional-charts.js');
@@ -470,14 +470,28 @@ function startWebApp() {
       // 2. Текущие транзиты относительно натальной карты
       const transits = computeCurrentTransits(chart, now);
 
-      // 3. Тара-бала дня: накшатра дня (Луна сегодня) относительно натальной накшатры Луны
+      // 3. Тара-бала дня. Всё считаем по МЕСТНОМУ времени пользователя (раньше UTC-часы
+      // подставлялись как местные и момент сдвигался на несколько часов). Ведический
+      // день идёт от восхода до восхода: до восхода «сегодня» ещё вчерашнего дня.
       const nakSpan = 360 / 27;
       const natalMoonNakIdx = Math.floor(chart.planets['Луна'].siderealLon / nakSpan);
+      const localNow = new Date(now.getTime() + utcOffset * 3600000);
+      let ly = localNow.getUTCFullYear(), lm = localNow.getUTCMonth() + 1, ld = localNow.getUTCDate();
+      const nowJD = jdFromDate(now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate(), now.getUTCHours(), now.getUTCMinutes(), 0, 0);
+      let dayNak = computeDayNakshatraSegments(ly, lm, ld, lat, lon, utcOffset, natalMoonNakIdx, chart.ayanamshaType, chart.customAyanamshaBase, Math.floor(chart.planets['Луна'].siderealLon / 30) % 12);
+      if (nowJD < dayNak.startJD) {
+        const prev = new Date(Date.UTC(ly, lm - 1, ld) - 24 * 3600000);
+        ly = prev.getUTCFullYear(); lm = prev.getUTCMonth() + 1; ld = prev.getUTCDate();
+        dayNak = computeDayNakshatraSegments(ly, lm, ld, lat, lon, utcOffset, natalMoonNakIdx, chart.ayanamshaType, chart.customAyanamshaBase, Math.floor(chart.planets['Луна'].siderealLon / 30) % 12);
+      }
+      let currentSegmentIndex = dayNak.segments.findIndex(sg => nowJD >= sg.fromJD && nowJD < sg.toJD);
+      if (currentSegmentIndex < 0) currentSegmentIndex = 0;
+      const currentSeg = dayNak.segments[currentSegmentIndex];
       const todayPanchanga = computePanchanga(
-        now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate(), now.getUTCHours(), now.getUTCMinutes(),
+        ly, lm, ld, localNow.getUTCHours(), localNow.getUTCMinutes(),
         lat, lon, utcOffset, chart.ayanamshaType, chart.customAyanamshaBase
       );
-      const taraBala = computeTaraBala(natalMoonNakIdx, todayPanchanga.nakshatraOfDayIdx);
+      const taraBala = currentSeg.tara;
 
       // 4. Транзитная Луна сегодня — в каком натальном доме
       const moonTransitHouse = transits.planets['Луна'].transitHouse;
@@ -534,15 +548,15 @@ function startWebApp() {
 
       // 7. Астрологические события сегодня (нужны заранее — движок мухурты учитывает
       // Санкранти/затмения как «особые дни», не только Экадаши/Пурниму/Амавасью из титхи)
-      const events = getEventsForDate(now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate(), todayPanchanga.tithi.number);
+      const events = getEventsForDate(ly, lm, ld, todayPanchanga.tithi.number);
 
       // 8. Движок мухурты: прогоняем сегодняшний день по всем настроенным действиям,
       // делим на «что поддержано» / «что лучше отложить». Действия с пустыми roles
       // (пока не заполненные — например, Посвящения) пропускаем.
       const dayCtx = {
         tithiNumber: todayPanchanga.tithi.number,
-        nakshatraIdx: todayPanchanga.nakshatraOfDayIdx,
-        weekdayIdx: now.getUTCDay(),
+        nakshatraIdx: currentSeg.nakshatraIdx,
+        weekdayIdx: new Date(Date.UTC(ly, lm - 1, ld)).getUTCDay(),
         taraBala,
         dashaChangeToday,
         moonHouseFromLagna: moonTransitHouse,
@@ -587,7 +601,7 @@ function startWebApp() {
       // 9. Заголовок дня + индикатор энергии — единая логика тона (не должны противоречить друг другу)
       const hasEclipse = events.some(ev => ev.type === 'Затмение (лунное)' || ev.type === 'Затмение (солнечное)');
       const dayTier = computeDayTier({
-        dateISO: now.toISOString().slice(0, 10),
+        dateISO: `${ly}-${String(lm).padStart(2, '0')}-${String(ld).padStart(2, '0')}`,
         hasEclipse,
         tithiName: todayPanchanga.tithi.name,
         dashaChangeToday,
@@ -600,7 +614,11 @@ function startWebApp() {
         asOf: now.toISOString(),
         chain,
         taraBala,
-        nakshatraOfDay: todayPanchanga.nakshatraOfDay,
+        daySegments: dayNak.segments.map(sg => ({ nakshatra: sg.nakshatra, from: sg.from, to: sg.to, fromDate: sg.fromDate, toDate: sg.toDate, share: sg.share, taraName: sg.tara.name, taraQuality: sg.tara.quality, moonSign: sg.moonSign, chandraHouse: sg.chandra ? sg.chandra.house : null, chandraQuality: sg.chandra ? sg.chandra.quality : null, tone: sg.tone, paksha: sg.paksha })),
+        dayTone: currentSeg.tone,
+        dayTierKey: dayTier.tier,
+        currentSegmentIndex,
+        nakshatraOfDay: currentSeg.nakshatra,
         tithi: todayPanchanga.tithi,
         rahuKalam: todayPanchanga.rahuKalam,
         moonTransitHouse,
