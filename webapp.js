@@ -27,6 +27,7 @@ const { buildChartExportPDF } = require('./chart-export-pdf.js');
 const { resolveCity } = require('./ru-timezone.js');
 const { resolveWorldCityCandidates, resolveTimezoneForCoords, reverseGeocode } = require('./world-geocoding.js');
 const db = require('./database.js');
+const accounts = require('./accounts.js');
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 
@@ -37,7 +38,12 @@ const BOT_TOKEN = process.env.BOT_TOKEN;
 // Возвращает объект пользователя {id, username, first_name} или null.
 // ------------------------------------------------------------
 function verifyInitData(initData) {
-  if (!initData || !BOT_TOKEN) return null;
+  if (!initData) return null;
+  // вход с сайта / из приложения на экране: вместо подписи Telegram — токен сессии
+  if (typeof initData === 'string' && initData.startsWith('web:')) {
+    return accounts.userBySession(initData.slice(4));
+  }
+  if (!BOT_TOKEN) return null;
   try {
     const params = new URLSearchParams(initData);
     const hash = params.get('hash');
@@ -770,11 +776,68 @@ function startWebApp() {
     }
   });
 
+  // ---------- Аккаунт: вход по почте, привязка почты и Telegram ----------
+  const ipHits = new Map();
+  function ipLimited(req, max) {
+    const ip = req.ip || 'x';
+    const now = Date.now();
+    const arr = (ipHits.get(ip) || []).filter((t) => now - t < 3600 * 1000);
+    if (arr.length >= max) { ipHits.set(ip, arr); return true; }
+    arr.push(now); ipHits.set(ip, arr);
+    return false;
+  }
+
+  // Вход с сайта: 1) запросить код
+  app.post('/api/auth/email/request', async (req, res) => {
+    if (ipLimited(req, 20)) return res.status(429).json({ error: 'Слишком много запросов. Попробуйте позже.' });
+    const r = await accounts.requestEmailCode(req.body.email);
+    if (r.error) return res.status(400).json({ error: r.error });
+    res.json({ ok: true });
+  });
+  // 2) подтвердить код → сессия
+  app.post('/api/auth/email/verify', (req, res) => {
+    if (ipLimited(req, 60)) return res.status(429).json({ error: 'Слишком много запросов. Попробуйте позже.' });
+    const c = accounts.checkEmailCode(req.body.email, req.body.code);
+    if (c.error) return res.status(400).json({ error: c.error });
+    const { token } = accounts.loginWithEmail(c.email);
+    res.json({ ok: true, token });
+  });
+  app.post('/api/auth/logout', (req, res) => {
+    const d = String(req.body.initData || '');
+    if (d.startsWith('web:')) accounts.endSession(d.slice(4));
+    res.json({ ok: true });
+  });
+
+  // Внутри аккаунта (Telegram или сайт): состояние, добавить и подтвердить почту, привязать Telegram
+  app.post('/api/account/info', requireTelegramUser, (req, res) => {
+    res.json(accounts.accountInfo(req.tgUser.id));
+  });
+  app.post('/api/account/email/request', requireTelegramUser, async (req, res) => {
+    if (ipLimited(req, 20)) return res.status(429).json({ error: 'Слишком много запросов. Попробуйте позже.' });
+    const r = await accounts.requestEmailCode(req.body.email);
+    if (r.error) return res.status(400).json({ error: r.error });
+    res.json({ ok: true });
+  });
+  app.post('/api/account/email/verify', requireTelegramUser, (req, res) => {
+    const c = accounts.checkEmailCode(req.body.email, req.body.code);
+    if (c.error) return res.status(400).json({ error: c.error });
+    const r = accounts.attachEmail(req.tgUser.id, c.email);
+    if (r.error) return res.status(400).json({ error: r.error });
+    res.json({ ok: true, merged: r.merged, ...accounts.accountInfo(r.userId) });
+  });
+  app.post('/api/account/telegram-link', requireTelegramUser, (req, res) => {
+    if (req.tgUser.id > 0) return res.status(400).json({ error: 'Telegram уже привязан' });
+    const code = accounts.createLinkCode(req.tgUser.id);
+    const bot = process.env.BOT_USERNAME || '';
+    res.json({ ok: true, code, url: bot ? `https://t.me/${bot}?start=link_${code}` : null });
+  });
+
   app.post('/api/year-events', requireTelegramUser, (req, res) => {
     try {
-      const { year, lat, lon, utcOffset } = req.body;
-      const place = (typeof lat === 'number' && typeof lon === 'number' && typeof utcOffset === 'number') ? { lat, lon, utcOffset } : null;
-      res.json({ events: getYearEvents(year, place) });
+      const { year } = req.body;
+      // даты праздников — по северной традиции, опорный город Дели (для всех одинаково)
+      const DELHI = { lat: 28.6139, lon: 77.209, utcOffset: 5.5 };
+      res.json({ events: getYearEvents(year, DELHI) });
     } catch (e) {
       console.error(e);
       res.status(500).json({ error: e.message });

@@ -209,8 +209,45 @@ function upsertUser(ctx) {
   `).run(from.id, from.username || null, from.first_name || null, now, now);
 }
 
+// --- Метки и сегменты для рассылок ---
+try { db.exec('ALTER TABLE users ADD COLUMN premium_first_at TEXT'); } catch (e) { /* уже есть */ }
+try { db.exec('ALTER TABLE users ADD COLUMN phone TEXT'); } catch (e) { /* уже есть */ }
+try { db.exec('ALTER TABLE users ADD COLUMN email TEXT'); } catch (e) { /* уже есть */ }
+try { db.exec('ALTER TABLE users ADD COLUMN marketing_consent INTEGER NOT NULL DEFAULT 0'); } catch (e) { /* уже есть */ }
+// те, кто уже был Premium до появления метки, получают её по дате первого появления
+db.exec("UPDATE users SET premium_first_at = first_seen WHERE tier = 'premium' AND premium_first_at IS NULL");
+
+function markPremiumFirst(telegramId) {
+  db.prepare('UPDATE users SET premium_first_at = ? WHERE telegram_id = ? AND premium_first_at IS NULL')
+    .run(new Date().toISOString(), telegramId);
+}
+
+/**
+ * Сегменты: all — все; premium — Premium сейчас; free — Premium не было никогда;
+ * expired — был Premium, сейчас нет; city:<часть названия> — по сохранённому месту.
+ */
+function segmentUserIds(seg) {
+  const rows = db.prepare('SELECT telegram_id, tier, premium_until, premium_first_at, place_json FROM users WHERE telegram_id > 0').all(); // только настоящие Telegram-аккаунты
+  const active = (r) => r.tier === 'premium' && (!r.premium_until || new Date(r.premium_until).getTime() > Date.now());
+  let f;
+  if (seg === 'all') f = () => true;
+  else if (seg === 'premium') f = active;
+  else if (seg === 'free') f = (r) => !active(r) && !r.premium_first_at;
+  else if (seg === 'expired') f = (r) => !active(r) && !!r.premium_first_at;
+  else if (seg.startsWith('city:')) {
+    const q = seg.slice(5).trim().toLowerCase();
+    f = (r) => { try { return !!r.place_json && String(JSON.parse(r.place_json).name || '').toLowerCase().includes(q); } catch (e) { return false; } };
+  } else return null;
+  return rows.filter(f).map((r) => r.telegram_id);
+}
+
+function dbInfo() {
+  let size = 0; try { size = require('fs').statSync(DB_PATH).size; } catch (e) { /* нет */ }
+  return { path: DB_PATH, sizeKB: Math.round(size / 1024), customPath: !!process.env.DB_PATH };
+}
+
 function getAllUserIds() {
-  return db.prepare('SELECT telegram_id FROM users').all().map(r => r.telegram_id);
+  return db.prepare('SELECT telegram_id FROM users WHERE telegram_id > 0').all().map(r => r.telegram_id);
 }
 
 function getUserCount() {
@@ -236,7 +273,7 @@ function isPremium(telegramId) {
 function setTier(telegramId, tier, untilISO) {
   const info = db.prepare('UPDATE users SET tier = ?, premium_until = ? WHERE telegram_id = ?')
     .run(tier, untilISO || null, telegramId);
-  if (info.changes > 0 && tier === 'premium') enablePersonalOnPremium(telegramId);
+  if (info.changes > 0 && tier === 'premium') { enablePersonalOnPremium(telegramId); markPremiumFirst(telegramId); }
   return info.changes > 0; // false = пользователь с таким telegram_id ещё не встречался боту
 }
 
@@ -263,6 +300,7 @@ function grantPremiumDays(telegramId, days) {
   base.setDate(base.getDate() + days);
   db.prepare('UPDATE users SET tier = ?, premium_until = ? WHERE telegram_id = ?').run('premium', base.toISOString(), telegramId);
   enablePersonalOnPremium(telegramId);
+  markPremiumFirst(telegramId);
   return true;
 }
 function logReferralReward(referrerId, referredId, rewardType, premiumDays) {
@@ -307,7 +345,7 @@ function setDisplayName(telegramId, name) {
   return db.prepare('UPDATE users SET display_name = ? WHERE telegram_id = ?').run(name, telegramId);
 }
 function listRitualNotifiableUsers() {
-  return db.prepare('SELECT telegram_id FROM users WHERE notify_rituals_enabled = 1').all();
+  return db.prepare('SELECT telegram_id FROM users WHERE notify_rituals_enabled = 1 AND telegram_id > 0').all();
 }
 
 // --- Астрологические настройки (узел/зодиак/стиль карты) ---
@@ -337,7 +375,7 @@ function listNotifiableUsers() {
   const rows = db.prepare(`
     SELECT u.telegram_id, u.primary_chart_id, u.notify_state
     FROM users u
-    WHERE u.notify_enabled = 1
+    WHERE u.notify_enabled = 1 AND u.telegram_id > 0
   `).all();
   const result = [];
   for (const row of rows) {
@@ -497,7 +535,7 @@ function getNotifyUser(telegramId) {
 
 // Пользователи с включённым ритуальным календарём и сохранённым местом (для рассылки по местному времени)
 function listRitualUsersWithPlace() {
-  return db.prepare('SELECT telegram_id, place_json FROM users WHERE notify_rituals_enabled = 1').all()
+  return db.prepare('SELECT telegram_id, place_json FROM users WHERE notify_rituals_enabled = 1 AND telegram_id > 0').all()
     .map((r) => ({ telegramId: r.telegram_id, place: r.place_json ? JSON.parse(r.place_json) : null }));
 }
 function setUserPlace(telegramId, place) {
@@ -544,7 +582,7 @@ function deleteSearchGoal(telegramId, id) {
 }
 
 module.exports = {
-  autoEnableNotifications, getNotifyUser, listRitualUsersWithPlace, setUserPlace, getUserPlace, getNotifyPrefsRaw, saveNotifyPrefs, wasNotifySent, markNotifySent, countNotifySent,
+  rawDb: db, segmentUserIds, dbInfo, autoEnableNotifications, getNotifyUser, listRitualUsersWithPlace, setUserPlace, getUserPlace, getNotifyPrefsRaw, saveNotifyPrefs, wasNotifySent, markNotifySent, countNotifySent,
   listSearchGoals, saveSearchGoal, deleteSearchGoal, MAX_SEARCH_GOALS,
   upsertUser, getAllUserIds, getUserCount,
   getUser, isPremium, setTier,

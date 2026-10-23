@@ -599,6 +599,10 @@ bot.start(async (ctx) => {
   // только один раз (setReferredBy сама это гарантирует) и не даём
   // пригласить самого себя.
   const payload = ctx.startPayload;
+  if (payload && payload.startsWith('link_')) {
+    const r = require('./accounts.js').consumeLinkCode(payload.slice(5), ctx.from.id);
+    await ctx.reply(r.error ? r.error : 'Готово: Telegram привязан к вашему аккаунту. Все карты и настройки с сайта теперь здесь.');
+  }
   if (payload && payload.startsWith('ref_')) {
     const referrerId = Number(payload.slice(4));
     if (referrerId && referrerId !== ctx.from.id) {
@@ -909,13 +913,17 @@ bot.command('broadcast', async (ctx) => {
   if (!ADMIN_ID || ctx.from.id !== ADMIN_ID) {
     return; // тихо игнорируем для всех, кроме администратора
   }
-  const text = ctx.message.text.replace(/^\/broadcast\s*/, '').trim();
+  let text = ctx.message.text.replace(/^\/broadcast\s*/, '').trim();
+  // необязательная первая «метка»: all / premium / free / expired / city:Москва
+  let seg = 'all';
+  const m = text.match(/^(all|premium|free|expired|city:[^\s]+)\s+([\s\S]+)$/i);
+  if (m) { seg = m[1].toLowerCase(); text = m[2].trim(); }
   if (!text) {
-    await ctx.reply('Использование: /broadcast текст сообщения');
+    await ctx.reply('Использование: /broadcast [all | premium | free | expired | city:Название] текст сообщения\nБез метки — всем.');
     return;
   }
-  const userIds = db.getAllUserIds();
-  await ctx.reply(`Начинаю рассылку на ${userIds.length} пользователей...`);
+  const userIds = db.segmentUserIds(seg) || [];
+  await ctx.reply(`Начинаю рассылку (${seg}) на ${userIds.length} пользователей...`);
   let sent = 0, failed = 0;
   for (const id of userIds) {
     try {
@@ -927,6 +935,22 @@ bot.command('broadcast', async (ctx) => {
     await new Promise(r => setTimeout(r, 50)); // пауза, чтобы не упереться в лимиты Telegram
   }
   await ctx.reply(`Готово: доставлено ${sent}, не удалось ${failed}.`);
+});
+
+// Сколько людей в каждой группе + где лежит база (видно, подключён ли постоянный диск)
+bot.command('audience', async (ctx) => {
+  if (!ADMIN_ID || ctx.from.id !== ADMIN_ID) return;
+  const n = (seg) => (db.segmentUserIds(seg) || []).length;
+  const info = db.dbInfo();
+  await ctx.reply(
+    `Всего: ${n('all')}\n` +
+    `Premium сейчас: ${n('premium')}\n` +
+    `Никогда не было Premium: ${n('free')}\n` +
+    `Был Premium, сейчас нет: ${n('expired')}\n\n` +
+    `База: ${info.path} (${info.sizeKB} КБ)\n` +
+    (info.customPath ? '' : 'DB_PATH не задан — база лежит рядом с кодом и может стираться при обновлении.') +
+    '\n\nРассылка по группе: /broadcast premium текст (или free, expired, city:Москва).'
+  );
 });
 
 bot.command('setpremium', async (ctx) => {
@@ -1000,6 +1024,16 @@ bot.command('help', async (ctx) => {
     '/whoami — узнать свой Telegram ID (нужен для настройки администратора)\n' +
     '/help — это сообщение'
   );
+});
+
+bot.command('backup', async (ctx) => {
+  if (!ADMIN_ID || ctx.from.id !== ADMIN_ID) return;
+  try {
+    const ok = await require('./backup.js').sendBackup(bot, ADMIN_ID);
+    if (!ok) return;
+  } catch (e) {
+    await ctx.reply('Не удалось сделать копию: ' + e.message);
+  }
 });
 
 bot.command('engine', async (ctx) => {
@@ -1086,6 +1120,7 @@ startWebApp();
 // заметный день по тара-бале, новый значимый транзит.
 const { startNotificationScheduler } = require('./notifications.js');
 startNotificationScheduler(bot);
+require('./backup.js').startBackupScheduler(bot, ADMIN_ID);
 console.log('Планировщик уведомлений запущен.');
 
 process.once('SIGINT', () => bot.stop('SIGINT'));

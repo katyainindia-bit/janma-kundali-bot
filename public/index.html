@@ -510,6 +510,12 @@
   .nav-item.active { color: var(--ink); font-weight: 600; }
   .nav-item .icon { width: 21px; height: 21px; color: var(--taupe); }
   .nav-item.active .icon { color: var(--gold); }
+  /* ---------- Широкий экран (сайт на компьютере): колонка по центру ---------- */
+  @media (min-width: 700px) {
+    html { background: color-mix(in srgb, var(--bg) 90%, #000); }
+    body { max-width: 720px; margin: 0 auto; min-height: 100vh; background: var(--bg); box-shadow: 0 0 0 1px var(--line); }
+    .bottom-nav { left: 50%; right: auto; width: 720px; transform: translateX(-50%); border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
+  }
   .nrow{display:flex;align-items:center;gap:8px;font-size:14px;margin:6px 0;text-transform:none;letter-spacing:0;color:var(--ink);}
   .nrow input{width:16px;height:16px;flex:none;}
 </style>
@@ -1161,6 +1167,24 @@
     <div class="current-period-row"><span class="label">Язык</span><span class="value">Русский</span></div>
   </div>
 
+
+  <div class="form-card" id="profile-email-card" style="padding:16px;">
+    <h2 style="margin-bottom:4px;">Почта и вход</h2>
+    <p style="font-size:12px;color:var(--taupe);margin-bottom:10px;line-height:1.5;">Добавь почту, чтобы заходить с сайта и с телефона и видеть здесь те же карты и подписку. Это необязательно.</p>
+    <div id="acc-emails" style="font-size:13px;margin-bottom:8px;"></div>
+    <div id="acc-email-form">
+      <div class="field"><label>Почта</label><input type="email" id="acc-email-input" placeholder="name@example.com" autocomplete="email"></div>
+      <button class="btn-secondary" id="acc-email-send" style="margin:6px 0 0;">Прислать код</button>
+      <div id="acc-code-block" style="display:none;margin-top:10px;">
+        <div class="field"><label>Код из письма</label><input type="text" inputmode="numeric" maxlength="6" id="acc-code-input" placeholder="6 цифр"></div>
+        <button class="btn-primary" id="acc-code-confirm" style="margin-top:6px;">Подтвердить</button>
+      </div>
+    </div>
+    <div id="acc-note" style="font-size:12px;margin-top:8px;display:none;"></div>
+    <div id="acc-tg-block" style="display:none;margin-top:12px;">
+      <button class="btn-secondary" id="acc-tg-link">Привязать Telegram</button>
+    </div>
+  </div>
 
   <div class="form-card" id="profile-ritual-notify-card" style="padding:16px;">
     <h2 style="margin-bottom:4px;">Лунный календарь</h2>
@@ -3815,12 +3839,60 @@
   // ============================================================
   // Профиль: тариф (Free/Premium) и меню «⋮»
   // ============================================================
+  // ---------- Аккаунт: почта и привязка Telegram ----------
+  function accNote(text, bad) {
+    const n = document.getElementById('acc-note');
+    n.textContent = text; n.style.color = bad ? '#a8654a' : '#4f7a52'; n.style.display = text ? 'block' : 'none';
+  }
+  async function accApi(path, body) {
+    const res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ initData: getInitData(), ...body }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Ошибка');
+    return data;
+  }
+  async function loadAccountInfo() {
+    try {
+      const info = await accApi('/api/account/info', {});
+      const em = document.getElementById('acc-emails');
+      em.innerHTML = info.emails.length ? info.emails.map(e => `<div>✓ ${escapeHtml(e)}</div>`).join('') : '';
+      document.getElementById('acc-email-form').querySelector('label').textContent = info.emails.length ? 'Добавить ещё одну почту' : 'Почта';
+      document.getElementById('acc-tg-block').style.display = info.hasTelegram ? 'none' : 'block';
+    } catch (e) { /* без аккаунта блок не показываем */ }
+  }
+  document.getElementById('acc-email-send').addEventListener('click', async () => {
+    accNote('');
+    try {
+      await accApi('/api/account/email/request', { email: document.getElementById('acc-email-input').value });
+      document.getElementById('acc-code-block').style.display = 'block';
+      accNote('Код отправлен на почту. Он действует 10 минут.');
+    } catch (e) { accNote(e.message, true); }
+  });
+  document.getElementById('acc-code-confirm').addEventListener('click', async () => {
+    accNote('');
+    try {
+      const r = await accApi('/api/account/email/verify', { email: document.getElementById('acc-email-input').value, code: document.getElementById('acc-code-input').value });
+      document.getElementById('acc-code-block').style.display = 'none';
+      document.getElementById('acc-code-input').value = '';
+      document.getElementById('acc-email-input').value = '';
+      accNote(r.merged ? 'Почта подтверждена. Данные с сайта объединены с этим аккаунтом.' : 'Почта подтверждена.');
+      await loadAccountInfo();
+    } catch (e) { accNote(e.message, true); }
+  });
+  document.getElementById('acc-tg-link').addEventListener('click', async () => {
+    accNote('');
+    try {
+      const r = await accApi('/api/account/telegram-link', {});
+      if (r.url) window.open(r.url, '_blank'); else accNote('Откройте бота в Telegram и отправьте ему: /start link_' + r.code);
+    } catch (e) { accNote(e.message, true); }
+  });
+
   async function loadProfile() {
     const tgUser = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) || null;
     document.getElementById('profile-name').textContent = tgUser
       ? [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') || (tgUser.username ? '@' + tgUser.username : 'Профиль')
       : 'Профиль';
 
+    loadAccountInfo();
     const tierLineEl = document.getElementById('profile-tier-line');
     const upgradeCard = document.getElementById('profile-upgrade-card');
     tierLineEl.textContent = 'Загрузка…';
