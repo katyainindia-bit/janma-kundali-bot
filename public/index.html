@@ -603,6 +603,7 @@
         <button class="btn-primary" id="today-upgrade-btn">Оформить Premium</button>
       </div>
       <div id="today-content" style="display:none;">
+        <div id="place-bar" style="font-size:13px;color:var(--taupe);margin:0 2px 10px;"></div>
         <div class="form-card" id="today-summary-card" style="padding:18px;text-align:center;">
           <div style="font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--gold);margin-bottom:8px;">Главное сегодня</div>
           <div id="today-summary-text" style="font-family:'Playfair Display',serif;font-size:17px;line-height:1.4;"></div>
@@ -924,16 +925,17 @@
         </div>
         <button class="btn-primary" id="search-run-btn" style="margin-top:14px;">Показать в календаре</button>
       </div>
+      <div id="search-results"></div>
       <div class="form-card" id="search-cal-card" style="padding:16px;display:none;">
         <div class="name" id="search-cal-label" style="margin-bottom:10px;">—</div>
         <div id="search-cal-grid"></div>
         <div class="chip-row" style="margin-top:14px;">
-          <span class="chip" style="cursor:default;">🟢 благоприятно</span>
-          <span class="chip" style="cursor:default;">🔴 требует осторожности</span>
+          <span class="chip" style="cursor:default;">🟢 есть поддержка</span>
+          <span class="chip" style="cursor:default;">🔴 есть ограничение</span>
+          <span class="chip" style="cursor:default;">⚪ недостаточно оснований</span>
         </div>
       </div>
       <div id="search-day-detail" class="form-card" style="padding:16px;display:none;"></div>
-      <div id="search-results"></div>
     </div>
 
     <div class="tab-content" id="daystab-year">
@@ -1256,8 +1258,35 @@
     haircut: '<circle cx="6.3" cy="6.3" r="2.2"/><circle cx="6.3" cy="17.7" r="2.2"/><path d="M8.3 7.5 20 18M8.3 16.5 20 6"/>',
     jobHunt: '<rect x="4" y="9" width="16" height="10.5" rx="1"/><path d="M9 9V6.3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1V9"/><path d="M15.5 5.5 20 3M18 3.5l2 2"/>',
     jobQuit: '<path d="M9 4h8v16H9"/><path d="M4 12h9M10 8.5 6.5 12l3.5 3.5"/>',
-    conception: '<path d="M12 20c-4-2-6-6-6-9.5 2 1 4 3 6 6 2-3 4-5 6-6 0 3.5-2 7.5-6 9.5Z"/><circle cx="12" cy="5.5" r="1.8"/>',
+    conception: '<path d="M12 20c-4-2-6-6-6-9.5 2 1 4 3 6 6 2-3 4-5 6-6 0 3.5-2 7.5-6 9.5Z"/><circle cx="12" cy="5.5" r="1.8"/>',    financialAffairs: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v9"/><path d="M9.5 9.7c0-1.2 1-2 2.5-2s2.5.8 2.5 2c0 2.4-5 1.4-5 3.8 0 1.2 1 2 2.5 2s2.5-.8 2.5-2"/>',
+    negotiations: '<path d="M4 13l4-4 3 2 4-3 5 5"/><path d="M4 13l3 3 2-1 2 2 3-1 3 2"/>',
+    dating: '<path d="M12 20s-7-4.4-7-9.5A4 4 0 0 1 12 8a4 4 0 0 1 7 2.5C19 15.6 12 20 12 20Z"/>',
+    interview: '<rect x="9" y="3.5" width="6" height="10" rx="3"/><path d="M6 11.5a6 6 0 0 0 12 0M12 17.5V21M9 21h6"/>',
+    dietStart: '<path d="M12 6c-3.5-3-8 0-6.5 5 1.2 4 4 8 6.5 8s5.3-4 6.5-8C20 6 15.5 3 12 6Z"/><path d="M12 6c0-1.5.6-2.6 1.8-3"/>',
+    fasting: '<path d="M19 14.5A7.5 7.5 0 0 1 9.5 5a7.5 7.5 0 1 0 9.5 9.5Z"/>',
+    documents: '<path d="M7 3.5h7l4 4V20.5H7V3.5Z"/><path d="M14 3.5v4h4M9.5 12h6M9.5 15.5h6"/>',
   };
+  // --- Дела-«чипы» с объяснением по нажатию (почему поддержано / почему ограничение) ---
+  const __actionWhy = {};
+  function whyHtml(why) {
+    if (!why) return '';
+    const block = (title, arr) => (arr && arr.length)
+      ? `<div style="margin-top:6px;"><div style="font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--gold);">${title}</div>${arr.map(t => `<div style="font-size:12px;margin-top:2px;">${escapeHtml(t)}</div>`).join('')}</div>` : '';
+    return block('Ограничение', why.strict) + block('Поддерживает', why.plus) + block('Не поддерживает', why.minus) + block('Контекст', why.context);
+  }
+  function actionChipsHtml(list, reg) {
+    __actionWhy[reg] = list;
+    return `<div class="chip-row">${list.map((a, i) => `<span class="chip" style="cursor:pointer;" onclick="toggleActionWhy('${reg}',${i})">${actionIconSvg(a.key)}${escapeHtml(a.label)}</span>`).join('')}</div><div id="why-${reg}" style="display:none;margin-top:8px;padding:10px 12px;border-radius:10px;background:rgba(0,0,0,.04);text-align:left;"></div>`;
+  }
+  function toggleActionWhy(reg, i) {
+    const box = document.getElementById('why-' + reg);
+    const a = (__actionWhy[reg] || [])[i];
+    if (!box || !a) return;
+    if (box.dataset.open === String(i) && box.style.display === 'block') { box.style.display = 'none'; return; }
+    box.dataset.open = String(i);
+    box.innerHTML = `<b style="font-size:13px;">${escapeHtml(a.label)}</b>${whyHtml(a.why)}`;
+    box.style.display = 'block';
+  }
   function actionIconSvg(key) {
     const path = ACTION_ICON_SVGS[key];
     if (!path) return '';
@@ -3886,6 +3915,99 @@
   }
   document.getElementById('today-upgrade-btn').addEventListener('click', showUpgradePrompt);
 
+  // ---------- «Где я сейчас»: одно место для «Сегодня», «Дни» и поиска ----------
+  function getPlace() {
+    try {
+      const s = JSON.parse(localStorage.getItem('jy_place') || 'null');
+      if (s && typeof s.lat === 'number' && typeof s.lon === 'number' && typeof s.utcOffset === 'number') return s;
+    } catch (e) {}
+    return null;
+  }
+  function placeParams() {
+    const s = getPlace();
+    if (s) return { lat: s.lat, lon: s.lon, utcOffset: s.utcOffset };
+    const p = currentChartMeta.params;
+    return { lat: p.lat, lon: p.lon, utcOffset: p.utcOffset };
+  }
+  function placeName() {
+    const s = getPlace();
+    if (s) return s.name;
+    return (currentChartMeta && currentChartMeta.placeLabel) || 'место рождения';
+  }
+  function shortPlace(n) { return String(n).split(',')[0].trim(); }
+  async function refreshPlaceOffset() {
+    const s = getPlace();
+    if (!s) return;
+    try {
+      const now = new Date();
+      const r = await fetch('/api/timezone-for-coords', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lat: s.lat, lon: s.lon, year: now.getUTCFullYear(), month: now.getUTCMonth() + 1, day: now.getUTCDate(), hour: 12, minute: 0 })
+      });
+      const d = await r.json();
+      if (r.ok && typeof d.utcOffset === 'number' && d.utcOffset !== s.utcOffset) {
+        localStorage.setItem('jy_place', JSON.stringify({ ...s, utcOffset: d.utcOffset }));
+      }
+    } catch (e) {}
+  }
+  function reloadForPlace() {
+    renderTodayTab();
+    if (document.getElementById('cal-grid') && typeof renderCalendarMonth === 'function') { try { renderCalendarMonth(); } catch (e) {} }
+  }
+  let placeSuggestTimer = null;
+  function renderPlaceBar(editing) {
+    const bar = document.getElementById('place-bar');
+    if (!bar) return;
+    if (!editing) {
+      const custom = !!getPlace();
+      bar.innerHTML = `📍 ${escapeHtml(shortPlace(placeName()))}${custom ? '' : ' <span style="opacity:.7">(место рождения)</span>'} · <a href="#" id="place-edit" style="color:var(--gold);text-decoration:underline;">изменить</a>`;
+      document.getElementById('place-edit').addEventListener('click', (e) => { e.preventDefault(); renderPlaceBar(true); });
+      return;
+    }
+    bar.innerHTML = `
+      <div style="position:relative;">
+        <input type="text" id="place-input" placeholder="Где вы сейчас? Город" autocomplete="off" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);font-size:14px;box-sizing:border-box;">
+        <div id="place-suggestions" style="display:none;"></div>
+      </div>
+      <div style="margin-top:6px;">
+        ${getPlace() ? '<a href="#" id="place-reset" style="color:var(--gold);text-decoration:underline;">вернуть место рождения</a> · ' : ''}<a href="#" id="place-cancel" style="color:var(--taupe);text-decoration:underline;">отмена</a>
+      </div>`;
+    const input = document.getElementById('place-input');
+    const box = document.getElementById('place-suggestions');
+    input.focus();
+    document.getElementById('place-cancel').addEventListener('click', (e) => { e.preventDefault(); renderPlaceBar(false); });
+    const reset = document.getElementById('place-reset');
+    if (reset) reset.addEventListener('click', (e) => { e.preventDefault(); try { localStorage.removeItem('jy_place'); } catch (er) {} renderPlaceBar(false); reloadForPlace(); });
+    input.addEventListener('input', () => {
+      clearTimeout(placeSuggestTimer);
+      const q = input.value.trim();
+      if (q.length < 2) { box.style.display = 'none'; box.innerHTML = ''; return; }
+      placeSuggestTimer = setTimeout(async () => {
+        try {
+          const r = await fetch('/api/geocode-suggest', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q }) });
+          const d = await r.json();
+          if (!d.candidates || !d.candidates.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+          box.style.cssText = 'display:block;position:absolute;z-index:5;background:var(--bg);border:1px solid var(--line);border-radius:10px;margin-top:2px;max-height:220px;overflow-y:auto;width:100%;box-shadow:0 4px 12px rgba(0,0,0,0.08);';
+          box.innerHTML = d.candidates.map((c, i) => `<div data-pi="${i}" style="padding:10px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--line);">${escapeHtml(c.city)}</div>`).join('');
+          box.querySelectorAll('[data-pi]').forEach(el => el.addEventListener('click', async () => {
+            const c = d.candidates[Number(el.dataset.pi)];
+            const now = new Date();
+            try {
+              const tr = await fetch('/api/timezone-for-coords', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lat: c.lat, lon: c.lon, year: now.getUTCFullYear(), month: now.getUTCMonth() + 1, day: now.getUTCDate(), hour: 12, minute: 0 }) });
+              const td = await tr.json();
+              if (!tr.ok || typeof td.utcOffset !== 'number') throw new Error('tz');
+              localStorage.setItem('jy_place', JSON.stringify({ name: c.city, lat: c.lat, lon: c.lon, utcOffset: td.utcOffset }));
+              renderPlaceBar(false);
+              reloadForPlace();
+            } catch (er) {
+              box.innerHTML = '<div style="padding:10px 12px;font-size:13px;">Не удалось определить часовой пояс. Попробуйте другой город.</div>';
+            }
+          }));
+        } catch (e) {}
+      }, 350);
+    });
+  }
+
   async function renderTodayTab() {
     const errorEl = document.getElementById('today-error-msg');
     const lockedEl = document.getElementById('today-locked');
@@ -3913,12 +4035,14 @@
         return;
       }
 
+      await refreshPlaceOffset();
+      renderPlaceBar(false);
       const p = currentChartMeta.params;
       const birthDateUTC = new Date(Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, 0) - p.utcOffset * 3600000).toISOString();
 
       const res = await fetch('/api/today', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData: getInitData(), chart: currentChart, birthDateUTC, lat: p.lat, lon: p.lon, utcOffset: p.utcOffset })
+        body: JSON.stringify({ initData: getInitData(), chart: currentChart, birthDateUTC, ...placeParams() })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Ошибка');
@@ -3954,7 +4078,7 @@
       if (data.events && data.events.length > 0) {
         document.getElementById('today-events').innerHTML = data.events.map(ev => `
           <div class="note-item">
-            <div class="note-text"><b>${eventIconSvg(ev.type)}${escapeHtml(ev.label)}</b>${ev.description ? '<br><span style="color:var(--taupe);font-size:12px;">' + escapeHtml(ev.description) + '</span>' : ''}</div>
+            <div class="note-text"><b>${eventIconSvg(ev.type)}${escapeHtml(ev.label)}${ev.timing ? ' — ' + escapeHtml(ev.timing) : ''}</b>${ev.description ? '<br><span style="color:var(--taupe);font-size:12px;">' + escapeHtml(ev.description) + '</span>' : ''}</div>
           </div>`).join('');
         eventsCard.style.display = 'block';
       } else {
@@ -3962,16 +4086,14 @@
       }
 
       const supportedCard = document.getElementById('today-supported-card');
-      if (data.supported && data.supported.length > 0) {
-        document.getElementById('today-supported').innerHTML = `<div class="chip-row">${data.supported.map(a => `<span class="chip" style="cursor:default;">${actionIconSvg(a.key)}${escapeHtml(a.label)}</span>`).join('')}</div>`;
-        supportedCard.style.display = 'block';
-      } else {
-        supportedCard.style.display = 'none';
-      }
+      document.getElementById('today-supported').innerHTML = (data.supported && data.supported.length > 0)
+        ? actionChipsHtml(data.supported, 'today-sup') + '<div style="font-size:11px;color:var(--taupe);margin-top:8px;">Нажмите на дело, чтобы увидеть, почему.</div>'
+        : '<div style="font-size:13px;color:var(--taupe);">Сейчас нет дел с выраженной поддержкой.</div>';
+      supportedCard.style.display = 'block';
 
       const postponeCard = document.getElementById('today-postpone-card');
       if (data.postpone && data.postpone.length > 0) {
-        document.getElementById('today-postpone').innerHTML = `<div class="chip-row">${data.postpone.map(a => `<span class="chip" style="cursor:default;">${actionIconSvg(a.key)}${escapeHtml(a.label)}</span>`).join('')}</div>`;
+        document.getElementById('today-postpone').innerHTML = actionChipsHtml(data.postpone, 'today-pos');
         postponeCard.style.display = 'block';
       } else {
         postponeCard.style.display = 'none';
@@ -3980,7 +4102,7 @@
       const upcomingEl = document.getElementById('today-upcoming');
       if (data.upcomingEvents && data.upcomingEvents.length > 0) {
         upcomingEl.innerHTML = data.upcomingEvents.map(ev => `
-          <div class="note-item"><div class="note-text">${eventIconSvg(ev.type)}${escapeHtml(ev.label)} <span class="sub">— через ${ev.daysAhead} дн. (${fmtDate(ev.date)})</span></div></div>
+          <div class="note-item"><div class="note-text">${eventIconSvg(ev.type)}${escapeHtml(ev.label)} <span class="sub">— через ${ev.daysAhead} дн. (${fmtDate(ev.date)})${ev.timing ? ', ' + escapeHtml(ev.timing) : ''}</span></div></div>
         `).join('');
       } else {
         upcomingEl.innerHTML = '<div style="font-size:13px;color:var(--taupe);">В ближайшее время особых дат не найдено.</div>';
@@ -4016,7 +4138,7 @@
       try {
         const res = await fetch('/api/transit-end-date', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ initData: getInitData(), planet: nt.planet, lat: p.lat, lon: p.lon, utcOffset: p.utcOffset })
+          body: JSON.stringify({ initData: getInitData(), planet: nt.planet, ...placeParams() })
         });
         const data = await res.json();
         const el = document.getElementById(`transit-end-${i}`);
@@ -4036,7 +4158,7 @@
       const p = currentChartMeta.params;
       const res = await fetch('/api/sade-sati', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData: getInitData(), chart: currentChart, lat: p.lat, lon: p.lon, utcOffset: p.utcOffset })
+        body: JSON.stringify({ initData: getInitData(), chart: currentChart, ...placeParams() })
       });
       const data = await res.json();
       if (!res.ok) return; // тихо — это не критичный блок, не мешаем остальному экрану
@@ -4197,6 +4319,54 @@
     }).join('');
   }
 
+  // Оценка дел по отрезкам дня (то же, что «Сегодня» показывает на текущий момент)
+  const MH_STATUS_RU = { supported: 'подходит по мухурте', restricted: 'есть ограничение', insufficient: 'недостаточно оснований', rules_pending: 'правила требуют уточнения' };
+  // Подпись отрезка дня; base — календарная дата дня (ДД.ММ.ГГГГ), чтобы пометить «следующий день»
+  function segRangeLabel(m, base) {
+    if (base && m.fromDate && m.fromDate !== base) return `${m.from}–${m.to} (следующий день)`;
+    if (m.toDate && m.fromDate && m.toDate !== m.fromDate) return `с ${m.from} до ${m.to} (следующий день)`;
+    return `${m.from}–${m.to}`;
+  }
+  function majorBlockHtml(dd) {
+    const parts = dd.muhurtaBySegment || [];
+    if (!parts.length || !parts[0].major || !parts[0].major.length) return '';
+    const multi = parts.length > 1;
+    const rows = parts[0].major.map(first => {
+      const label = escapeHtml(first.label);
+      if (first.status === 'rules_pending') {
+        return `<div class="note-item"><div class="note-text"><b>${actionIconSvg(first.key)}${label}</b><br><span style="color:var(--taupe);font-size:12px;">${escapeHtml(first.note || 'Правила требуют уточнения.')}</span></div></div>`;
+      }
+      const items = parts.map(m => m.major.find(x => x.key === first.key) || first);
+      const sameAll = items.every(it => it.status === items[0].status);
+      const statusLine = (multi && !sameAll)
+        ? items.map((it, i) => `${segRangeLabel(parts[i], dd.date)}: ${MH_STATUS_RU[it.status]}`).join('; ')
+        : MH_STATUS_RU[items[0].status];
+      const prelim = first.needsFullMuhurta ? ' (предварительно: нужна полноценная мухурта' + (first.needsVastu ? ' и проверка по Васту' : '') + ')' : '';
+      const per = dd.majorPeriod && dd.majorPeriod[first.key];
+      const perHtml = per ? `<br><span style="font-size:12px;">Даша: ${escapeHtml(per.dasha.label)}. Гочара: ${escapeHtml(per.gochara.label)}.</span>
+        <details style="margin-top:4px;"><summary style="font-size:11px;color:var(--taupe);cursor:pointer;">почему</summary>
+        ${[...per.dasha.lines, ...per.gochara.lines].map(l => `<div style="font-size:12px;margin-top:2px;">${escapeHtml(l)}</div>`).join('')}</details>` : '';
+      return `<div class="note-item"><div class="note-text"><b>${actionIconSvg(first.key)}${label}</b><br><span style="color:var(--taupe);font-size:12px;">Мухурта: ${escapeHtml(statusLine)}${prelim}</span>${perHtml}</div></div>`;
+    }).join('');
+    return `<div style="margin-top:16px;"><b style="font-size:13px;">Крупные дела</b><div style="font-size:11px;color:var(--taupe);margin-bottom:6px;">Мухурта дня плюс период (даша и гочара). Полный подбор дат — во вкладке «Поиск по цели».</div>${rows}</div>`;
+  }
+  let __mhCounter = 0;
+  function muhurtaBySegmentHtml(dd) {
+    const parts = (dd.muhurtaBySegment && dd.muhurtaBySegment.length ? dd.muhurtaBySegment : [{ supported: dd.supported, postpone: dd.postpone, tone: dd.dayTone }]);
+    const multi = parts.length > 1;
+    const base = 'dd' + (++__mhCounter) + '_';
+    const segs = parts.map((m, mi) => {
+      return `<div style="margin-top:12px;">
+        ${multi ? `<div style="font-size:12px;color:var(--taupe);display:flex;align-items:center;gap:6px;"><span style="width:9px;height:9px;border-radius:50%;background:${TONE_DOT[m.tone] || TONE_DOT.moderate};"></span>${segRangeLabel(m, dd.date)} · ${TONE_LABEL[m.tone] || ''}</div>` : ''}
+        <div style="margin-top:6px;"><b style="font-size:13px;">Благоприятно:</b>
+          ${m.supported && m.supported.length ? actionChipsHtml(m.supported, base + mi + 's') : '<div style="font-size:12px;color:var(--taupe);margin-top:4px;">Явной поддержки нет.</div>'}
+        </div>
+        ${m.postpone && m.postpone.length ? `<div style="margin-top:6px;"><b style="font-size:13px;">Лучше отложить:</b>${actionChipsHtml(m.postpone, base + mi + 'p')}</div>` : ''}
+      </div>`;
+    }).join('');
+    return segs + majorBlockHtml(dd);
+  }
+
   async function renderCalendarMonth() {
     const errorEl = document.getElementById('days-error-msg');
     errorEl.style.display = 'none';
@@ -4211,7 +4381,7 @@
     try {
       const res = await fetch('/api/calendar-month', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData: getInitData(), chart: currentChart, birthDateUTC, year: calYear, month: calMonth, lat: p.lat, lon: p.lon, utcOffset: p.utcOffset })
+        body: JSON.stringify({ initData: getInitData(), chart: currentChart, birthDateUTC, year: calYear, month: calMonth, ...placeParams() })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Ошибка');
@@ -4251,7 +4421,7 @@
             const birthDateUTC2 = new Date(Date.UTC(p2.year, p2.month - 1, p2.day, p2.hour, p2.minute, 0) - p2.utcOffset * 3600000).toISOString();
             const detRes = await fetch('/api/day-detail', {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ initData: getInitData(), chart: currentChart, birthDateUTC: birthDateUTC2, year: calYear, month: calMonth, day, lat: p2.lat, lon: p2.lon, utcOffset: p2.utcOffset })
+              body: JSON.stringify({ initData: getInitData(), chart: currentChart, birthDateUTC: birthDateUTC2, year: calYear, month: calMonth, day, ...placeParams() })
             });
             const dd = await detRes.json();
             if (!detRes.ok) throw new Error(dd.error || 'Ошибка');
@@ -4259,7 +4429,7 @@
             const pn = dd.panchanga;
             detail.innerHTML = `
               <div class="name" style="margin-bottom:8px;">${dd.date}</div>
-              ${dd.events.length ? `<div style="margin-bottom:8px;">${dd.events.map(ev => `<div class="note-item"><div class="note-text">${eventIconSvg(ev.type)}${escapeHtml(ev.label)}</div></div>`).join('')}</div>` : ''}
+              ${dd.events.length ? `<div style="margin-bottom:8px;">${dd.events.map(ev => `<div class="note-item"><div class="note-text">${eventIconSvg(ev.type)}${escapeHtml(ev.label)}${ev.timing ? ' — ' + escapeHtml(ev.timing) : ''}</div></div>`).join('')}</div>` : ''}
               <div class="current-period-row"><span class="label">Вара</span><span class="value">${pn.vara}</span></div>
               <div class="current-period-row"><span class="label">Титхи</span><span class="value">${pn.tithi.name} (${pn.tithi.paksha})</span></div>
               <div class="current-period-row"><span class="label">Йога</span><span class="value">${pn.yoga.name}</span></div>
@@ -4269,8 +4439,7 @@
               <div class="current-period-row"><span class="label">🌅 Восход</span><span class="value">${pn.sunrise||'—'}</span></div>
               <div class="current-period-row"><span class="label">🌇 Закат</span><span class="value">${pn.sunset||'—'}</span></div>
               ${pn.rahuKalam ? `<div class="current-period-row" style="color:#a8654a;"><span class="label">⚠️ Раху-калам</span><span class="value">${pn.rahuKalam.start}–${pn.rahuKalam.end}</span></div>` : ''}
-              ${dd.supported.length ? `<div style="margin-top:10px;"><b style="font-size:13px;">Благоприятно:</b><div class="chip-row" style="margin-top:6px;">${dd.supported.map(a => `<span class="chip" style="cursor:default;">${actionIconSvg(a.key)}${escapeHtml(a.label)}</span>`).join('')}</div></div>` : ''}
-              ${dd.postpone.length ? `<div style="margin-top:10px;"><b style="font-size:13px;">Лучше отложить:</b><div class="chip-row" style="margin-top:6px;">${dd.postpone.map(a => `<span class="chip" style="cursor:default;">${actionIconSvg(a.key)}${escapeHtml(a.label)}</span>`).join('')}</div></div>` : ''}
+              ${muhurtaBySegmentHtml(dd)}
             `;
           } catch (e) {
             detail.innerHTML = `<div class="error-msg" style="display:block;">Не удалось загрузить: ${escapeHtml(e.message)}</div>`;
@@ -4299,7 +4468,11 @@
     try {
       const res = await fetch('/api/actions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
       const data = await res.json();
-      select.innerHTML = data.actions.map(a => `<option value="${a.key}">${a.label}</option>`).join('');
+      const groups = [['simple', 'Повседневные дела'], ['major', 'Крупные цели (мухурта + даша + гочара)'], ['pending', 'Правила требуют уточнения']];
+      select.innerHTML = groups.map(([cat, title]) => {
+        const items = data.actions.filter(a => a.category === cat);
+        return items.length ? `<optgroup label="${title}">${items.map(a => `<option value="${a.key}">${a.label}</option>`).join('')}</optgroup>` : '';
+      }).join('');
       select.dataset.loaded = '1';
       document.getElementById('search-direction-field').style.display = select.value === 'travel' ? 'block' : 'none';
     } catch (e) { /* останется пустым — не критично */ }
@@ -4315,6 +4488,7 @@
     const calCard = document.getElementById('search-cal-card');
     const dayDetail = document.getElementById('search-day-detail');
     dayDetail.style.display = 'none';
+    document.getElementById('search-results').innerHTML = '';
     calCard.style.display = 'block';
     document.getElementById('search-cal-grid').innerHTML = '<div style="text-align:center;font-size:12px;color:var(--taupe);">Считаю…</div>';
 
@@ -4328,10 +4502,41 @@
     try {
       const res = await fetch('/api/action-date-search', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData: getInitData(), chart: currentChart, birthDateUTC, lat: p.lat, lon: p.lon, utcOffset: p.utcOffset, action: actionKey, fromDate, toDate, travelDirection })
+        body: JSON.stringify({ initData: getInitData(), chart: currentChart, birthDateUTC, ...placeParams(), action: actionKey, fromDate, toDate, travelDirection })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Ошибка');
+
+      const resEl = document.getElementById('search-results');
+      const MONTHS_GEN = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+      const fmtIso = (iso) => { const [yy, mm, dd2] = iso.split('-'); return `${+dd2} ${MONTHS_GEN[+mm - 1]}`; };
+      const isoToDmy = (iso) => iso.split('-').reverse().join('.');
+      const segLbl = (sg, iso) => segRangeLabel(sg, iso ? isoToDmy(iso) : null);
+      const STAT = { supported: 'есть поддержка', restricted: 'есть ограничение', insufficient: 'недостаточно оснований' };
+
+      if (data.rulesPending) {
+        calCard.style.display = 'none';
+        resEl.innerHTML = `<div class="form-card" style="padding:16px;"><div class="name" style="margin-bottom:6px;">${escapeHtml(data.actionLabel)}</div><div style="font-size:13px;color:var(--taupe);">${escapeHtml(data.note || 'Правила требуют уточнения.')}</div></div>`;
+        return;
+      }
+
+      let rh = '';
+      if (data.periodNow) {
+        const pn = data.periodNow;
+        rh += `<div class="form-card" style="padding:16px;"><div class="name" style="margin-bottom:6px;">Текущий период</div>
+          <div style="font-size:13px;">Даша: <b>${escapeHtml(pn.dasha)}</b>. Гочара: <b>${escapeHtml(pn.gochara)}</b>.</div>
+          <details style="margin-top:6px;"><summary style="font-size:12px;color:var(--taupe);cursor:pointer;">почему</summary>
+          ${[...(pn.dashaLines || []), ...(pn.gocharaLines || [])].map(l => `<div style="font-size:12px;margin-top:3px;">${escapeHtml(l)}</div>`).join('')}</details></div>`;
+      }
+      if (data.best && data.best.length) {
+        const title = data.preliminary ? 'Предварительно подходящие даты' : 'Наиболее подходящие даты';
+        rh += `<div class="form-card" style="padding:16px;"><div class="name" style="margin-bottom:6px;">${title}</div>
+          ${data.best.map(b => `<div class="note-item"><div class="note-text"><b>${fmtIso(b.date)}</b> — ${b.segments.map(sg => segLbl(sg, b.date)).join(', ')}${b.period ? `<br><span style="color:var(--taupe);font-size:12px;">${escapeHtml(b.period)}</span>` : ''}</div></div>`).join('')}
+          ${data.preliminary ? `<div style="font-size:11px;color:var(--taupe);margin-top:6px;">Нужна полноценная мухурта${data.needsVastu ? ' и проверка по Васту' : ''}: лагна и положение планет на момент действия пока не рассчитываются.</div>` : ''}</div>`;
+      } else {
+        rh += `<div class="form-card" style="padding:16px;"><div style="font-size:13px;color:var(--taupe);">В этом диапазоне подходящих дат по мухурте не найдено. Можно расширить диапазон.</div></div>`;
+      }
+      resEl.innerHTML = rh;
 
       document.getElementById('search-cal-label').textContent = data.actionLabel;
       const grid = document.getElementById('search-cal-grid');
@@ -4358,10 +4563,19 @@
         cell.addEventListener('click', () => {
           const d = data.days.find(x => x.date === cell.dataset.date);
           dayDetail.style.display = 'block';
-          const lines = [...d.favorable.map(f => `✅ ${f}`), ...d.restrictions.map(r => `⚠ ${r}`), ...(d.context || []).map(c => `ℹ ${c}`)];
+          const segLines = (d.segments || []).map(sg => `<div class="note-item" style="text-align:left;"><div class="note-text" style="text-align:left;">${segLbl(sg, d.date)} — ${STAT[sg.status] || ''}</div></div>`).join('');
+          const lines = [
+            ...d.favorable.map(f => 'Поддерживает: ' + f),
+            ...d.restrictions.map(r => 'Ограничение: ' + r),
+            ...(d.cautions || []).map(c => 'Не поддерживает: ' + c),
+            ...(d.context || []).map(c => 'Контекст: ' + c),
+          ];
+          const per = d.period ? `<div style="margin-top:10px;font-size:13px;text-align:left;"><b>Период:</b> даша — ${escapeHtml(d.period.dasha)}, гочара — ${escapeHtml(d.period.gochara)}.</div>` : '';
           dayDetail.innerHTML = `
             <div class="name" style="margin-bottom:6px;text-align:left;">${d.date.split('-').reverse().join('.')}</div>
-            ${lines.length ? lines.map(l => `<div class="note-item" style="text-align:left;"><div class="note-text" style="text-align:left;">${escapeHtml(l)}</div></div>`).join('') : '<div style="font-size:13px;color:var(--taupe);text-align:left;">Нейтральный день — явных факторов не найдено.</div>'}
+            ${segLines}
+            ${lines.length ? lines.map(l => `<div class="note-item" style="text-align:left;"><div class="note-text" style="text-align:left;">${escapeHtml(l)}</div></div>`).join('') : '<div style="font-size:13px;color:var(--taupe);text-align:left;">Недостаточно оснований для рекомендации.</div>'}
+            ${per}
           `;
         });
       });

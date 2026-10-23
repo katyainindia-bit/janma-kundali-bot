@@ -15,8 +15,8 @@ const { computePanchanga, computeTaraBala, computeDayNakshatraSegments } = requi
 const { calculateNavamsha } = require('./navamsha.js');
 const { calculateDashamsha } = require('./dashamsha.js');
 const { calculateVarga: calculateOtherVarga, VARGA_DEFS } = require('./divisional-charts.js');
-const { computeCalendarMonth, computeDateSearch, computeDayDetail, computeActionDateSearch, GOALS } = require('./date-tools.js');
-const { ACTIONS, ACTION_ICONS, NICHE_ACTION_KEYS, evaluateAction } = require('./muhurta.js');
+const { tithiWindow, windowEventsForDate, computeCalendarMonth, computeDateSearch, computeDayDetail, computeActionDateSearch, evaluateMuhurtaLists, personalFromSegment, GOALS } = require('./date-tools.js');
+const { ACTIONS } = require('./muhurta.js');
 const { getEventsForDate, findUpcomingEvents, getYearEvents } = require('./calendar-events.js');
 const { computeSadeSati } = require('./sade-sati.js');
 const { findSignExitDate } = require('./transit-forecast.js');
@@ -549,6 +549,7 @@ function startWebApp() {
       // 7. Астрологические события сегодня (нужны заранее — движок мухурты учитывает
       // Санкранти/затмения как «особые дни», не только Экадаши/Пурниму/Амавасью из титхи)
       const events = getEventsForDate(ly, lm, ld, todayPanchanga.tithi.number);
+      const displayEvents = windowEventsForDate(ly, lm, ld, lat, lon, utcOffset);
 
       // 8. Движок мухурты: прогоняем сегодняшний день по всем настроенным действиям,
       // делим на «что поддержано» / «что лучше отложить». Действия с пустыми roles
@@ -556,40 +557,26 @@ function startWebApp() {
       const dayCtx = {
         tithiNumber: todayPanchanga.tithi.number,
         nakshatraIdx: currentSeg.nakshatraIdx,
+        nakshatraPada: todayPanchanga.nakshatraPada,
         weekdayIdx: new Date(Date.UTC(ly, lm - 1, ld)).getUTCDay(),
-        taraBala,
-        dashaChangeToday,
-        moonHouseFromLagna: moonTransitHouse,
-        transitHouses,
+        yogaName: todayPanchanga.yoga.name,
+        karanaName: todayPanchanga.karana.name,
+        personal: personalFromSegment(currentSeg),
         calendarEvents: events,
       };
-      const muhurtaResults = Object.keys(ACTIONS)
-        .filter(key => ACTIONS[key].roles && Object.keys(ACTIONS[key].roles).length > 0)
-        .map(key => evaluateAction(key, dayCtx));
-
-      // «Поддержано» строго = нет ограничений + есть явный плюс. Но в дни, где почти
-      // всё под ограничением (например, Экадаши), этот список может остаться пустым —
-      // а блок «поддержано» должен быть виден всегда (иначе выглядит как один сплошной
-      // негатив). В этом случае смягчаем условие до «хотя бы нет ограничений».
-      let supportedResults = muhurtaResults.filter(r => r.restrictions.length === 0 && r.favorable.length > 0);
-      const strictSupportedCount = supportedResults.length; // для тона заголовка/энергии — не смягчаем
-      if (supportedResults.length === 0) {
-        supportedResults = muhurtaResults.filter(r => r.restrictions.length === 0);
-      }
-      // Повседневные действия — вперёд, нишевые (мед./посвящения/стрижка/финдень) — только если места хватает
-      supportedResults = supportedResults.slice().sort((a, b) => {
-        const an = NICHE_ACTION_KEYS.includes(a.actionKey) ? 1 : 0;
-        const bn = NICHE_ACTION_KEYS.includes(b.actionKey) ? 1 : 0;
-        return an - bn;
-      });
-      const supported = supportedResults.slice(0, 4).map(r => ({ key: r.actionKey, label: r.label, icon: ACTION_ICONS[r.actionKey] || '✅' }));
-      const postpone = muhurtaResults.filter(r => r.restrictions.length > 0).slice(0, 4).map(r => ({ key: r.actionKey, label: r.label, icon: ACTION_ICONS[r.actionKey] || '⚠' }));
+      // «Сегодня» показывает только простые дела (крупные — в «Днях» и «Поиске по цели»).
+      // В «Благоприятно» попадают лишь дела с реальной поддержкой, в «Отложить» — только
+      // со строгим ограничением. «Недостаточно оснований» не выводится ни туда, ни туда.
+      const lists = evaluateMuhurtaLists(dayCtx);
+      const supported = lists.supported;
+      const postpone = lists.postpone;
+      const strictSupportedCount = lists.strictSupportedCount;
 
       // 9. Ближайшие предстоящие события
       const allUpcoming = findUpcomingEvents(now, 120, (d) => {
         const pp = computePanchanga(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(), 12, 0, lat, lon, utcOffset);
         return pp.tithi.number;
-      }).filter(e => e.daysAhead > 0);
+      }, (d) => tithiWindow(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(), lat, lon, utcOffset)).filter(e => e.daysAhead > 0);
       let upcomingEvents = allUpcoming.slice(0, 4);
       // Праздники редки по сравнению с Пурнимой/Экадаши/Санкранти — гарантируем,
       // что ближайший праздник всегда виден, даже если формально не попал в топ-4
@@ -627,7 +614,7 @@ function startWebApp() {
         dashaChangeToday,
         supported,
         postpone,
-        events,
+        events: displayEvents,
         upcomingEvents,
         daySummary: dayTier.headline,
         dayEnergy: { emoji: dayTier.emoji, label: dayTier.energyLabel },
@@ -709,8 +696,7 @@ function startWebApp() {
   app.post('/api/actions', (req, res) => {
     res.json({
       actions: Object.entries(ACTIONS)
-        .filter(([, a]) => a.roles && Object.keys(a.roles).length > 0)
-        .map(([key, a]) => ({ key, label: a.label })),
+        .map(([key, a]) => ({ key, label: a.label, category: a.category })),
     });
   });
 

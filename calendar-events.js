@@ -85,6 +85,42 @@ function tithiEvents(tithiNumber, year, month, day) {
   return events;
 }
 
+// --- Время титхи-событий внутри ведических суток [восход, следующий восход) ---
+// win = { spans: computeTithiSpans(...), utcOffset, startJD }
+function timingText(span, win) {
+  const hhmm = (jd) => jdToLocalDateTimeStr(jd, win.utcOffset).slice(11);
+  const dayOf = (jd) => jdToLocalDateTimeStr(jd, win.utcOffset).slice(0, 10);
+  const baseDay = dayOf(win.startJD);
+  const t = (jd) => hhmm(jd) + (dayOf(jd) !== baseDay ? ' следующего дня' : '');
+  if (span.startsBefore && span.endsAfter) return 'весь день';
+  if (span.startsBefore) return 'до ' + t(span.endJD);
+  if (span.endsAfter) return 'начинается в ' + t(span.fromJD);
+  return 'с ' + t(span.fromJD) + ' до ' + t(span.endJD);
+}
+
+function tithiEventsInWindow(year, month, day, win) {
+  const out = [];
+  for (const sp of win.spans) {
+    if (![11, 15, 26, 30].includes(sp.number)) continue;
+    const evs = tithiEvents(sp.number, year, month, day);
+    // имя Экадаши: на дату восхода, а если титхи только начинается — ещё и на следующую
+    if (sp.number === 11 || sp.number === 26) {
+      const next = new Date(Date.UTC(year, month - 1, day) + 86400000);
+      const iso2 = `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, '0')}-${String(next.getUTCDate()).padStart(2, '0')}`;
+      const prev = new Date(Date.UTC(year, month - 1, day) - 86400000);
+      const iso0 = `${prev.getUTCFullYear()}-${String(prev.getUTCMonth() + 1).padStart(2, '0')}-${String(prev.getUTCDate()).padStart(2, '0')}`;
+      if (evs[0] && evs[0].label === 'Экадаши') {
+        // титхи уже шло с прошлых суток — имя по прошлой дате; только начинается — по следующей
+        const l2 = sp.startsBefore ? namedEkadashi(iso0) : namedEkadashi(iso2);
+        if (l2 !== 'Экадаши') { evs[0].label = l2; evs[0].description = EKADASHI_THEMES[l2.replace(' Экадаши', '')] || evs[0].description; }
+      }
+    }
+    const timing = timingText(sp, win);
+    evs.forEach(e => out.push({ ...e, timing, startsBefore: sp.startsBefore, endsAfter: sp.endsAfter }));
+  }
+  return out;
+}
+
 // --- Санкранти: сидерический знак Солнца сегодня отличается от вчерашнего ---
 const SIGN_NAMES = ['Овен','Телец','Близнецы','Рак','Лев','Дева','Весы','Скорпион','Стрелец','Козерог','Водолей','Рыбы'];
 
@@ -315,10 +351,11 @@ function festivalEventForDate(dateISO) {
 }
 
 // --- Все события на конкретную календарную дату ---
-function getEventsForDate(year, month, day, tithiNumber) {
+function getEventsForDate(year, month, day, tithiNumber, win) {
   const dateISO = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   const events = [];
-  events.push(...tithiEvents(tithiNumber, year, month, day));
+  if (win) events.push(...tithiEventsInWindow(year, month, day, win));
+  else events.push(...tithiEvents(tithiNumber, year, month, day));
   const sankranti = sankrantiEvent(year, month, day);
   if (sankranti) events.push(sankranti);
   const eclipse = eclipseEventForDate(dateISO);
@@ -333,14 +370,14 @@ function getEventsForDate(year, month, day, tithiNumber) {
 // tithiNumberForDate(date) — функция, которую вызывающий код должен
 // передать (обычно через computePanchanga), чтобы не тащить сюда
 // зависимость от панчанги напрямую.
-function findUpcomingEvents(fromDate, daysAhead, tithiNumberForDate) {
+function findUpcomingEvents(fromDate, daysAhead, tithiNumberForDate, windowForDate) {
   const found = {};
   const dayMs = 24 * 3600 * 1000;
   for (let i = 0; i <= daysAhead; i++) {
     const d = new Date(fromDate.getTime() + i * dayMs);
     const year = d.getUTCFullYear(), month = d.getUTCMonth() + 1, day = d.getUTCDate();
     const tithiNumber = tithiNumberForDate(d);
-    const events = getEventsForDate(year, month, day, tithiNumber);
+    const events = getEventsForDate(year, month, day, tithiNumber, windowForDate ? windowForDate(d) : undefined);
     for (const ev of events) {
       const key = ev.type + ':' + ev.label;
       if (!found[key]) found[key] = { ...ev, daysAhead: i, date: `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}` };

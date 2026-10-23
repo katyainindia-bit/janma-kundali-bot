@@ -247,6 +247,7 @@ function computePanchanga(year, month, day, hour, minute, lat, lon, utcOffset, a
   // Math.min защищает от idx=27 (массив NAKSHATRAS из 27 элементов), если
   // moonSidereal из-за погрешности плавающей точки округлится ровно до 360°.
   const moonNakSiderealIdx = Math.min(26, Math.floor(moonSidereal / nakSpan));
+  const nakshatraPada = Math.min(4, Math.floor((moonSidereal - moonNakSiderealIdx * nakSpan) / (nakSpan / 4)) + 1);
 
   const NAKSHATRAS = [
     'Ашвини','Бхарани','Криттика','Рохини','Мригашира','Ардра','Пунарвасу','Пушья','Ашлеша',
@@ -284,7 +285,7 @@ function computePanchanga(year, month, day, hour, minute, lat, lon, utcOffset, a
       date: `${String(day).padStart(2,'0')}.${String(month).padStart(2,'0')}.${year}`,
       time: timeLabel,
       vara, tithi: tithiFull, yoga: yogaFull, karana: karanaFull,
-      nakshatraOfDay: nakshatraFull.name, nakshatraOfDayIdx: moonNakSiderealIdx, nakshatra: nakshatraFull,
+      nakshatraOfDay: nakshatraFull.name, nakshatraOfDayIdx: moonNakSiderealIdx, nakshatraPada, nakshatra: nakshatraFull,
       sunError: sunTimes.polarNight ? 'Полярная ночь — восход не наступает' : 'Полярный день — заход не наступает',
     };
   }
@@ -311,7 +312,7 @@ function computePanchanga(year, month, day, hour, minute, lat, lon, utcOffset, a
     date: `${String(day).padStart(2,'0')}.${String(month).padStart(2,'0')}.${year}`,
     time: timeLabel,
     vara, tithi: tithiFull, yoga: yogaFull, karana: karanaFull,
-    nakshatraOfDay: nakshatraFull.name, nakshatraOfDayIdx: moonNakSiderealIdx, nakshatra: nakshatraFull,
+    nakshatraOfDay: nakshatraFull.name, nakshatraOfDayIdx: moonNakSiderealIdx, nakshatraPada, nakshatra: nakshatraFull,
     sunrise: sunriseLocal, sunset: sunsetLocal,
     rahuKalam, yamaganda, gulikaKalam, abhijitMuhurta,
   };
@@ -319,7 +320,7 @@ function computePanchanga(year, month, day, hour, minute, lat, lon, utcOffset, a
 
 // --- Тара-бала: персональная ежедневная оценка от натальной накшатры Луны ---
 const TARA_NAMES = [
-  { name: 'Джанма', quality: 'нейтрально' },
+  { name: 'Джанма', quality: 'неблагоприятно' },
   { name: 'Сампат', quality: 'благоприятно' },
   { name: 'Випат', quality: 'неблагоприятно' },
   { name: 'Кшема', quality: 'благоприятно' },
@@ -363,8 +364,10 @@ function sunriseJD(year, month, day, lat, lon, utcOffset) {
 }
 
 // --- Чандра-бала: Луна дня (знак) относительно НАТАЛЬНОГО знака Луны ---
-// Благоприятные позиции: 1, 3, 6, 7, 10, 11. Неблагоприятные: 2, 4, 5, 8, 9, 12.
+// По классике: благоприятны 1, 3, 6, 7, 10, 11; неблагоприятны 4, 8, 12;
+// 2, 5, 9 — благоприятны только в Шукла-пакше (растущая Луна).
 const CHANDRA_GOOD_HOUSES = [1, 3, 6, 7, 10, 11];
+const CHANDRA_SHUKLA_ONLY_HOUSES = [2, 5, 9];
 const SIGN_NAMES_SEG = ['Овен','Телец','Близнецы','Рак','Лев','Дева','Весы','Скорпион','Стрелец','Козерог','Водолей','Рыбы'];
 
 function taraTone(quality) {
@@ -377,7 +380,7 @@ function taraTone(quality) {
 // good     — оба показателя благоприятны;
 // moderate — главный благоприятен, второй нет;
 // bad      — главный неблагоприятен (что бы ни показывал второй).
-// Джанма-тара (нейтральная) считается как «не благоприятная».
+// Джанма-тара по классике — неблагоприятная (минус).
 function combineTone(paksha, taraT, chandraGood) {
   const taraGood = taraT === 'good';
   const priorityGood = paksha === 'shukla' ? chandraGood : taraGood;
@@ -420,7 +423,7 @@ function computeDayNakshatraSegments(year, month, day, lat, lon, utcOffset, nata
     let chandra = null, tone = null;
     if (natalMoonSignIdx !== undefined && natalMoonSignIdx !== null && tara) {
       const house = ((signIdx - natalMoonSignIdx + 12) % 12) + 1;
-      const good = CHANDRA_GOOD_HOUSES.includes(house);
+      const good = CHANDRA_GOOD_HOUSES.includes(house) || (paksha === 'shukla' && CHANDRA_SHUKLA_ONLY_HOUSES.includes(house));
       chandra = { house, good, quality: good ? 'благоприятна' : 'неблагоприятна', sign: SIGN_NAMES_SEG[signIdx] };
       tone = combineTone(paksha, taraTone(tara.quality), good);
     }
@@ -437,4 +440,43 @@ function computeDayNakshatraSegments(year, month, day, lat, lon, utcOffset, nata
   return { sunrise: hhmm(startJD), nextSunrise: hhmm(endJD), startJD, endJD, segments };
 }
 
-module.exports = { computePanchanga, computeTaraBala, sunriseSunsetMinutesUTC, jdToLocalDateTimeStr, computeDayNakshatraSegments };
+/**
+ * Моменты смены Карана (каждые 6° элонгации — они же включают смену титхи) и
+ * Нитья-йоги внутри промежутка [startJD, endJD]. Нужны, чтобы оценка мухурты
+ * менялась точно в момент перехода, а не по середине накшатра-отрезка.
+ */
+function computeFactorBoundariesJD(startJD, endJD) {
+  const elongFn = (j) => pmod(moonLongitude(j) - sunLongitude(j), 360);
+  const yogaFn = (j) => pmod(sunLongitude(j) + moonLongitude(j), 360);
+  const out = [];
+  for (const [fn, span] of [[elongFn, 6], [yogaFn, 360 / 27]]) {
+    let cur = startJD;
+    for (let i = 0; i < 12; i++) {
+      const nb = findBoundaryJD(cur + 1e-6, fn, span, 1);
+      if (nb === null || nb >= endJD) break;
+      if (nb > startJD) out.push(nb);
+      cur = nb + 1e-4;
+    }
+  }
+  return out.sort((a, b) => a - b);
+}
+
+// Титхи, идущие внутри окна [startJD, endJD): номер, начало/конец, и выходит ли титхи за окно.
+function computeTithiSpans(startJD, endJD) {
+  const elongFn = (j) => pmod(moonLongitude(j) - sunLongitude(j), 360);
+  const spans = [];
+  let cur = startJD;
+  for (let i = 0; i < 4; i++) {
+    const number = Math.floor(elongFn(cur + 1e-6) / 12) + 1;
+    const nb = findBoundaryJD(cur + 1e-6, elongFn, 12, 1);
+    const endsAfter = nb === null || nb >= endJD;
+    spans.push({ number, fromJD: cur, toJD: endsAfter ? endJD : nb, endJD: nb, startsBefore: i === 0, endsAfter });
+    if (endsAfter) break;
+    cur = nb;
+  }
+  // истинное начало первого титхи (до восхода) нужно для «Пурнима с ... до ...» не требуется —
+  // достаточно знать, что оно началось раньше окна.
+  return spans;
+}
+
+module.exports = { sunriseJD, computeTithiSpans, computePanchanga, computeTaraBala, sunriseSunsetMinutesUTC, jdToLocalDateTimeStr, computeDayNakshatraSegments, computeFactorBoundariesJD };

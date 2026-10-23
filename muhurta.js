@@ -1,537 +1,209 @@
 // ============================================================
-// muhurta.js — движок мухурты: классические факторы + натальная
-// персонализация → результат по конкретному действию.
+// muhurta.js — движок оценки мухурты.
 //
-// Структура ролей (Ограничение / Благоприятно / Контекст) и список
-// действий взяты из согласованного архитектурного документа.
+// ВСЕ правила (списки накшатр, титхи, вар, исключения) лежат в
+// muhurta-rules.js как данные. Здесь только логика:
 //
-// ВАЖНО ПРО ИСТОЧНИКИ ВНУТРИ ЭТОГО ФАЙЛА:
-// - TITHI_PANCHAKA и NAKSHATRA_GANA — общепринятая классическая
-//   классификация (пять групп титхи; природа накшатр по Гане),
-//   используется в большинстве мухурта-текстов без существенных
-//   разночтений.
-// - ACTIONS — роли факторов по действию взяты из уже согласованного
-//   архитектурного документа. А вот КОНКРЕТНОЕ сопоставление
-//   «какая природа накшатры считается благоприятной для этого
-//   действия» — это уже МОЯ рабочая интерпретация для действий,
-//   у которых нет одного канонического текста (устройство на работу,
-//   договор, инвестиции и т.п. — современные категории). Для
-//   классических самскар (свадьба, гриха-правеша, видьярамбха, ятра)
-//   сопоставление опирается на устоявшуюся традицию. Список открытых
-//   вопросов — в конце файла, в комментарии OPEN_QUESTIONS.
+//   1. Четыре уровня факторов: strict / main / additional / context.
+//   2. Итог по делу — один из четырёх статусов:
+//        'supported'     — есть основная поддержка, нет строгих ограничений
+//        'restricted'    — есть строгое ограничение (лучше отложить)
+//        'insufficient'  — «недостаточно оснований для рекомендации»
+//        'rules_pending' — правила для дела ещё не утверждены
+//   3. Никаких баллов с весами: статус выводится из уровней.
+//   4. Личные показатели (Тара-бала + Чандра-бала) приходят одним готовым
+//      тоном good/moderate/bad — тем же, каким окрашен календарь, чтобы
+//      «Сегодня», «Дни» и «Поиск» не расходились. Плохой тон — минус
+//      дополнительного уровня, а не запрет.
 // ============================================================
 
-const { computeTaraBala } = require('./panchanga.js');
+const { SVABHAVA, GENERAL, ACTION_RULES, TITHI_PLUS_BASE } = require('./muhurta-rules.js');
 
-// --- Панчака: пять групп титхи ---
-// Нанда (1,6,11,16,21,26) — благоприятно, Пурна (5,10,15,20,25,30) — благоприятно,
-// Рикта (4,9,14,19,24,29) — традиционно избегается для начинаний,
-// Бхадра/Джая — нейтрально-смешанные, не дают самостоятельного сигнала.
+// --- Панчака: пять групп титхи (используется для пояснений) ---
 const TITHI_PANCHAKA = {};
 [1, 6, 11, 16, 21, 26].forEach(n => (TITHI_PANCHAKA[n] = 'Нанда'));
 [2, 7, 12, 17, 22, 27].forEach(n => (TITHI_PANCHAKA[n] = 'Бхадра'));
 [3, 8, 13, 18, 23, 28].forEach(n => (TITHI_PANCHAKA[n] = 'Джая'));
 [4, 9, 14, 19, 24, 29].forEach(n => (TITHI_PANCHAKA[n] = 'Рикта'));
 [5, 10, 15, 20, 25, 30].forEach(n => (TITHI_PANCHAKA[n] = 'Пурна'));
+const tithiPanchaka = (n) => TITHI_PANCHAKA[n] || null;
 
-function tithiPanchaka(tithiNumber) {
-  return TITHI_PANCHAKA[tithiNumber] || null;
-}
+// Свабхава накшатры (Кшипра/Чара/Стхира/Мриду/Угра/Тикшна/Мишра)
+const nakshatraSvabhava = (idx) => SVABHAVA[idx] || null;
 
-// --- Особые дни, выводимые напрямую из номера титхи ---
-// Экадаши = 11 и 26; Пурнима = 15; Амавасья = 30.
-// Санкранти (смена знака Солнца) и затмения здесь НЕ считаются —
-// это отдельные астрономические расчёты, которых пока нет (см. OPEN_QUESTIONS).
-function specialDayFromTithi(tithiNumber) {
-  if (tithiNumber === 11 || tithiNumber === 26) return 'Экадаши';
-  if (tithiNumber === 15) return 'Пурнима';
-  if (tithiNumber === 30) return 'Амавасья';
+const WEEKDAY_NAMES = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
+
+function specialDayFromTithi(n) {
+  if (n === 11 || n === 26) return 'Экадаши';
+  if (n === 15) return 'Пурнима';
+  if (n === 30) return 'Амавасья';
   return null;
 }
 
-// --- Гана: природа накшатр (индекс 0-26, порядок как в panchanga.js) ---
-// Чара (подвижные) — благоприятны для движения/путешествий
-// Стхира (фиксированные) — благоприятны для основания/устойчивых начинаний
-// Угра (яростные) и Тикшна (острые) — традиционно избегаются для благоприятных начинаний
-// Кшипра (лёгкие) — благоприятны для быстрых дел, медицины
-// Мриду (мягкие) — благоприятны для тонких/творческих/гармоничных дел
-// Мишра (смешанные) — не дают самостоятельного сигнала
-const NAKSHATRA_GANA = [
-  'Кшипра', // 0 Ашвини
-  'Угра', // 1 Бхарани
-  'Мишра', // 2 Криттика
-  'Стхира', // 3 Рохини
-  'Мриду', // 4 Мригашира
-  'Мишра', // 5 Ардра
-  'Чара', // 6 Пунарвасу
-  'Кшипра', // 7 Пушья
-  'Тикшна', // 8 Ашлеша
-  'Угра', // 9 Магха
-  'Угра', // 10 Пурва Пхалгуни
-  'Стхира', // 11 Уттара Пхалгуни
-  'Кшипра', // 12 Хаста
-  'Мриду', // 13 Читра
-  'Чара', // 14 Свати
-  'Тикшна', // 15 Вишакха
-  'Мриду', // 16 Анурадха
-  'Тикшна', // 17 Джьештха
-  'Тикшна', // 18 Мула
-  'Угра', // 19 Пурва Ашадха
-  'Стхира', // 20 Уттара Ашадха
-  'Чара', // 21 Шравана
-  'Чара', // 22 Дханишта
-  'Чара', // 23 Шатабхиша
-  'Угра', // 24 Пурва Бхадрапада
-  'Стхира', // 25 Уттара Бхадрапада
-  'Мриду', // 26 Ревати
-];
-
-function nakshatraGana(nakshatraIdx) {
-  return NAKSHATRA_GANA[nakshatraIdx] || null;
-}
-
-// --- Общая (не привязанная к действию) классификация вара ---
-// Пн/Ср/Чт/Пт — классически считаются более благоприятными для начинаний;
-// Вт/Сб — более сложные; Вс — смешанный. Это ОБЩИЙ ориентир: то, в какую
-// сторону (Ограничение или Благоприятно) он играет для КОНКРЕТНОГО
-// действия, определяется ролью фактора «Вар» из ACTIONS ниже.
-const VARA_GENERAL = ['Смешанный', 'Благоприятный', 'Сложный', 'Благоприятный', 'Благоприятный', 'Благоприятный', 'Сложный'];
-// индекс = date.getUTCDay(): 0=Вс,1=Пн,2=Вт,3=Ср,4=Чт,5=Пт,6=Сб
-
-function varaGeneral(weekdayIdx) {
-  return VARA_GENERAL[weekdayIdx];
-}
-
-// ============================================================
-// ACTIONS — конфигурация действий: роли факторов согласно
-// архитектурному документу + рабочее сопоставление конкретных
-// значений (природа накшатры), где это можно взять из классики
-// без домысливания. Пустые массивы/null — сознательно не заполнены,
-// см. OPEN_QUESTIONS.
-// ============================================================
-
-// Иконка на каждое действие — для чипов «поддержано / лучше отложить»
-const ACTION_ICONS = {
-  education: '🎓',
-  travel: '✈️',
-  relocation: '🚚',
-  realestate: '🏠',
-  construction: '🏗️',
-  wedding: '💍',
-  medicalCheckup: '🩺',
-  surgery: '⚕️',
-  spiritualPractice: '🧘',
-  initiation: '🕉️',
-  contract: '📝',
-  business: '💼',
-  project: '🚀',
-  bigPurchase: '🛍️',
-  investment: '💰',
-  financialDay: '💰',
-  haircut: '💇',
-  jobHunt: '🧑‍💼',
-  jobQuit: '🚪',
-  conception: '🌱',
-};
-
-// Нишевые действия — не должны вытеснять повседневные категории (работа/учёба/
-// практики и т.п.) из блока «поддержано», если только сами не особенно сильны в этот день
-const NICHE_ACTION_KEYS = ['medicalCheckup', 'surgery', 'initiation', 'haircut', 'financialDay'];
-
-const ACTIONS = {
-  education: {
-    label: 'Начало обучения',
-    roles: { tithi: 'Ограничение', nakshatra: 'Ограничение', vara: 'Благоприятно', tarabala: 'Благоприятно', dasha: 'Контекст', chandraBala: 'Контекст', specialDay: 'Ограничение' },
-    favorableNakGana: ['Кшипра', 'Мриду'],
-    restrictedNakGana: ['Угра', 'Тикшна'],
-  },
-  travel: {
-    label: 'Путешествие',
-    roles: { nakshatra: 'Благоприятно', tarabala: 'Благоприятно', vara: 'Контекст', chandraBala: 'Контекст', dasha: 'Контекст', specialDay: 'Ограничение' },
-    favorableNakGana: ['Чара'],
-    restrictedNakGana: ['Тикшна', 'Угра'],
-    extraCheck: 'dishashula', // отдельный модуль, см. OPEN_QUESTIONS — пока не реализован
-  },
-  relocation: {
-    label: 'Переезд',
-    roles: { tithi: 'Ограничение', nakshatra: 'Ограничение', tarabala: 'Благоприятно', vara: 'Контекст', chandraBala: 'Контекст', dasha: 'Контекст', specialDay: 'Ограничение' },
-    favorableNakGana: ['Стхира'],
-    restrictedNakGana: ['Угра', 'Тикшна'],
-  },
-  realestate: {
-    label: 'Покупка недвижимости',
-    roles: { tithi: 'Ограничение', nakshatra: 'Благоприятно', tarabala: 'Благоприятно', vara: 'Контекст', chandraBala: 'Контекст', dasha: 'Контекст', specialDay: 'Ограничение', marsBala: 'Благоприятно' },
-    favorableNakGana: ['Стхира'],
-    restrictedNakGana: ['Угра'],
-    // Марс — главный сигнификатор земли/недвижимости в Джйотиш; его транзит
-    // именно через 4-й дом (дом жилья) классически считается активирующим
-    // для сделок с недвижимостью — это благоприятный сигнал, в отличие от
-    // операции, где Марс в трудных домах наоборот избегается.
-    favorableTransitHouse: { 'Марс': [4] },
-  },
-  construction: {
-    label: 'Строительство',
-    roles: { tithi: 'Ограничение', vara: 'Ограничение', nakshatra: 'Ограничение', tarabala: 'Благоприятно', chandraBala: 'Контекст', dasha: 'Контекст', specialDay: 'Ограничение' },
-    favorableNakGana: ['Стхира'],
-    restrictedNakGana: ['Угра', 'Тикшна'],
-    extraCheck: 'vastuOrientation', // отдельный модуль, не реализован, см. OPEN_QUESTIONS
-  },
-  wedding: {
-    label: 'Свадьба',
-    roles: { tithi: 'Ограничение', vara: 'Ограничение', nakshatra: 'Ограничение', tarabala: 'Благоприятно', chandraBala: 'Контекст', dasha: 'Контекст', specialDay: 'Ограничение' },
-    favorableNakGana: ['Стхира', 'Мриду'],
-    restrictedNakGana: ['Угра', 'Тикшна'],
-  },
-  medicalCheckup: {
-    label: 'Осмотр / диагностика',
-    roles: { tithi: 'Ограничение', nakshatra: 'Благоприятно', vara: 'Контекст', chandraBala: 'Контекст', dasha: 'Контекст', specialDay: 'Ограничение' },
-    // Для обычного лечения/осмотра классически хороши "мягкие", "лёгкие" накшатры —
-    // та же логика, что уже была общей для медицины.
-    favorableNakGana: ['Кшипра', 'Мриду'],
-    restrictedNakGana: ['Угра', 'Тикшна'],
-  },
-  surgery: {
-    label: 'Операция',
-    roles: { tithi: 'Ограничение', nakshatra: 'Благоприятно', vara: 'Контекст', chandraBala: 'Контекст', dasha: 'Контекст', specialDay: 'Ограничение', marsBala: 'Ограничение' },
-    // ВАЖНЫЙ НЮАНС (обсуждали отдельно): для операции — наоборот, классически
-    // предпочитают "острые"/"яростные" накшатры (резать = острая энергия),
-    // а не мягкие, как для обычного лечения. Это не ошибка, а другая логика.
-    favorableNakGana: ['Тикшна', 'Угра'],
-    restrictedNakGana: ['Кшипра'],
-    // Транзитный Марс в 8 или 12 доме от Лагны — классически не подходит для
-    // плановой операции (Марс управляет хирургией, но должен быть силён,
-    // а не ослаблен положением в трудных домах).
-    restrictedTransitHouse: { 'Марс': [8, 12] },
-  },
-  spiritualPractice: {
-    label: 'Духовные практики',
-    roles: { specialDay: 'Благоприятно', chandraBala: 'Благоприятно', tithi: 'Контекст', vara: 'Контекст', nakshatra: 'Контекст', dasha: 'Контекст' },
-    favorableSpecialDays: ['Экадаши', 'Амавасья'],
-    favorableChandraHouse: [12],
-  },
-  initiation: {
-    label: 'Посвящения / духовные церемонии',
-    roles: {}, // намеренно пусто — авторская традиция, см. OPEN_QUESTIONS
-  },
-  contract: {
-    label: 'Подписание договора',
-    roles: { tithi: 'Ограничение', vara: 'Благоприятно', nakshatra: 'Благоприятно', tarabala: 'Благоприятно', chandraBala: 'Контекст', dasha: 'Контекст', specialDay: 'Ограничение' },
-    favorableNakGana: ['Стхира'],
-    restrictedNakGana: ['Угра', 'Тикшна'], // тот же паттерн, что уже используется в файле для всех действий, где благоприятна Стхира
-  },
-  business: {
-    label: 'Начало бизнеса',
-    roles: { tithi: 'Ограничение', vara: 'Благоприятно', nakshatra: 'Благоприятно', tarabala: 'Благоприятно', dasha: 'Благоприятно', chandraBala: 'Контекст', specialDay: 'Ограничение' },
-    favorableNakGana: ['Кшипра'],
-    restrictedNakGana: ['Угра', 'Тикшна'],
-    // Меркурий (торговля) и Юпитер (мудрость/рост) — оба классические караки
-    // 10 дома (дело/карьера); их транзит именно через 10 дом от Лагны
-    // многократно подтверждён как активирующий для карьерных/деловых начинаний.
-    favorableTransitHouse: { 'Юпитер': [10], 'Меркурий': [10] },
-    goalKey: 'business', // соответствует GOALS.business в date-tools.js
-  },
-  project: {
-    label: 'Запуск проекта',
-    roles: { tithi: 'Ограничение', vara: 'Благоприятно', nakshatra: 'Благоприятно', tarabala: 'Благоприятно', dasha: 'Контекст', chandraBala: 'Контекст', specialDay: 'Ограничение' },
-    favorableNakGana: ['Кшипра'],
-    restrictedNakGana: ['Угра', 'Тикшна'],
-    goalKey: 'project', // соответствует GOALS.project в date-tools.js
-  },
-  bigPurchase: {
-    label: 'Крупные покупки',
-    roles: { tithi: 'Ограничение', tarabala: 'Благоприятно', vara: 'Благоприятно', nakshatra: 'Благоприятно', chandraBala: 'Контекст', dasha: 'Контекст', specialDay: 'Ограничение', venusBala: 'Благоприятно' },
-    favorableNakGana: ['Стхира'],
-    restrictedNakGana: ['Угра', 'Тикшна'],
-    // Венера — сигнификатор денег на удовольствия и материальные блага;
-    // 2-й (накопленное богатство) и 11-й (доходы/приобретения) — классическая
-    // "ось богатства". Транзит Венеры через них — благоприятный сигнал
-    // именно для трат на комфорт/удовольствие, не для вложений вообще.
-    favorableTransitHouse: { 'Венера': [2, 11] },
-  },
-  investment: {
-    label: 'Инвестиции',
-    roles: { tithi: 'Ограничение', nakshatra: 'Благоприятно', tarabala: 'Благоприятно', vara: 'Благоприятно', chandraBala: 'Контекст', dasha: 'Контекст', specialDay: 'Ограничение' },
-    favorableNakGana: ['Стхира'],
-    restrictedNakGana: ['Угра'],
-  },
-  // --- Добавлено по запросу: популярные бытовые «особые дни» как действия,
-  // а не отдельные календарные метки — тогда учитывают и натальную карту.
-  financialDay: {
-    label: 'Финансовый день',
-    roles: { tithi: 'Ограничение', nakshatra: 'Благоприятно', vara: 'Благоприятно', tarabala: 'Благоприятно', chandraBala: 'Контекст', dasha: 'Контекст', specialDay: 'Ограничение' },
-    favorableNakGana: ['Стхира'],
-    restrictedNakGana: ['Угра'],
-    // Гуру-Пушья-йога: Пушья + четверг — классически один из сильнейших
-    // дней для денежных дел/золота. Обрабатывается отдельно в evaluateAction
-    // (не через общую гану, т.к. это конкретно Пушья, а не вся группа Кшипра).
-    specialCombo: 'guruPushya',
-  },
-  haircut: {
-    label: 'Стрижка волос',
-    roles: { vara: 'Ограничение', nakshatra: 'Благоприятно', tithi: 'Контекст', tarabala: 'Контекст', chandraBala: 'Контекст', dasha: 'Контекст' },
-    favorableNakGana: ['Кшипра', 'Чара'],
-    restrictedNakGana: null,
-    restrictedVaraIdx: [2], // вторник — самое устойчивое общее правило про стрижку
-    // Это действие — самое слабо обосновано классикой из всех: конкретные
-    // правила по стрижке волос сильно расходятся между региональными
-    // традициями и популярными панчангами гораздо больше, чем остальное
-    // в этом файле. Взято по общей логике (Кшипра/Чара — быстрые/лёгкие
-    // дела, вторник — общеизвестное избегание), а не по одному тексту.
-  },
-  jobHunt: {
-    label: 'Устройство на работу',
-    roles: { tithi: 'Ограничение', vara: 'Благоприятно', nakshatra: 'Благоприятно', tarabala: 'Благоприятно', dasha: 'Контекст', chandraBala: 'Контекст', specialDay: 'Ограничение' },
-    favorableNakGana: ['Стхира', 'Кшипра'],
-    restrictedNakGana: ['Угра', 'Тикшна'],
-    // Меркурий и Юпитер — классические караки 10 дома (дело/карьера);
-    // транзит через 10 дом от Лагны — та же логика, что и для бизнеса.
-    favorableTransitHouse: { 'Юпитер': [10], 'Меркурий': [10] },
-    // По аналогии с "Подписанием договора"/"Начало бизнеса" — тот же общий каркас
-    // начинаний. Отдельной классической традиции именно под "трудоустройство"
-    // (современное понятие) нет, это перенос общих правил начинаний.
-  },
-  jobQuit: {
-    label: 'Увольнение с работы',
-    roles: { tarabala: 'Благоприятно', specialDay: 'Ограничение', tithi: 'Контекст', vara: 'Ограничение', nakshatra: 'Контекст', dasha: 'Контекст' },
-    favorableNakGana: null,
-    restrictedNakGana: null,
-    // «Увольнение» — не классическое понятие само по себе (это современная
-    // ситуация), поэтому здесь не дословное древнее правило, а рассуждение
-    // по значениям планет-управителей дней недели (стандартный приём в
-    // мухурте, но применённый к новой теме, а не взятый готовым из текста):
-    // Суббота (Сатурн — карака завершений/кармы) и Пятница (Венера — мягкий,
-    // дипломатичный уход) — благоприятны. Вторник (Марс — уход через
-    // конфликт) и Понедельник (Луна — эмоциональная импульсивность) — хуже.
-    favorableVaraIdx: [5, 6], // пятница, суббота
-    restrictedVaraIdx: [1, 2], // понедельник, вторник
-  },
-  conception: {
-    label: 'Зачатие (планирование)',
-    roles: { tithi: 'Ограничение', nakshatra: 'Ограничение', specialDay: 'Ограничение', tarabala: 'Благоприятно', vara: 'Благоприятно', chandraBala: 'Контекст', dasha: 'Контекст' },
-    favorableNakGana: ['Стхира', 'Мриду'],
-    restrictedNakGana: ['Угра', 'Тикшна'],
-    // Юпитер — единственный карака детей (Путра-карака) во всей традиции;
-    // его транзит именно через 5 дом от Лагны — едва ли не самая надёжная
-    // находка из всех проверенных в этой сессии classical-связей, есть даже
-    // прямая цитата (Пхаладипика, гл. 26, ст. 23): "Панчаме Гурау путра-
-    // сукха-буддхи-лабхам парам" — Юпитер в 5 доме даёт высшее счастье от детей.
-    favorableTransitHouse: { 'Юпитер': [5] },
-    // Проверено против конкретных источников по Гарбхадхана-мухурте:
-    // понедельник/среда/четверг/пятница благоприятны, вторник/суббота — нет —
-    // это СОВПАДАЕТ с нашей общей классификацией вара, поэтому теперь честно
-    // включила её (было "Контекст"). Титхи — Рикта (4,9,14) уже исключены
-    // общим титхи-ограничением, Амавасья/Пурнима — уже общим specialDay,
-    // это тоже совпадает с классическими источниками по этой теме отдельно.
-    // Оговорка остаётся: точный список благоприятных накшатр по Гарбхадхане
-    // специфичнее (называются, например, Рохини, Мригашира отдельно) — здесь
-    // по-прежнему общее приближение через Стхира/Мриду, не точный список.
-  },
-};
-
-// ============================================================
-// Оценка одного действия на конкретный день.
-// dayCtx ожидает: { tithiNumber, nakshatraIdx, weekdayIdx, taraBala:
-// {quality}, dashaChangeToday: {level, lord} | null, moonHouseFromLagna }
-// ============================================================
-// --- Дишашула — направление, которого традиционно избегают для начала
-// поездки в этот день недели. Таблица устойчиво повторяется во всех
-// проверенных источниках (не привязана к одному конкретному классическому
-// тексту, но это стандартная, повсеместно используемая панчанга-конвенция).
-// Индекс — как у JS Date.getUTCDay(): 0=воскресенье...6=суббота.
+// Дишашула: направление, которого избегают в этот день недели (0=вс … 6=сб)
 const DISHASHULA_TABLE = ['Запад', 'Восток', 'Север', 'Север', 'Юг', 'Запад', 'Восток'];
-function dishashulaDirection(weekdayIdx) {
-  return DISHASHULA_TABLE[weekdayIdx];
-}
+const dishashulaDirection = (w) => DISHASHULA_TABLE[w];
 
-function evaluateAction(actionKey, dayCtx) {
-  const action = ACTIONS[actionKey];
-  if (!action) throw new Error('Неизвестное действие: ' + actionKey);
+const ACTIONS = ACTION_RULES;
+const ACTION_ICONS = {};
+Object.entries(ACTION_RULES).forEach(([k, a]) => { ACTION_ICONS[k] = a.icon; });
+const NICHE_ACTION_KEYS = []; // оставлено для совместимости: приоритет теперь по rank
 
-  const restrictions = [];
-  const favorable = [];
-  const context = [];
-  const roles = action.roles || {};
+const inList = (list, v) => Array.isArray(list) && list.includes(v);
+const ignores = (rule, what) => rule.ignoreGeneral === true || (Array.isArray(rule.ignoreGeneral) && rule.ignoreGeneral.includes(what));
+const normTithi = (n) => ((n - 1) % 15) + 1; // 16–30 → 1–15
 
-  const panchaka = dayCtx.tithiNumber != null ? tithiPanchaka(dayCtx.tithiNumber) : null;
-  // Пакша (растущая/убывающая Луна) — выводится напрямую из номера титхи, если явно не передана
-  const paksha = dayCtx.paksha != null ? dayCtx.paksha
-    : dayCtx.tithiNumber != null ? (dayCtx.tithiNumber <= 15 ? 'Шукла (растущая)' : 'Кришна (убывающая)')
-    : null;
-  const gana = dayCtx.nakshatraIdx != null ? nakshatraGana(dayCtx.nakshatraIdx) : null;
-  const varaGen = dayCtx.weekdayIdx != null ? varaGeneral(dayCtx.weekdayIdx) : null;
-  // Особый день: берём из полного списка календарных событий (Экадаши/Пурнима/Амавасья/
-  // Санкранти/затмения — всё, что уже посчитано в calendar-events.js), а не только из титхи —
-  // иначе Санкранти и затмения вообще не участвуют в оценке действий (реальный пробел, был найден
-  // и закрыт). Если передан только tithiNumber без dayCtx.calendarEvents — используем старый способ.
-  const SPECIAL_DAY_TYPES = ['Затмение (лунное)', 'Затмение (солнечное)', 'Санкранти', 'Экадаши', 'Пурнима', 'Амавасья'];
-  let specialDay = null;
-  if (dayCtx.calendarEvents && dayCtx.calendarEvents.length > 0) {
-    // Затмение — самый значимый сигнал, если есть — берём его; иначе первое подходящее
-    const eclipse = dayCtx.calendarEvents.find(ev => ev.type === 'Затмение (лунное)' || ev.type === 'Затмение (солнечное)');
-    const other = dayCtx.calendarEvents.find(ev => SPECIAL_DAY_TYPES.includes(ev.type));
-    specialDay = (eclipse || other) ? (eclipse || other).label : null;
-  } else if (dayCtx.tithiNumber != null) {
-    specialDay = specialDayFromTithi(dayCtx.tithiNumber);
+/**
+ * Оценка одного дела на один момент/отрезок.
+ * ctx: { tithiNumber, nakshatraIdx, nakshatraPada, weekdayIdx, yogaName, karanaName,
+ *        personal:{tone,taraText,chandraText}, calendarEvents, travelDirection }
+ */
+function evaluateAction(actionKey, ctx) {
+  const rule = ACTION_RULES[actionKey];
+  if (!rule) throw new Error('Неизвестное действие: ' + actionKey);
+
+  const base = { actionKey, label: rule.label, icon: rule.icon, category: rule.category };
+
+  if (rule.category === 'pending') {
+    return { ...base, status: 'rules_pending', rank: -1, strict: [], mainPlus: [], mainMinus: [], addPlus: [], addMinus: [], context: [], restrictions: [], favorable: [], note: rule.note };
   }
 
-  // Титхи
-  if (roles.tithi === 'Ограничение' && panchaka === 'Рикта') {
-    restrictions.push('Титхи Рикта — традиционно не рекомендуется для начинаний такого рода.');
-  } else if (roles.tithi === 'Благоприятно' && (panchaka === 'Пурна' || panchaka === 'Нанда')) {
-    favorable.push(`Титхи группы ${panchaka} — благоприятна.`);
-  } else if (roles.tithi === 'Контекст' && panchaka) {
-    context.push(`Титхи группы ${panchaka}.`);
+  const strict = [];
+  const mainPlus = [], mainMinus = [], addPlus = [], addMinus = [], context = [];
+
+  const gana = ctx.nakshatraIdx != null ? nakshatraSvabhava(ctx.nakshatraIdx) : null;
+  const events = ctx.calendarEvents || [];
+  const eventTypes = events.map(e => e.type);
+  const wd = ctx.weekdayIdx;
+  const tn = ctx.tithiNumber;
+
+  // ---------- СТРОГИЕ ОГРАНИЧЕНИЯ ----------
+  if (tn != null && !ignores(rule, 'tithi') && GENERAL.tithiStrict.includes(tn)) {
+    strict.push(tn === 30 ? 'Амавасья — для начинаний не рекомендуется.' : 'Титхи Рикта — для начинаний традиционно не рекомендуется.');
+  }
+  if (ctx.karanaName && !ignores(rule, 'karana') && GENERAL.karanaStrict.includes(ctx.karanaName)) {
+    strict.push(`Карана ${ctx.karanaName} (Бхадра) — не рекомендуется для начинаний.`);
+  }
+  if (ctx.yogaName && !ignores(rule, 'yoga') && GENERAL.yogaStrict.includes(ctx.yogaName)) {
+    strict.push(`Нитья-йога ${ctx.yogaName} — неблагоприятная для начинаний.`);
+  }
+  if (GENERAL.eclipseStrict && !ignores(rule, 'eclipse') && eventTypes.some(t => t === 'Затмение (лунное)' || t === 'Затмение (солнечное)')) {
+    strict.push('День затмения — для начинаний не рекомендуется.');
+  }
+  if (rule.gandantaPada && ctx.nakshatraIdx != null && ctx.nakshatraPada != null) {
+    const hit = rule.gandantaPada.find(g => g.nak === ctx.nakshatraIdx && g.pada === ctx.nakshatraPada);
+    if (hit) strict.push(`Пада ${ctx.nakshatraPada} этой накшатры стоит на стыке знаков (гандаанта) — для этого дела не подходит.`);
+  }
+  if (rule.astaCheck && Array.isArray(ctx.astaPlanets)) {
+    for (const pl of rule.astaCheck) {
+      if (ctx.astaPlanets.includes(pl)) strict.push(`${pl} в асте (близко к Солнцу) — для этого дела не рекомендуется.`);
+    }
+  }
+  if (rule.dishashula && ctx.travelDirection && wd != null) {
+    const bad = dishashulaDirection(wd);
+    if (ctx.travelDirection === bad) strict.push(`Дишашула: направление «${bad}» в этот день недели не рекомендуется для начала поездки.`);
+    else addPlus.push(`Направление поездки не совпадает с Дишашулой дня (избегается «${bad}»).`);
   }
 
+  // ---------- ОСНОВНЫЕ ФАКТОРЫ ----------
   // Накшатра
-  if (gana && (roles.nakshatra === 'Ограничение' || roles.nakshatra === 'Благоприятно')) {
-    if (action.restrictedNakGana && action.restrictedNakGana.includes(gana)) {
-      restrictions.push(`Накшатра дня относится к группе «${gana}» — требует осторожности для этого действия.`);
-    } else if (action.favorableNakGana && action.favorableNakGana.includes(gana)) {
-      favorable.push(`Накшатра дня относится к группе «${gana}» — благоприятна для этого действия.`);
+  if (ctx.nakshatraIdx != null) {
+    const explicit = inList(rule.nakshatraPlus, ctx.nakshatraIdx);
+    const byGroup = gana && inList(rule.groupsPlus, gana);
+    const hasList = (rule.nakshatraPlus && rule.nakshatraPlus.length) || (rule.groupsPlus && rule.groupsPlus.length);
+    if (explicit || byGroup) {
+      mainPlus.push(explicit
+        ? 'Накшатра дня входит в список подходящих для этого дела.'
+        : `Накшатра дня («${gana}») подходит для этого дела.`);
+    } else if (gana && inList(rule.groupsMinus, gana)) {
+      mainMinus.push(`Накшатра дня относится к группе «${gana}» — для этого дела не поддерживает.`);
+    } else if (hasList) {
+      context.push(`Накшатра дня («${gana || '—'}») не входит в список подходящих для этого дела.`);
     }
-  } else if (roles.nakshatra === 'Контекст' && gana) {
-    context.push(`Накшатра дня — природа «${gana}».`);
+  }
+  // Особые дни (по типу события)
+  if (rule.specialDayPlus) {
+    const hit = events.find(e => rule.specialDayPlus.includes(e.type));
+    const fromTithi = !events.length && tn != null ? specialDayFromTithi(tn) : null;
+    if (hit) mainPlus.push(`Сегодня ${hit.label || hit.type} — благоприятный день для этого дела.`);
+    else if (fromTithi && rule.specialDayPlus.includes(fromTithi)) mainPlus.push(`Сегодня ${fromTithi} — благоприятный день для этого дела.`);
+  }
+  // Комбо: Гуру-Пушья
+  if (rule.combo === 'guruPushya' && ctx.nakshatraIdx === 7) {
+    if (wd === 4) mainPlus.push('Гуру-Пушья-йога (Пушья + четверг) — один из сильнейших дней для денежных дел.');
+    else mainPlus.push('Накшатра Пушья — поддерживает денежные дела.');
   }
 
-  // Вар — если у действия задан свой собственный список дней (не общая
-  // классификация Пн/Ср/Чт/Пт-хорошо, Вт/Сб-сложно), используем его.
-  if (action.favorableVaraIdx && dayCtx.weekdayIdx != null && action.favorableVaraIdx.includes(dayCtx.weekdayIdx)) {
-    favorable.push('Этот день недели классически хорош именно для этого действия.');
-  } else if (roles.vara === 'Ограничение' && action.restrictedVaraIdx) {
-    // Точный день недели (не общая классификация) — например, вторник для стрижки
-    if (dayCtx.weekdayIdx != null && action.restrictedVaraIdx.includes(dayCtx.weekdayIdx)) {
-      restrictions.push('Этот день недели традиционно избегается для этого действия.');
-    }
-  } else if (roles.vara === 'Ограничение' && varaGen === 'Сложный') {
-    restrictions.push('День недели классически считается более сложным для этого действия.');
-  } else if (roles.vara === 'Благоприятно' && varaGen === 'Благоприятный') {
-    favorable.push('День недели благоприятен.');
-  } else if (roles.vara === 'Контекст' && varaGen) {
-    context.push(`День недели: ${varaGen}.`);
+  // ---------- ДОПОЛНИТЕЛЬНЫЕ ----------
+  if (wd != null) {
+    if (inList(rule.varaPlus, wd)) addPlus.push(`День недели (${WEEKDAY_NAMES[wd]}) поддерживает это дело.`);
+    else if (inList(rule.varaMinus, wd)) addMinus.push(`День недели (${WEEKDAY_NAMES[wd]}) для этого дела традиционно слабее.`);
   }
-
-  // Гуру-Пушья-йога (только для действий с specialCombo === 'guruPushya'):
-  // Пушья (индекс накшатры 7) — уже сильный сигнал сам по себе, а в четверг — особенно.
-  if (action.specialCombo === 'guruPushya' && dayCtx.nakshatraIdx === 7) {
-    if (dayCtx.weekdayIdx === 4) {
-      favorable.push('Сегодня Гуру-Пушья-йога (накшатра Пушья + четверг) — один из самых благоприятных дней для этого действия.');
+  if (tn != null && rule.tithiPlus && rule.tithiPlus.includes(normTithi(tn)) && !GENERAL.tithiStrict.includes(tn)) {
+    addPlus.push(`Титхи ${normTithi(tn)}-я в пакше — из подходящих для этого дела.`);
+  }
+  // Личные показатели (Тара + Чандра-бала): тот же тон, что в календаре
+  const pers = ctx.personal;
+  if (pers) {
+    const text = `Личные показатели: ${pers.taraText || ''}${pers.taraText && pers.chandraText ? '; ' : ''}${pers.chandraText || ''}`.trim();
+    if (rule.personal === 'additional') {
+      if (pers.tone === 'good') addPlus.push(text + ' — благоприятно.');
+      else if (pers.tone === 'bad') addMinus.push(text + ' — неблагоприятно.');
+      else context.push(text + ' — умеренно.');
     } else {
-      favorable.push('Накшатра Пушья — благоприятна для денежных дел.');
+      context.push(text + '.');
     }
   }
 
-  // Тарабала
-  const tq = dayCtx.taraBala && dayCtx.taraBala.quality;
-  if (roles.tarabala === 'Благоприятно' && (tq === 'благоприятно' || tq === 'наиболее благоприятно')) {
-    favorable.push('Тарабала дня благоприятна.');
-  } else if (roles.tarabala && (tq === 'неблагоприятно' || tq === 'наименее благоприятно')) {
-    restrictions.push('Тарабала дня неблагоприятна — стоит учитывать независимо от роли фактора для этого действия.');
-  } else if (roles.tarabala === 'Контекст' && tq) {
-    context.push(`Тарабала: ${tq}.`);
-  }
+  // ---------- КОНТЕКСТ ----------
+  if (ctx.yogaName) context.push(`Нитья-йога: ${ctx.yogaName}.`);
+  if (ctx.karanaName) context.push(`Карана: ${ctx.karanaName}.`);
+  if (tn != null) context.push(`Титхи группы ${tithiPanchaka(tn)}.`);
+  events.forEach(e => { if (e.type === 'Экадаши' || e.type === 'Пурнима' || e.type === 'Санкранти') context.push(`Сегодня ${e.label || e.type}.`); });
 
-  // Пакша — универсальный модификатор (Уровень 1), одинаково для всех действий
-  if (paksha) {
-    context.push(`Пакша: ${paksha}.`);
+  // ---------- ИТОГ ----------
+  let status;
+  let strictOut = strict;
+  const cautions = [];
+  if (strict.length && rule.neverPostpone) {
+    // Для медицины/практик строгие ограничения не выводятся как «отложить»
+    strict.forEach(s => cautions.push(s));
+    strictOut = [];
   }
-
-  // Особые дни (для практик — благоприятно; для остального, если Ограничение — предупреждение)
-  if (specialDay) {
-    if (roles.specialDay === 'Благоприятно' && action.favorableSpecialDays && action.favorableSpecialDays.includes(specialDay)) {
-      favorable.push(`Сегодня ${specialDay} — благоприятный день для этого действия.`);
-    } else if (roles.specialDay === 'Ограничение') {
-      restrictions.push(`Сегодня ${specialDay} — требует осторожности для этого действия.`);
-    } else {
-      context.push(`Сегодня ${specialDay}.`);
-    }
+  if (strictOut.length) {
+    status = 'restricted';
+  } else if (mainPlus.length > 0 && mainMinus.length === 0 && addPlus.length - addMinus.length >= 0) {
+    status = 'supported';
+  } else {
+    status = 'insufficient';
   }
-
-  // Даша (смена периода сегодня)
-  if (dayCtx.dashaChangeToday) {
-    const msg = `Сегодня начинается новый период даши (${dayCtx.dashaChangeToday.level}: ${dayCtx.dashaChangeToday.lord}).`;
-    if (roles.dasha === 'Благоприятно') favorable.push(msg);
-    else context.push(msg);
-  }
-
-  // Чандра-бала (Луна от Лагны)
-  if (dayCtx.moonHouseFromLagna != null) {
-    if (action.favorableChandraHouse && action.favorableChandraHouse.includes(dayCtx.moonHouseFromLagna) && roles.chandraBala === 'Благоприятно') {
-      favorable.push(`Луна проходит ${dayCtx.moonHouseFromLagna} дом от Лагны — благоприятно для этого действия.`);
-    } else if (roles.chandraBala === 'Контекст') {
-      context.push(`Луна проходит ${dayCtx.moonHouseFromLagna} дом от Лагны.`);
-    }
-  }
-
-  // Транзит любой планеты от Лагны — единый механизм вместо отдельного
-  // блока кода под каждую планету. dayCtx.transitHouses — объект вида
-  // {Марс: 4, Венера: 11, Юпитер: 5, ...}; action.favorableTransitHouse /
-  // action.restrictedTransitHouse — объект вида {Марс: [4], Юпитер: [5,10]}.
-  if (dayCtx.transitHouses) {
-    if (action.favorableTransitHouse) {
-      for (const [planet, houses] of Object.entries(action.favorableTransitHouse)) {
-        const h = dayCtx.transitHouses[planet];
-        if (h != null && houses.includes(h)) {
-          favorable.push(`${planet} транзитом в ${h} доме от Лагны — благоприятно для этого действия.`);
-        }
-      }
-    }
-    if (action.restrictedTransitHouse) {
-      for (const [planet, houses] of Object.entries(action.restrictedTransitHouse)) {
-        const h = dayCtx.transitHouses[planet];
-        if (h != null && houses.includes(h)) {
-          restrictions.push(`${planet} транзитом в ${h} доме от Лагны — не лучшее время для этого действия.`);
-        }
-      }
-    }
-  }
-
-  // Дишашула — направление, неблагоприятное для начала поездки в этот день
-  // недели. Работает только если явно передано направление поездки —
-  // без него просто не участвует в оценке (не выдаём предупреждение "на
-  // всякий случай" без данных).
-  if (action.extraCheck === 'dishashula' && dayCtx.travelDirection && dayCtx.weekdayIdx != null) {
-    const badDirection = dishashulaDirection(dayCtx.weekdayIdx);
-    if (dayCtx.travelDirection === badDirection) {
-      restrictions.push(`Дишашула: направление «${badDirection}» традиционно не рекомендуется для начала поездки в этот день недели.`);
-    } else {
-      favorable.push(`Направление поездки не совпадает с Дишашулой этого дня (избегается «${badDirection}»).`);
-    }
-  }
+  const rank = mainPlus.length * 3 + addPlus.length - addMinus.length * 2 - mainMinus.length * 3;
 
   return {
-    actionKey,
-    label: action.label,
-    restrictions,
-    favorable,
-    context,
-    extraCheck: action.extraCheck || null, // напоминание, что для этого действия есть нереализованный доп.модуль
+    ...base,
+    status,
+    preliminary: !!rule.needsFullMuhurta,
+    needsFullMuhurta: !!rule.needsFullMuhurta,
+    needsVastu: !!rule.needsVastu,
+    rank,
+    strict: strictOut,
+    mainPlus, mainMinus, addPlus, addMinus, context, cautions,
+    // совместимость со старым форматом потребителей
+    restrictions: strictOut,
+    favorable: [...mainPlus, ...addPlus],
   };
 }
 
 module.exports = {
   ACTIONS,
+  ACTION_RULES,
   ACTION_ICONS,
   NICHE_ACTION_KEYS,
   TITHI_PANCHAKA,
-  NAKSHATRA_GANA,
   tithiPanchaka,
-  nakshatraGana,
-  varaGeneral,
+  nakshatraSvabhava,
+  nakshatraGana: nakshatraSvabhava, // старое имя
   specialDayFromTithi,
   dishashulaDirection,
   evaluateAction,
 };
-
-// ============================================================
-// OPEN_QUESTIONS — то, что нужно от тебя, прежде чем это будет
-// готовым продуктом, а не черновиком:
-//
-// 1. Вар как «Ограничение»/«Благоприятно» сейчас использует ОДНУ общую
-//    классификацию дней недели на все действия (Пн/Ср/Чт/Пт — общий
-//    плюс, Вт/Сб — общий минус). Устраивает ли это как база, или нужны
-//    для каких-то действий свои собственные исключения по вару (не
-//    просто общая благоприятность/сложность)?
-// 2. Натальная сила Марса для операции (не только транзитный дом) —
-//    обсуждали, отложили как отдельную, более сложную задачу.
-// ============================================================
