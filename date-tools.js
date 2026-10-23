@@ -17,7 +17,7 @@ function tithiWindow(year, month, day, lat, lon, utcOffset) {
   const startJD = sunriseJD(year, month, day, lat, lon, utcOffset);
   const nx = new Date(Date.UTC(year, month - 1, day) + 86400000);
   const endJD = sunriseJD(nx.getUTCFullYear(), nx.getUTCMonth() + 1, nx.getUTCDate(), lat, lon, utcOffset);
-  return { startJD, endJD, utcOffset, spans: computeTithiSpans(startJD, endJD) };
+  return { startJD, endJD, utcOffset, lat, lon, spans: computeTithiSpans(startJD, endJD) };
 }
 /** События дня для показа: Пурнима/Амавасья/Экадаши — с временем начала/конца внутри суток. */
 function windowEventsForDate(year, month, day, lat, lon, utcOffset) {
@@ -289,7 +289,7 @@ function computeDayDetail(chart, birthDateUTC, year, month, day, lat, lon, utcOf
   const transits = computeCurrentTransits(chart, dateAtNoonUTC);
   const moonTransitHouse = transits.planets['Луна'].transitHouse;
 
-  const events = getEventsForDate(year, month, day, panchanga.tithi.number);
+  const events = getEventsForDate(year, month, day, panchanga.tithi.number, undefined, { lat, lon, utcOffset });
 
   // Оценка дел по каждому отрезку дня: накшатра/тара/титхи/йога/карана/Луна — на середину отрезка.
   // Отрезки дополнительно режутся в моменты смены Караны/титхи/йоги; соседние части с одинаковым
@@ -317,7 +317,7 @@ function computeDayDetail(chart, birthDateUTC, year, month, day, lat, lon, utcOf
     if (per) majorPeriod[key] = per;
   }
 
-  const hasEclipse = events.some(ev => ev.type === 'Затмение (лунное)' || ev.type === 'Затмение (солнечное)');
+  const hasEclipse = events.some(ev => (ev.type === 'Затмение (лунное)' || ev.type === 'Затмение (солнечное)') && !ev.penumbral);
   const dayTier = computeDayTier({
     dateISO: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
     hasEclipse,
@@ -444,7 +444,7 @@ module.exports = {
  * по диапазону дат. Для крупных целей к мухурте добавляется оценка периода
  * (даша + гочара). Оценки хранятся раздельно, в один балл не сливаются.
  */
-function computeActionDateSearch(chart, birthDateUTC, lat, lon, utcOffset, actionKey, fromDateUTC, toDateUTC, travelDirection) {
+function computeActionDateSearch(chart, birthDateUTC, lat, lon, utcOffset, actionKey, fromDateUTC, toDateUTC, travelDirection, factorsIn) {
   const rule = ACTION_RULES[actionKey];
   if (!rule) throw new Error('Неизвестное действие: ' + actionKey);
   if (!(toDateUTC instanceof Date) || !(fromDateUTC instanceof Date) || isNaN(toDateUTC) || isNaN(fromDateUTC) || toDateUTC < fromDateUTC) {
@@ -461,6 +461,11 @@ function computeActionDateSearch(chart, birthDateUTC, lat, lon, utcOffset, actio
   const dayMs = 24 * 3600 * 1000;
   const totalDays = Math.min(maxDays, Math.round((toDateUTC - fromDateUTC) / dayMs) + 1);
   const isMajor = rule.category === 'major';
+  // Что учитывать при отборе дат. Для простых дел — только мухурта. Хотя бы один фактор всегда включён.
+  const F = isMajor
+    ? { muhurta: !factorsIn || factorsIn.muhurta !== false, dasha: !factorsIn || factorsIn.dasha !== false, gochara: !factorsIn || factorsIn.gochara !== false }
+    : { muhurta: true, dasha: false, gochara: false };
+  if (!F.muhurta && !F.dasha && !F.gochara) F.muhurta = true;
 
   const LV = { supports: 2, partial: 1, neutral: 0, not: 0, load: -1, nodata: 0 };
   const days = [];
@@ -469,7 +474,7 @@ function computeActionDateSearch(chart, birthDateUTC, lat, lon, utcOffset, actio
     const y = dateUTC.getUTCFullYear(), m = dateUTC.getUTCMonth() + 1, d = dateUTC.getUTCDate();
     const dayNak = computeDayNakshatraSegments(y, m, d, lat, lon, utcOffset, natalMoonNakIdx, chart.ayanamshaType, chart.customAyanamshaBase, moonSign);
     const pNoon = computePanchanga(y, m, d, 12, 0, lat, lon, utcOffset, chart.ayanamshaType, chart.customAyanamshaBase);
-    const events = getEventsForDate(y, m, d, pNoon.tithi.number);
+    const events = getEventsForDate(y, m, d, pNoon.tithi.number, undefined, { lat, lon, utcOffset });
 
     const segs = subdivideSegments(dayNak.segments, utcOffset).map(sg => {
       const ctx = buildSegmentCtx(chart, sg, y, m, d, lat, lon, utcOffset, events, { travelDirection });
@@ -489,30 +494,39 @@ function computeActionDateSearch(chart, birthDateUTC, lat, lon, utcOffset, actio
     })[0].r;
     const anySupported = segs.some(x => x.r.status === 'supported');
     const allRestricted = segs.every(x => x.r.status === 'restricted');
-    const quality = anySupported ? 'good' : allRestricted ? 'bad' : 'neutral';
 
     const noon = new Date(Date.UTC(y, m - 1, d, 12, 0, 0) - utcOffset * 3600000);
-    let period = null;
+    let period = null, perRaw = null;
     if (isMajor) {
-      const per = evaluateGoalPeriod(chart, birthDateUTC, actionKey, noon);
-      if (per) period = { summary: per.summary, dasha: per.dasha.label, gochara: per.gochara.label, dashaLines: per.dasha.lines, gocharaLines: per.gochara.lines, score: (LV[per.dasha.status] || 0) + (LV[per.gochara.status] || 0) };
+      perRaw = evaluateGoalPeriod(chart, birthDateUTC, actionKey, noon);
+      if (perRaw) period = { summary: perRaw.summary, dasha: perRaw.dasha.label, gochara: perRaw.gochara.label, dashaLines: perRaw.dasha.lines, gocharaLines: perRaw.gochara.lines, score: (LV[perRaw.dasha.status] || 0) + (LV[perRaw.gochara.status] || 0) };
     }
+    // Проходит ли день по каждому включённому фактору
+    const muhurtaOk = !F.muhurta || anySupported;
+    const dashaOk = !F.dasha || !perRaw || ['supports', 'partial', 'nodata'].includes(perRaw.dasha.status);
+    const gocharaOk = !F.gochara || !perRaw || perRaw.gochara.status !== 'load';
+    const periodBlocked = !(dashaOk && gocharaOk);
+    const quality = (muhurtaOk && !periodBlocked) ? 'good'
+      : (F.muhurta && allRestricted) ? 'bad' : 'neutral';
+
     days.push({
       date: dateUTC.toISOString().slice(0, 10),
       quality,
-      segments: merged,
-      rank: best.rank,
+      segments: F.muhurta ? merged : [],
+      periodBlocked,
+      rank: F.muhurta ? best.rank : 0,
       restrictions: best.strict,
       favorable: [...best.mainPlus, ...best.addPlus],
       cautions: [...best.mainMinus, ...best.addMinus],
       context: best.context,
       period,
-      score: best.rank + (period ? period.score : 0),
+      score: (F.muhurta ? best.rank : 0) + (period ? ((F.dasha ? (LV[perRaw.dasha.status] || 0) : 0) + (F.gochara ? (LV[perRaw.gochara.status] || 0) : 0)) : 0),
     });
   }
 
   const bestDays = days.filter(x => x.quality === 'good').sort((a, b) => b.score - a.score || a.date.localeCompare(b.date)).slice(0, 5)
     .map(x => ({ date: x.date, segments: x.segments.filter(sg => sg.status === 'supported'), period: x.period ? x.period.summary : null }));
+  const periodBlocksAll = isMajor && days.length > 0 && days.every(x => x.periodBlocked);
 
   return {
     actionLabel: rule.label,
@@ -520,6 +534,8 @@ function computeActionDateSearch(chart, birthDateUTC, lat, lon, utcOffset, actio
     preliminary: !!rule.needsFullMuhurta,
     needsVastu: !!rule.needsVastu,
     periodNow: days[0] && days[0].period ? days[0].period : null,
+    factors: F,
+    periodBlocksAll,
     best: bestDays,
     days,
   };

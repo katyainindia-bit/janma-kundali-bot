@@ -68,6 +68,17 @@ db.exec(`
     FOREIGN KEY (chart_id) REFERENCES charts(id)
   );
 
+  CREATE TABLE IF NOT EXISTS search_goals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    telegram_id INTEGER NOT NULL,
+    action TEXT NOT NULL,
+    direction TEXT,
+    range_days INTEGER,
+    place_json TEXT,
+    chart_name TEXT,
+    created_at TEXT NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS referral_rewards (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     referrer_id INTEGER NOT NULL,
@@ -225,6 +236,7 @@ function isPremium(telegramId) {
 function setTier(telegramId, tier, untilISO) {
   const info = db.prepare('UPDATE users SET tier = ?, premium_until = ? WHERE telegram_id = ?')
     .run(tier, untilISO || null, telegramId);
+  if (info.changes > 0 && tier === 'premium') enablePersonalOnPremium(telegramId);
   return info.changes > 0; // false = пользователь с таким telegram_id ещё не встречался боту
 }
 
@@ -250,6 +262,7 @@ function grantPremiumDays(telegramId, days) {
   const base = row.premium_until && new Date(row.premium_until) > now ? new Date(row.premium_until) : now;
   base.setDate(base.getDate() + days);
   db.prepare('UPDATE users SET tier = ?, premium_until = ? WHERE telegram_id = ?').run('premium', base.toISOString(), telegramId);
+  enablePersonalOnPremium(telegramId);
   return true;
 }
 function logReferralReward(referrerId, referredId, rewardType, premiumDays) {
@@ -428,7 +441,111 @@ function deleteNote(chartId, noteId) {
   return db.prepare('DELETE FROM chart_notes WHERE id = ? AND chart_id = ?').run(noteId, chartId);
 }
 
+try { db.exec('ALTER TABLE search_goals ADD COLUMN factors_json TEXT'); } catch (e) { /* колонка уже есть */ }
+// --- Настройки личных уведомлений и «Где я сейчас» (нужно серверу для рассылки по местному времени) ---
+try { db.exec('ALTER TABLE users ADD COLUMN place_json TEXT'); } catch (e) { /* уже есть */ }
+try { db.exec('ALTER TABLE users ADD COLUMN notify_prefs_json TEXT'); } catch (e) { /* уже есть */ }
+db.exec(`CREATE TABLE IF NOT EXISTS notify_sent (
+  telegram_id INTEGER NOT NULL, kind TEXT NOT NULL, key TEXT NOT NULL, sent_at TEXT NOT NULL,
+  PRIMARY KEY (telegram_id, kind, key)
+)`);
+try { db.exec('ALTER TABLE users ADD COLUMN notify_auto_rituals INTEGER NOT NULL DEFAULT 0'); } catch (e) { /* уже есть */ }
+try { db.exec('ALTER TABLE users ADD COLUMN notify_auto_personal INTEGER NOT NULL DEFAULT 0'); } catch (e) { /* уже есть */ }
+
+/**
+ * После первой построенной карты: лунный календарь включается всем, личные уведомления — тем, у кого Premium.
+ * Каждое включение происходит один раз (если человек потом выключит, повторно не включаем).
+ */
+function autoEnableNotifications(telegramId) {
+  const row = db.prepare('SELECT * FROM users WHERE telegram_id = ?').get(telegramId);
+  if (!row) return { rituals: false, personal: false };
+  const res = { rituals: false, personal: false };
+  if (!row.notify_auto_rituals) {
+    db.prepare('UPDATE users SET notify_rituals_enabled = 1, notify_auto_rituals = 1 WHERE telegram_id = ?').run(telegramId);
+    res.rituals = true;
+  }
+  if (!row.notify_auto_personal && isPremium(telegramId)) {
+    db.prepare('UPDATE users SET notify_enabled = 1, notify_auto_personal = 1 WHERE telegram_id = ?').run(telegramId);
+    res.personal = true;
+  }
+  return res;
+}
+
+// При получении Premium личные уведомления включаются сразу (один раз; если человек выключит — повторно не включаем)
+function enablePersonalOnPremium(telegramId) {
+  try {
+    const row = db.prepare('SELECT notify_auto_personal FROM users WHERE telegram_id = ?').get(telegramId);
+    if (row && !row.notify_auto_personal) {
+      db.prepare('UPDATE users SET notify_enabled = 1, notify_auto_personal = 1 WHERE telegram_id = ?').run(telegramId);
+    }
+  } catch (e) { /* не критично */ }
+}
+
+// Пользователь для рассылки (карта выбирается так же, как в listNotifiableUsers), независимо от переключателя
+function getNotifyUser(telegramId) {
+  const row = db.prepare('SELECT telegram_id, primary_chart_id, notify_state FROM users WHERE telegram_id = ?').get(telegramId);
+  if (!row) return null;
+  let chartId = row.primary_chart_id;
+  if (!chartId) {
+    const charts = listCharts(telegramId);
+    if (charts.length >= 1) chartId = charts[0].id;
+  }
+  if (!chartId) return null;
+  const chart = getChart(telegramId, chartId);
+  return chart ? { telegramId, chart, notifyState: row.notify_state ? JSON.parse(row.notify_state) : {} } : null;
+}
+
+// Пользователи с включённым ритуальным календарём и сохранённым местом (для рассылки по местному времени)
+function listRitualUsersWithPlace() {
+  return db.prepare('SELECT telegram_id, place_json FROM users WHERE notify_rituals_enabled = 1').all()
+    .map((r) => ({ telegramId: r.telegram_id, place: r.place_json ? JSON.parse(r.place_json) : null }));
+}
+function setUserPlace(telegramId, place) {
+  return db.prepare('UPDATE users SET place_json = ? WHERE telegram_id = ?').run(place ? JSON.stringify(place) : null, telegramId);
+}
+function getUserPlace(telegramId) {
+  const r = db.prepare('SELECT place_json FROM users WHERE telegram_id = ?').get(telegramId);
+  return r && r.place_json ? JSON.parse(r.place_json) : null;
+}
+function getNotifyPrefsRaw(telegramId) {
+  const r = db.prepare('SELECT notify_prefs_json FROM users WHERE telegram_id = ?').get(telegramId);
+  return r && r.notify_prefs_json ? JSON.parse(r.notify_prefs_json) : null;
+}
+function saveNotifyPrefs(telegramId, prefs) {
+  return db.prepare('UPDATE users SET notify_prefs_json = ? WHERE telegram_id = ?').run(JSON.stringify(prefs), telegramId);
+}
+function wasNotifySent(telegramId, kind, key) {
+  return !!db.prepare('SELECT 1 FROM notify_sent WHERE telegram_id = ? AND kind = ? AND key = ?').get(telegramId, kind, key);
+}
+function countNotifySent(telegramId, kind, prefix) {
+  return db.prepare("SELECT COUNT(*) AS c FROM notify_sent WHERE telegram_id = ? AND kind = ? AND key LIKE ?").get(telegramId, kind, prefix + '%').c;
+}
+function markNotifySent(telegramId, kind, key) {
+  db.prepare('INSERT OR IGNORE INTO notify_sent (telegram_id, kind, key, sent_at) VALUES (?, ?, ?, ?)').run(telegramId, kind, key, new Date().toISOString());
+  db.prepare("DELETE FROM notify_sent WHERE sent_at < datetime('now', '-60 days')").run();
+}
+
+const MAX_SEARCH_GOALS = 12;
+function listSearchGoals(telegramId) {
+  return db.prepare('SELECT * FROM search_goals WHERE telegram_id = ? ORDER BY id DESC').all(telegramId);
+}
+function saveSearchGoal(telegramId, g) {
+  const existing = db.prepare('SELECT id FROM search_goals WHERE telegram_id = ? AND action = ? AND IFNULL(direction, \'\') = ? AND IFNULL(range_days, 0) = ? AND IFNULL(place_json, \'\') = ? AND IFNULL(factors_json, \'\') = ?')
+    .get(telegramId, g.action, g.direction || '', g.rangeDays || 0, g.placeJson || '', g.factorsJson || '');
+  if (existing) return existing.id;
+  const count = db.prepare('SELECT COUNT(*) AS c FROM search_goals WHERE telegram_id = ?').get(telegramId).c;
+  if (count >= MAX_SEARCH_GOALS) return null;
+  const info = db.prepare('INSERT INTO search_goals (telegram_id, action, direction, range_days, place_json, chart_name, created_at, factors_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(telegramId, g.action, g.direction || null, g.rangeDays || null, g.placeJson || null, g.chartName || null, new Date().toISOString(), g.factorsJson || null);
+  return info.lastInsertRowid;
+}
+function deleteSearchGoal(telegramId, id) {
+  return db.prepare('DELETE FROM search_goals WHERE id = ? AND telegram_id = ?').run(id, telegramId);
+}
+
 module.exports = {
+  autoEnableNotifications, getNotifyUser, listRitualUsersWithPlace, setUserPlace, getUserPlace, getNotifyPrefsRaw, saveNotifyPrefs, wasNotifySent, markNotifySent, countNotifySent,
+  listSearchGoals, saveSearchGoal, deleteSearchGoal, MAX_SEARCH_GOALS,
   upsertUser, getAllUserIds, getUserCount,
   getUser, isPremium, setTier,
   setNotifyEnabled, setPrimaryChart, listNotifiableUsers, saveNotifyState, setAstroSettings,

@@ -123,7 +123,11 @@
     appearance: none;
     height: 44px;
     line-height: 20px;
+    text-align: left;
+    display: block;
   }
+  .field input[type="date"]::-webkit-date-and-time-value { text-align: left; }
+  .field input[type="date"]::-webkit-datetime-edit { padding: 0; text-align: left; }
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
   .btn-primary {
@@ -474,6 +478,9 @@
     pointer-events: none;
     transition: opacity .12s ease, transform .12s ease;
   }
+  @media (max-width: 480px) {
+    .period-tooltip { max-width: calc(100vw - 20px) !important; font-size: 12px; line-height: 1.4; padding: 8px 10px; }
+  }
   .period-tooltip.visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
   .period-tooltip .period-tooltip-date { display:block; font-size:11px; color: var(--gold); font-weight:600; letter-spacing:.03em; margin-bottom:4px; }
 
@@ -503,6 +510,8 @@
   .nav-item.active { color: var(--ink); font-weight: 600; }
   .nav-item .icon { width: 21px; height: 21px; color: var(--taupe); }
   .nav-item.active .icon { color: var(--gold); }
+  .nrow{display:flex;align-items:center;gap:8px;font-size:14px;margin:6px 0;text-transform:none;letter-spacing:0;color:var(--ink);}
+  .nrow input{width:16px;height:16px;flex:none;}
 </style>
 </head>
 <body>
@@ -607,6 +616,7 @@
         <div class="form-card" id="today-summary-card" style="padding:18px;text-align:center;">
           <div style="font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--gold);margin-bottom:8px;">Главное сегодня</div>
           <div id="today-summary-text" style="font-family:'Playfair Display',serif;font-size:17px;line-height:1.4;"></div>
+          <div id="today-energy" style="display:none;text-align:left;margin-top:12px;padding-top:12px;border-top:1px solid var(--line, rgba(0,0,0,.08));"></div>
         </div>
         <div class="info-card" id="today-events-card" style="display:none;">
           <div class="name" style="margin-bottom:6px;">События сегодня</div>
@@ -624,15 +634,7 @@
           <h2 style="font-size:15px;margin-bottom:10px;">Ближайшие события</h2>
           <div id="today-upcoming"></div>
         </div>
-        <div class="info-card" style="display:block;">
-          <div class="name" style="margin-bottom:6px;">Качество дня</div>
-          <div id="today-energy-descriptor" style="font-size:13px;color:var(--taupe);margin-bottom:8px;"></div>
-          <div class="current-period-row"><span class="label">Тара-бала</span><span class="value" id="today-tara">—</span></div>
-          <div class="current-period-row"><span class="label">Титхи</span><span class="value" id="today-tithi">—</span></div>
-          <div class="current-period-row"><span class="label">Накшатра дня</span><span class="value" id="today-nak">—</span></div>
-          <div class="current-period-row"><span class="label">Луна сегодня</span><span class="value" id="today-moon-house">—</span></div>
-          <div class="current-period-row" id="today-rahukalam-row" style="display:none;color:#a8654a;"><span class="label">⚠️ Раху-калам</span><span class="value" id="today-rahukalam">—</span></div>
-        </div>
+        <div class="current-period-row" id="today-rahukalam-row" style="display:none;color:#a8654a;margin:0 4px 12px;"><span class="label">⚠️ Раху-калам</span><span class="value" id="today-rahukalam">—</span></div>
         <div class="info-card" style="display:block;">
           <div class="name" style="margin-bottom:6px;">Сейчас действует</div>
           <div class="current-period-row"><span class="label">Махадаша</span><span class="value" id="today-maha">—</span></div>
@@ -901,10 +903,34 @@
     </div>
 
     <div class="tab-content" id="daystab-search">
+      <div class="chip-row" id="search-mode-chips" style="justify-content:flex-start;margin-bottom:12px;">
+        <span class="chip" data-mode="goal" style="cursor:pointer;">По делу</span>
+        <span class="chip" data-mode="day" style="cursor:pointer;">Все дела на день</span>
+      </div>
+      <div id="search-mode-day" style="display:none;">
+        <div class="form-card" style="padding:16px;">
+          <div class="field" style="margin-bottom:0;">
+            <label for="sd-date">День</label>
+            <input type="date" id="sd-date">
+          </div>
+          <div style="display:flex;gap:8px;margin-top:12px;">
+            <button class="btn-secondary" id="sd-today-btn" style="margin-bottom:0;">Сегодня</button>
+            <button class="btn-primary" id="sd-run-btn" style="margin-bottom:0;">Показать</button>
+          </div>
+        </div>
+        <div id="sd-result"></div>
+      </div>
+      <div id="search-mode-goal">
       <div class="form-card" style="padding:16px;">
         <div class="field">
           <label for="search-action-select">Действие</label>
           <select id="search-action-select"></select>
+        </div>
+        <div class="field" id="search-factors-field" style="display:none;">
+          <label>Что учитывать при поиске дат</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;margin:6px 0;text-transform:none;letter-spacing:0;color:var(--ink);"><input type="checkbox" id="sf-muhurta" checked style="width:16px;height:16px;"> Мухурта (панчанга дня)</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;margin:6px 0;text-transform:none;letter-spacing:0;color:var(--ink);"><input type="checkbox" id="sf-dasha" checked style="width:16px;height:16px;"> Период (даша)</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;margin:6px 0;text-transform:none;letter-spacing:0;color:var(--ink);"><input type="checkbox" id="sf-gochara" checked style="width:16px;height:16px;"> Транзиты (гочара)</label>
         </div>
         <div class="field" id="search-direction-field" style="display:none;">
           <label for="search-direction-select">Направление поездки (куда едете от места, откуда выезжаете — место рождения тут ни при чём)</label>
@@ -916,6 +942,22 @@
           </select>
         </div>
         <div class="field">
+          <label>Период поиска</label>
+          <div class="chip-row" id="search-range-chips">
+            <span class="chip" data-days="7" style="cursor:pointer;">7 дней</span>
+            <span class="chip" data-days="30" style="cursor:pointer;">30 дней</span>
+            <span class="chip" data-days="90" style="cursor:pointer;">90 дней</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Город события</label>
+          <div id="search-place-line" style="font-size:13px;color:var(--taupe);"></div>
+          <div id="search-place-edit" style="display:none;position:relative;">
+            <input type="text" id="search-place-input" placeholder="Город, где пройдёт событие" autocomplete="off">
+            <div id="search-place-suggestions" style="display:none;"></div>
+          </div>
+        </div>
+        <div class="field">
           <label for="search-from-date">С какой даты искать</label>
           <input type="date" id="search-from-date">
         </div>
@@ -925,6 +967,7 @@
         </div>
         <button class="btn-primary" id="search-run-btn" style="margin-top:14px;">Показать в календаре</button>
       </div>
+      <div id="search-saved-goals"></div>
       <div id="search-results"></div>
       <div class="form-card" id="search-cal-card" style="padding:16px;display:none;">
         <div class="name" id="search-cal-label" style="margin-bottom:10px;">—</div>
@@ -936,15 +979,17 @@
         </div>
       </div>
       <div id="search-day-detail" class="form-card" style="padding:16px;display:none;"></div>
+      </div>
     </div>
 
     <div class="tab-content" id="daystab-year">
-      <div class="form-card" style="padding:16px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+      <div class="form-card" style="padding:14px 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
           <button class="btn-secondary" id="year-prev-btn" style="width:auto;margin-bottom:0;padding:8px 14px;">←</button>
           <div class="name" id="year-label" style="margin-bottom:0;">—</div>
           <button class="btn-secondary" id="year-next-btn" style="width:auto;margin-bottom:0;padding:8px 14px;">→</button>
         </div>
+        <div id="year-chips" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;"></div>
       </div>
       <div id="year-events-list"></div>
     </div>
@@ -1101,7 +1146,7 @@
 
   <div class="form-card" id="profile-menu-card" style="padding:16px;">
     <h2 style="margin-bottom:4px;">Личные уведомления</h2>
-    <p style="font-size:12px;color:var(--taupe);margin-bottom:10px;">Смена подпериода даши, особые дни по тара-бале, заметные транзиты — по твоей карте. Требует Premium.</p>
+    <p style="font-size:12px;color:var(--taupe);margin-bottom:10px;">Личные сообщения в бот по твоей карте: «Энергия дня» утром и события дня. Требует Premium.</p>
     <div class="toggle-row">
       <div class="toggle-labels">
         <span class="label" style="margin:0;">Уведомления</span>
@@ -1109,11 +1154,13 @@
       </div>
       <label class="toggle-switch"><input type="checkbox" id="profile-notify-checkbox"><span class="toggle-slider"></span></label>
     </div>
+    <button class="btn-secondary" id="profile-notify-settings-btn" style="display:none;margin:10px 0 4px;">Настроить уведомления →</button>
     <div class="current-period-row" id="profile-notify-chart-row" style="display:none;">
       <span class="label">Карта для уведомлений</span><span class="value" id="profile-notify-chart-name">—</span>
     </div>
     <div class="current-period-row"><span class="label">Язык</span><span class="value">Русский</span></div>
   </div>
+
 
   <div class="form-card" id="profile-ritual-notify-card" style="padding:16px;">
     <h2 style="margin-bottom:4px;">Лунный календарь</h2>
@@ -1148,6 +1195,123 @@
     <button class="btn-secondary" id="settings-review-btn" style="margin-bottom:0;">Оставить отзыв</button>
   </div>
 
+</div>
+
+<div id="page-notify" style="display:none;">
+  <button class="btn-secondary" id="notify-back-btn" style="margin-bottom:14px;">← Назад</button>
+
+  <div class="form-card" style="padding:16px;">
+    <h2 style="margin-bottom:4px;">Утреннее сообщение</h2>
+    <p style="font-size:12px;color:var(--taupe);margin-bottom:10px;">«Энергия дня» и события дня. Приходит каждый день в выбранное время по твоему местному времени («Где я сейчас»).</p>
+    <div class="toggle-row">
+      <div class="toggle-labels"><span class="label" style="margin:0;">Присылать</span><span class="toggle-state" id="morning-enabled-label">—</span></div>
+      <label class="toggle-switch"><input type="checkbox" id="morning-enabled"><span class="toggle-slider"></span></label>
+    </div>
+    <div class="current-period-row"><span class="label">Время</span><span class="value"><input type="time" id="morning-time" style="border:1px solid var(--line);border-radius:8px;padding:4px 8px;background:var(--bg);font-size:14px;"></span></div>
+    <div style="font-size:12px;color:var(--taupe);margin:10px 0 4px;">Что добавлять в блок «Сегодня ещё»:</div>
+    <label class="nrow"><input type="checkbox" id="morning-b-events"> Праздники, экадаши, пурнима, амавасья</label>
+    <label class="nrow"><input type="checkbox" id="morning-b-period"> Смена периода</label>
+    <label class="nrow"><input type="checkbox" id="morning-b-transit"> Смена знака медленными планетами</label>
+    <label class="nrow"><input type="checkbox" id="morning-b-eclipse"> Затмения</label>
+    <div style="font-size:12px;color:var(--taupe);margin:10px 0 4px;">И в конце сообщения:</div>
+    <label class="nrow"><input type="checkbox" id="morning-b-affirmation"> Аффирмация дня (под тему и оценку дня)</label>
+  </div>
+
+  <div class="form-card" style="padding:16px;">
+    <h2 style="margin-bottom:4px;">Вечернее сообщение</h2>
+    <p style="font-size:12px;color:var(--taupe);margin-bottom:10px;">Завтрашний день и то, что скоро произойдёт: события, смена периода, переходы планет. Каждое событие объявляется один раз.</p>
+    <div class="toggle-row">
+      <div class="toggle-labels"><span class="label" style="margin:0;">Присылать</span><span class="toggle-state" id="evening-enabled-label">—</span></div>
+      <label class="toggle-switch"><input type="checkbox" id="evening-enabled"><span class="toggle-slider"></span></label>
+    </div>
+    <div class="current-period-row"><span class="label">Время</span><span class="value"><input type="time" id="evening-time" style="border:1px solid var(--line);border-radius:8px;padding:4px 8px;background:var(--bg);font-size:14px;"></span></div>
+    <div class="current-period-row"><span class="label">Смотреть вперёд</span><span class="value">
+      <select id="evening-horizon" style="border:1px solid var(--line);border-radius:8px;padding:4px 8px;background:var(--bg);font-size:14px;">
+        <option value="1">1 день</option><option value="2">2 дня</option><option value="3">3 дня</option><option value="5">5 дней</option><option value="7">7 дней</option>
+      </select></span></div>
+    <div style="font-size:12px;color:var(--taupe);margin:10px 0 4px;">Что включать:</div>
+    <label class="nrow"><input type="checkbox" id="evening-b-energy"> Энергия завтрашнего дня</label>
+    <label class="nrow"><input type="checkbox" id="evening-b-events"> Праздники и особые дни</label>
+    <label class="nrow"><input type="checkbox" id="evening-b-period"> Смена периода</label>
+    <label class="nrow"><input type="checkbox" id="evening-b-transit"> Смена знака медленными планетами</label>
+    <label class="nrow"><input type="checkbox" id="evening-b-eclipse"> Затмения</label>
+  </div>
+
+  <div class="form-card" style="padding:16px;">
+    <h2 style="margin-bottom:4px;">Моя неделя</h2>
+    <p style="font-size:12px;color:var(--taupe);margin-bottom:10px;">Сводка на ближайшие 7 дней: какие дни, твои дела, события. Пустые разделы не показываются.</p>
+    <div class="toggle-row">
+      <div class="toggle-labels"><span class="label" style="margin:0;">Присылать</span><span class="toggle-state" id="weekly-enabled-label">—</span></div>
+      <label class="toggle-switch"><input type="checkbox" id="weekly-enabled"><span class="toggle-slider"></span></label>
+    </div>
+    <div class="current-period-row"><span class="label">День недели</span><span class="value">
+      <select id="weekly-weekday" style="border:1px solid var(--line);border-radius:8px;padding:4px 8px;background:var(--bg);font-size:14px;">
+        <option value="1">Понедельник</option><option value="2">Вторник</option><option value="3">Среда</option><option value="4">Четверг</option>
+        <option value="5">Пятница</option><option value="6">Суббота</option><option value="0">Воскресенье</option>
+      </select></span></div>
+    <div class="current-period-row"><span class="label">Время</span><span class="value"><input type="time" id="weekly-time" style="border:1px solid var(--line);border-radius:8px;padding:4px 8px;background:var(--bg);font-size:14px;"></span></div>
+    <div style="font-size:12px;color:var(--taupe);margin:10px 0 4px;">Что включать:</div>
+    <label class="nrow"><input type="checkbox" id="weekly-b-days"> Оценка каждого дня</label>
+    <label class="nrow"><input type="checkbox" id="weekly-b-watch"> Мои дела (подходящие дни)</label>
+    <label class="nrow"><input type="checkbox" id="weekly-b-events"> Праздники и особые дни</label>
+    <label class="nrow"><input type="checkbox" id="weekly-b-period"> Смена периода</label>
+    <label class="nrow"><input type="checkbox" id="weekly-b-transit"> Смена знака медленными планетами</label>
+    <label class="nrow"><input type="checkbox" id="weekly-b-eclipse"> Затмения</label>
+  </div>
+
+  <div class="form-card" style="padding:16px;">
+    <h2 style="margin-bottom:4px;">Смена дня</h2>
+    <p style="font-size:12px;color:var(--taupe);margin-bottom:10px;">Короткое сообщение в момент, когда оценка дня меняется: например, день становится неблагоприятным или благоприятным.</p>
+    <div class="toggle-row">
+      <div class="toggle-labels"><span class="label" style="margin:0;">Присылать</span><span class="toggle-state" id="intraday-enabled-label">—</span></div>
+      <label class="toggle-switch"><input type="checkbox" id="intraday-enabled"><span class="toggle-slider"></span></label>
+    </div>
+    <label class="nrow"><input type="checkbox" id="intraday-toBad"> Когда день становится неблагоприятным</label>
+    <label class="nrow"><input type="checkbox" id="intraday-toGood"> Когда день становится благоприятным</label>
+    <div class="current-period-row"><span class="label">Когда присылать</span><span class="value">
+      <select id="intraday-lead" style="border:1px solid var(--line);border-radius:8px;padding:4px 8px;background:var(--bg);font-size:14px;">
+        <option value="0">В момент смены</option><option value="15">За 15 минут</option><option value="30">За 30 минут</option>
+      </select></span></div>
+    <div class="current-period-row"><span class="label">Не больше в день</span><span class="value">
+      <select id="intraday-max" style="border:1px solid var(--line);border-radius:8px;padding:4px 8px;background:var(--bg);font-size:14px;">
+        <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option>
+      </select></span></div>
+  </div>
+
+  <div class="form-card" style="padding:16px;">
+    <h2 style="margin-bottom:4px;">Тихие часы</h2>
+    <p style="font-size:12px;color:var(--taupe);margin-bottom:10px;">В это время сообщения о смене дня не приходят (местное время). Утреннее сообщение и «Моя неделя» приходят в то время, которое ты выбрала.</p>
+    <div class="toggle-row">
+      <div class="toggle-labels"><span class="label" style="margin:0;">Включены</span><span class="toggle-state" id="quiet-enabled-label">—</span></div>
+      <label class="toggle-switch"><input type="checkbox" id="quiet-enabled"><span class="toggle-slider"></span></label>
+    </div>
+    <div class="current-period-row"><span class="label">С</span><span class="value"><input type="time" id="quiet-from" style="border:1px solid var(--line);border-radius:8px;padding:4px 8px;background:var(--bg);font-size:14px;"></span></div>
+    <div class="current-period-row"><span class="label">До</span><span class="value"><input type="time" id="quiet-to" style="border:1px solid var(--line);border-radius:8px;padding:4px 8px;background:var(--bg);font-size:14px;"></span></div>
+  </div>
+
+  <div class="form-card" style="padding:16px;">
+    <h2 style="margin-bottom:4px;">Мои дела</h2>
+    <p style="font-size:12px;color:var(--taupe);margin-bottom:10px;">Отметь дела, за которыми приложение следит: в «Моей неделе» придут подходящие дни и время. До 5 дел.</p>
+    <div class="toggle-row" style="margin-top:6px;">
+      <div class="toggle-labels"><span class="label" style="margin:0;">Предупреждать накануне и в утреннем сообщении</span><span class="toggle-state" id="watchalert-enabled-label">—</span></div>
+      <label class="toggle-switch"><input type="checkbox" id="watchalert-enabled"><span class="toggle-slider"></span></label>
+    </div>
+    <div class="current-period-row"><span class="label">Время</span><span class="value"><input type="time" id="watchalert-time" style="border:1px solid var(--line);border-radius:8px;padding:4px 8px;background:var(--bg);font-size:14px;"></span></div>
+    <div id="watch-list"></div>
+  </div>
+  <div class="form-card" style="padding:16px;">
+    <h2 style="margin-bottom:4px;">Прислать пример</h2>
+    <p style="font-size:12px;color:var(--taupe);margin-bottom:10px;">Пришлю в Telegram сообщение за сегодняшний день, не дожидаясь расписания.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+      <button class="btn-secondary" data-test="morning" style="width:auto;padding:8px 12px;">Утреннее</button>
+      <button class="btn-secondary" data-test="weekly" style="width:auto;padding:8px 12px;">Моя неделя</button>
+      <button class="btn-secondary" data-test="evening" style="width:auto;padding:8px 12px;">Вечернее</button>
+      <button class="btn-secondary" data-test="intraday" style="width:auto;padding:8px 12px;">Смена дня</button>
+      <button class="btn-secondary" data-test="watch" style="width:auto;padding:8px 12px;">По моим делам</button>
+    </div>
+    <div id="test-note" style="font-size:12px;color:var(--taupe);margin-top:8px;min-height:16px;"></div>
+  </div>
+  <div id="morning-save-note" style="font-size:12px;color:var(--taupe);margin:0 4px 12px;min-height:16px;"></div>
 </div>
 
 <div id="page-settings" style="display:none;">
@@ -1246,9 +1410,7 @@
     construction: '<rect x="4.5" y="12" width="4.5" height="8"/><rect x="10" y="7" width="4.5" height="13"/><rect x="15.5" y="14.5" width="4" height="5.5"/>',
     wedding: '<circle cx="9" cy="14.5" r="4"/><circle cx="15" cy="14.5" r="4"/>',
     medicalCheckup: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v9M7.5 12h9"/>',
-    surgery: '<path d="M6 18 17 7"/><path d="M15 5l4 4"/><circle cx="7" cy="19" r="1.6"/>',
     spiritualPractice: '<path d="M12 20c-4-2-6-6-6-9.5 2 1 4 3 6 6 2-3 4-5 6-6 0 3.5-2 7.5-6 9.5Z"/><circle cx="12" cy="5.5" r="2"/>',
-    initiation: '<path d="M12 3.5c2 2.7 3.7 4.7 3.7 7.3a3.7 3.7 0 1 1-7.4 0c0-.9.4-1.8.9-2.6.5.9 1 1.3 1 1.3-.4-2.3.6-4.2 1.8-6Z"/>',
     contract: '<rect x="5.5" y="3.5" width="11" height="15" rx="1"/><path d="M8.3 8h5.4M8.3 11.5h5.4M8.3 15h3.4"/><path d="M15.5 15.3l3-3 1.2 1.2-3 3-1.7.5.5-1.7Z"/>',
     business: '<rect x="4" y="9" width="16" height="10.5" rx="1"/><path d="M9 9V6.3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1V9"/>',
     project: '<path d="M12 3c3 2.2 5 6 4 12.5l-4 2.7-4-2.7C7 9 9 5.2 12 3Z"/><circle cx="12" cy="10.5" r="1.6"/>',
@@ -1477,11 +1639,21 @@
   function hidePlanetTooltip() {
     if (planetTooltipEl) planetTooltipEl.classList.remove('visible');
   }
+  // Если подсказка не помещается на экране (особенно на телефоне) — по очереди
+  // убираем второстепенные абзацы (.tt-opt, с конца), пока она не влезет.
+  function fitTooltip(tip) {
+    const limit = window.innerHeight * 0.6;
+    tip.classList.add('visible');
+    const opts = Array.from(tip.querySelectorAll('.tt-opt'));
+    while (tip.offsetHeight > limit && opts.length) opts.pop().remove();
+  }
   function positionTooltipNear(tip, anchorEl) {
+    fitTooltip(tip);
     const rect = anchorEl.getBoundingClientRect();
     const margin = 10;
+    const tw = tip.offsetWidth || 300;
     let left = rect.left;
-    if (left + 300 > window.innerWidth - margin) left = window.innerWidth - 300 - margin;
+    if (left + tw > window.innerWidth - margin) left = window.innerWidth - tw - margin;
     if (left < margin) left = margin;
     tip.style.left = left + 'px';
     tip.style.top = (rect.bottom + 6) + 'px';
@@ -1517,12 +1689,12 @@
       <div style="font-weight:600;margin-bottom:4px;">${planetName} в ${house} доме, в ${SIGN_NAMES_PREP_D1[signIndex]}</div>
       <div style="font-size:11px;color:var(--gold);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:.03em;">${DIGNITY_LABELS_D1[status]}${isRetrograde ? ' · Ретроградна' : ''}</div>
       <p style="margin-bottom:8px;">${story.p1}</p>
-      ${story.p2 ? `<p style="margin-bottom:8px;">${story.p2}</p>` : ''}
-      ${karaka ? `<p style="margin-bottom:8px;"><b>${CHARA_KARAKA_NAMES[karaka]} (${karaka})</b> — ${CHARA_KARAKA_MEANINGS[karaka]}.</p>` : ''}
-      ${hasDigBala ? '<p style="margin-bottom:8px;">◈ <b>Есть диг-бала</b> — планета в доме своей направленной силы, это усиливает её.</p>' : ''}
+      ${story.p2 ? `<p class="tt-opt" style="margin-bottom:8px;">${story.p2}</p>` : ''}
+      ${karaka ? `<p class="tt-opt" style="margin-bottom:8px;"><b>${CHARA_KARAKA_NAMES[karaka]} (${karaka})</b> — ${CHARA_KARAKA_MEANINGS[karaka]}.</p>` : ''}
+      ${hasDigBala ? '<p class="tt-opt" style="margin-bottom:8px;">◈ <b>Есть диг-бала</b> — планета в доме своей направленной силы, это усиливает её.</p>' : ''}
       ${combust ? '<p style="color:#a8654a;margin-bottom:8px;">☉ <b>Сожжена</b> — планета слишком близко к Солнцу, её сила ослаблена.</p>' : ''}
-      ${atWar.length ? `<p style="color:#a8654a;margin-bottom:8px;">⚔ <b>Планетная война</b> с ${atWar.join(', ')} — обе планеты в одном градусе, борьба ослабляет проигравшую (кто именно — вопрос спорный между традициями).</p>` : ''}
-      ${isRetrograde ? '<p style="color:#a8654a;margin-bottom:8px;">Ретроградность: темы этой планеты разворачиваются внутрь, требуют пересмотра, а не прямого движения вперёд.</p>' : ''}
+      ${atWar.length ? `<p class="tt-opt" style="color:#a8654a;margin-bottom:8px;">⚔ <b>Планетная война</b> с ${atWar.join(', ')} — обе планеты в одном градусе, борьба ослабляет проигравшую (кто именно — вопрос спорный между традициями).</p>` : ''}
+      ${isRetrograde ? '<p class="tt-opt" style="color:#a8654a;margin-bottom:8px;">Ретроградность: темы этой планеты разворачиваются внутрь, требуют пересмотра, а не прямого движения вперёд.</p>' : ''}
     `;
     tip.classList.add('visible');
     positionTooltipNear(tip, anchorEl);
@@ -1531,14 +1703,23 @@
   // Подсказка для транзитной планеты — градус на самой карте больше не
   // печатается (см. renderChartSVGNorth), чтобы не наезжать на натальные
   // планеты; точный градус, знак и накшатру показываем здесь по нажатию.
+  const TRANSIT_THEMES_D1 = {
+    Солнце: 'воли и авторитета', Луна: 'эмоций и повседневности', Меркурий: 'общения и дел',
+    Венера: 'отношений и удовольствий', Марс: 'энергии и действий', Юпитер: 'роста и поддержки',
+    Сатурн: 'дисциплины и ответственности', Раху: 'желаний и перемен', Кету: 'отпускания и внутреннего поиска',
+  };
   function showTransitDetail(anchorEl, planetName, signIndex, degInSign, nakName, nakPada, transitHouse) {
     const status = getDignityStatusD1(planetName, signIndex);
     const nakMeaning = NAKSHATRA_MEANINGS_D1[nakName] || '';
+    const theme = TRANSIT_THEMES_D1[planetName] || '';
+    const houseMeaning = HOUSE_MEANINGS_D1[transitHouse];
     const tip = ensurePlanetTooltip();
     tip.innerHTML = `
-      <div style="font-weight:600;margin-bottom:4px;">${planetName} транзитом в ${SIGN_NAMES_D1[signIndex]}, ${transitHouse} дом</div>
+      <div style="font-weight:600;margin-bottom:4px;">${planetName} сейчас в ${SIGN_NAMES_PREP_D1[signIndex]}, ${transitHouse} дом</div>
       <div style="font-size:11px;color:var(--gold);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:.03em;">${dms(degInSign)} · ${DIGNITY_LABELS_D1[status]}</div>
-      ${nakName ? `<p style="margin-bottom:0;"><b>Накшатра: ${nakName}</b> (пада ${nakPada})<br><span style="color:var(--taupe);">${nakMeaning}</span></p>` : ''}
+      <p style="margin-bottom:8px;">Сейчас ${planetName} проходит ваш ${transitHouse} дом.${theme ? ` Тема ${theme}` : ''}${houseMeaning ? ` направлена на ${houseMeaning}.` : ''}</p>
+      <p class="tt-opt" style="margin-bottom:8px;">${dignityTextFor(status, planetName)}</p>
+      ${nakName ? `<p class="tt-opt" style="margin-bottom:0;">Накшатра «${nakName}»${nakPada ? ' (пада ' + nakPada + ')' : ''}: <span style="color:var(--taupe);">${nakMeaning}</span></p>` : ''}
     `;
     tip.classList.add('visible');
     positionTooltipNear(tip, anchorEl);
@@ -1549,6 +1730,13 @@
   // Ретроградность показываем чёрточкой НАД символом планеты (как в
   // классических распечатках) — настоящей линией по замеренной ширине
   // текста, а не диакритиком (тот давал разрывы между буквами на iOS/Android).
+  // Значок караки (АК, АмК и т.д.) рядом с символом планеты на самой карте
+  function addKarakaBadge(svg, el, px, py, fs, karaka) {
+    if (!karaka) return;
+    const b = el('text', { x: px + fs * 0.62, y: py - fs * 0.55, 'text-anchor': 'start', 'font-family': 'Inter, sans-serif', 'font-size': 6, 'font-weight': 700, fill: '#C8A26B', 'pointer-events': 'none' });
+    b.textContent = karaka;
+    svg.appendChild(b);
+  }
   function addRetroBar(svg, textEl, color) {
     // Не полагаемся на getBBox(): в скрытом контейнере (или в некоторых
     // мобильных WebView) он либо бросает ошибку, либо возвращает нулевой
@@ -1742,6 +1930,7 @@
     for (const [name, p] of Object.entries(chart.planets)) signPlanets[p.sign.index].push({ name, p });
     const planetPixelPos = {};
     const housePixelPos = {};
+    const chartKarakas = computeCharaKarakas(chart);
 
     const transitsBySign = {};
     if (transitsData) {
@@ -1813,6 +2002,7 @@
           t.textContent = PLANET_SYMBOLS[item.name];
           svg.appendChild(t);
           if (item.p.retrograde) addRetroBar(svg, t, color);
+          addKarakaBadge(svg, el, px, py, fs, chartKarakas[item.name]);
           const dt = el('text', { x: px, y: py + fs * 1.1, 'text-anchor': 'middle', 'font-family': 'Inter, sans-serif', 'font-size': degFs, fill: '#7A6B5A' });
           dt.textContent = dms(item.p.sign.degInSign);
           svg.appendChild(dt);
@@ -1865,6 +2055,7 @@
   }
 
   function renderChartSVG(chart, svgId, transitsData) {
+    const chartKarakas = computeCharaKarakas(chart);
     const svg = document.getElementById(svgId || 'chart-svg');
     svg.innerHTML = '';
     const ns = 'http://www.w3.org/2000/svg';
@@ -2002,6 +2193,7 @@
             t.textContent = PLANET_SYMBOLS[item.name];
             svg.appendChild(t);
             if (item.p.retrograde) addRetroBar(svg, t, color);
+            addKarakaBadge(svg, el, px, py, fs, chartKarakas[item.name]);
             const dt = el('text', {x:px,y:py+fs*1.15,'text-anchor':'middle','font-family':'Inter, sans-serif','font-size':degFs,fill:'#7A6B5A'});
             dt.textContent = dms(item.p.sign.degInSign);
             svg.appendChild(dt);
@@ -2089,7 +2281,7 @@
     });
   });
 
-  const PAGES = ['home', 'days', 'archive', 'profile', 'settings'];
+  const PAGES = ['home', 'days', 'archive', 'profile', 'settings', 'notify'];
   document.querySelectorAll('.nav-item').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
@@ -2559,6 +2751,15 @@
   // Используется и формой построения карты, и открытием карты из архива.
   async function displayChartResults({ name, day, month, year, hour, minute, lat, lon, utcOffset, placeLabel }) {
     currentArchiveChartId = null;
+    // После первой построенной карты: лунный календарь включается всем, личные уведомления — Premium
+    // (сервер делает это один раз, повторно не включает); заодно сообщаем серверу «Где я сейчас»
+    if (!window.__autoNotifyAsked) {
+      window.__autoNotifyAsked = true;
+      try {
+        fetch('/api/notify/auto-enable', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ initData: getInitData() }) }).catch(() => {});
+        syncPlaceToServer();
+      } catch (e) {}
+    }
     const chartRes = await fetch('/api/chart', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ day, month, year, hour, minute, lat, lon, utcOffset })
@@ -2618,6 +2819,9 @@
     const timeStr = document.getElementById('f-time').value.trim();
     const city = document.getElementById('f-city').value.trim();
     const name = document.getElementById('f-name').value.trim() || 'Без имени';
+
+    if (!(day >= 1 && day <= 31 && month >= 1 && month <= 12 && year >= 1900 && year <= 2100)) { errorEl.textContent = 'Проверьте дату рождения: день, месяц и год (1900–2100)'; errorEl.style.display='block'; return; }
+    if (day > new Date(Date.UTC(year, month, 0)).getUTCDate()) { errorEl.textContent = 'Такой даты не существует: в этом месяце нет ' + day + '-го числа'; errorEl.style.display='block'; return; }
 
     const timeMatch = timeStr.match(/^(\d{1,2}):(\d{2})$/);
     if (!timeMatch) { errorEl.textContent = 'Введите время в формате ЧЧ:ММ'; errorEl.style.display='block'; return; }
@@ -2973,6 +3177,7 @@
     const SPECIAL_ASPECTS = { 'Марс': [4,8], 'Юпитер': [5,9], 'Сатурн': [3,10] };
     function houseDistance(fromHouse, toHouse) { return ((toHouse - fromHouse + 12) % 12) + 1; }
     function aspectsAt(name, distance) {
+      if (name === 'Раху' || name === 'Кету') return false;
       if (distance === 7) return true;
       return !!(SPECIAL_ASPECTS[name] && SPECIAL_ASPECTS[name].includes(distance));
     }
@@ -3293,7 +3498,7 @@
         }
         return targets;
       }
-      const order = ['Солнце','Луна','Меркурий','Венера','Марс','Юпитер','Сатурн','Раху','Кету'];
+      const order = ['Солнце','Луна','Меркурий','Венера','Марс','Юпитер','Сатурн'];
       let html = '<div class="name" style="margin-bottom:6px;">Аспекты</div><div style="font-size:11px;color:var(--taupe);margin-bottom:10px;">Нажмите на планету — увидите, куда идут её аспекты</div>';
       html += '<div class="chip-row" id="aspects-planet-row" style="justify-content:flex-start;">' + order.map(name => `<span class="chip" data-asp-planet="${name}" style="cursor:pointer;">${PLANET_SYMBOLS[name]}</span>`).join('') + '</div>';
       html += '<div id="aspects-detail" style="font-size:12px;color:var(--taupe);margin-top:10px;"></div>';
@@ -3646,10 +3851,12 @@
         notifyCheckbox.disabled = true;
         notifyLabel.textContent = 'доступно в Premium';
         chartRow.style.display = 'none';
+        applyMorningPrefs(null, false);
       } else {
         notifyCheckbox.disabled = false;
         notifyCheckbox.checked = data.notifyEnabled;
         notifyLabel.textContent = data.notifyEnabled ? 'Вкл' : 'Выкл';
+        applyMorningPrefs(data.notifyPrefs, data.notifyEnabled);
         if (data.notifyEnabled) {
           chartRow.style.display = 'flex';
           document.getElementById('profile-notify-chart-name').textContent = 'Загрузка…';
@@ -3797,6 +4004,7 @@
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Ошибка');
       document.getElementById('profile-notify-label').textContent = enabled ? 'Вкл' : 'Выкл';
+      document.getElementById('profile-notify-settings-btn').style.display = enabled ? 'block' : 'none';
       await loadProfile();
     } catch (e) {
       e.target.checked = !enabled;
@@ -3935,6 +4143,131 @@
     return (currentChartMeta && currentChartMeta.placeLabel) || 'место рождения';
   }
   function shortPlace(n) { return String(n).split(',')[0].trim(); }
+  // Сервер должен знать «Где я сейчас», чтобы слать уведомления по местному времени
+  function syncPlaceToServer() {
+    try {
+      const s = getPlace();
+      fetch('/api/place/save', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: getInitData(), place: s ? { name: s.name, lat: s.lat, lon: s.lon, utcOffset: s.utcOffset } : null }) }).catch(() => {});
+    } catch (e) {}
+  }
+  let notifyPrefsLoaded = false; // сохраняем только после того, как настройки загрузились в форму
+  let watchActions = [];
+  let watchSelected = [];
+  const el = (id) => document.getElementById(id);
+  const blockIds = {
+    morning: ['events', 'period', 'transit', 'eclipse', 'affirmation'],
+    evening: ['energy', 'events', 'period', 'transit', 'eclipse'],
+    weekly: ['days', 'watch', 'events', 'period', 'transit', 'eclipse'],
+  };
+  function applyMorningPrefs(prefs, notifyOn) {
+    const btn = el('profile-notify-settings-btn');
+    if (!prefs || !notifyOn) { btn.style.display = 'none'; return; }
+    btn.style.display = 'block';
+    syncPlaceToServer();
+    const m = prefs.morning, w = prefs.weekly;
+    el('morning-enabled').checked = m.enabled;
+    el('morning-enabled-label').textContent = m.enabled ? 'Вкл' : 'Выкл';
+    el('morning-time').value = m.time;
+    blockIds.morning.forEach((k) => { el('morning-b-' + k).checked = m.blocks[k]; });
+    const ev = prefs.evening;
+    el('evening-enabled').checked = ev.enabled;
+    el('evening-enabled-label').textContent = ev.enabled ? 'Вкл' : 'Выкл';
+    el('evening-time').value = ev.time;
+    el('evening-horizon').value = String(ev.horizon);
+    blockIds.evening.forEach((k) => { el('evening-b-' + k).checked = ev.blocks[k]; });
+    el('weekly-enabled').checked = w.enabled;
+    el('weekly-enabled-label').textContent = w.enabled ? 'Вкл' : 'Выкл';
+    el('weekly-weekday').value = String(w.weekday);
+    el('weekly-time').value = w.time;
+    blockIds.weekly.forEach((k) => { el('weekly-b-' + k).checked = w.blocks[k]; });
+    const it = prefs.intraday, q = prefs.quiet;
+    el('intraday-enabled').checked = it.enabled;
+    el('intraday-enabled-label').textContent = it.enabled ? 'Вкл' : 'Выкл';
+    el('intraday-toBad').checked = it.toBad;
+    el('intraday-toGood').checked = it.toGood;
+    el('intraday-lead').value = String(it.lead);
+    el('intraday-max').value = String(it.maxPerDay);
+    el('quiet-enabled').checked = q.enabled;
+    el('quiet-enabled-label').textContent = q.enabled ? 'Вкл' : 'Выкл';
+    el('quiet-from').value = q.from;
+    el('quiet-to').value = q.to;
+    el('watchalert-enabled').checked = prefs.watchAlert.enabled;
+    el('watchalert-enabled-label').textContent = prefs.watchAlert.enabled ? 'Вкл' : 'Выкл';
+    el('watchalert-time').value = prefs.watchAlert.time;
+    watchSelected = (prefs.watch || []).slice();
+    notifyPrefsLoaded = true;
+    renderWatchList();
+  }
+  async function renderWatchList() {
+    const box = el('watch-list');
+    if (!watchActions.length) {
+      try {
+        const r = await fetch('/api/actions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        const d = await r.json();
+        watchActions = d.actions.filter((a) => a.category !== 'pending');
+      } catch (e) { box.innerHTML = ''; return; }
+    }
+    const groups = [['simple', 'Повседневные дела'], ['major', 'Крупные цели']];
+    const full = watchSelected.length >= 5;
+    box.innerHTML = groups.map(([cat, title]) => `<div style="font-size:12px;color:var(--taupe);margin:10px 0 2px;">${title}</div>` +
+      watchActions.filter((a) => a.category === cat).map((a) => {
+        const on = watchSelected.includes(a.key);
+        return `<label class="nrow"><input type="checkbox" data-watch="${a.key}" ${on ? 'checked' : ''} ${(!on && full) ? 'disabled' : ''}> ${escapeHtml(a.label)}</label>`;
+      }).join('')).join('');
+    box.querySelectorAll('[data-watch]').forEach((cb) => cb.addEventListener('change', () => {
+      const k = cb.dataset.watch;
+      watchSelected = cb.checked ? [...watchSelected.filter((x) => x !== k), k] : watchSelected.filter((x) => x !== k);
+      renderWatchList();
+      saveNotifyPrefsFromUi();
+    }));
+  }
+  async function saveNotifyPrefsFromUi() {
+    if (!notifyPrefsLoaded) return;
+    const note = el('morning-save-note');
+    el('morning-enabled-label').textContent = el('morning-enabled').checked ? 'Вкл' : 'Выкл';
+    el('weekly-enabled-label').textContent = el('weekly-enabled').checked ? 'Вкл' : 'Выкл';
+    el('evening-enabled-label').textContent = el('evening-enabled').checked ? 'Вкл' : 'Выкл';
+    el('watchalert-enabled-label').textContent = el('watchalert-enabled').checked ? 'Вкл' : 'Выкл';
+    el('intraday-enabled-label').textContent = el('intraday-enabled').checked ? 'Вкл' : 'Выкл';
+    el('quiet-enabled-label').textContent = el('quiet-enabled').checked ? 'Вкл' : 'Выкл';
+    const blocks = (pref, keys) => Object.fromEntries(keys.map((k) => [k, el(pref + '-b-' + k).checked]));
+    const prefs = {
+      morning: { enabled: el('morning-enabled').checked, time: el('morning-time').value || '08:00', blocks: blocks('morning', blockIds.morning) },
+      evening: { enabled: el('evening-enabled').checked, time: el('evening-time').value || '20:00', horizon: Number(el('evening-horizon').value), blocks: blocks('evening', blockIds.evening) },
+      weekly: { enabled: el('weekly-enabled').checked, weekday: Number(el('weekly-weekday').value), time: el('weekly-time').value || '19:00', blocks: blocks('weekly', blockIds.weekly) },
+      watch: watchSelected,
+      intraday: { enabled: el('intraday-enabled').checked, toBad: el('intraday-toBad').checked, toGood: el('intraday-toGood').checked, lead: Number(el('intraday-lead').value), maxPerDay: Number(el('intraday-max').value) },
+      watchAlert: { enabled: el('watchalert-enabled').checked, time: el('watchalert-time').value || '18:00' },
+      quiet: { enabled: el('quiet-enabled').checked, from: el('quiet-from').value || '22:00', to: el('quiet-to').value || '06:00' },
+    };
+    try {
+      const r = await fetch('/api/notify/prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ initData: getInitData(), prefs }) });
+      note.textContent = r.ok ? 'Сохранено' : 'Не удалось сохранить';
+    } catch (e) { note.textContent = 'Не удалось сохранить'; }
+  }
+  ['morning-enabled', 'morning-time', 'watchalert-enabled', 'watchalert-time', 'evening-enabled', 'evening-time', 'evening-horizon', 'weekly-enabled', 'weekly-weekday', 'weekly-time', 'intraday-enabled', 'intraday-toBad', 'intraday-toGood', 'intraday-lead', 'intraday-max', 'quiet-enabled', 'quiet-from', 'quiet-to']
+    .concat(blockIds.morning.map((k) => 'morning-b-' + k), blockIds.evening.map((k) => 'evening-b-' + k), blockIds.weekly.map((k) => 'weekly-b-' + k))
+    .forEach((id) => el(id).addEventListener('change', saveNotifyPrefsFromUi));
+  document.querySelectorAll('[data-test]').forEach((b) => b.addEventListener('click', async () => {
+    const note = el('test-note');
+    note.textContent = 'Отправляю…';
+    try {
+      const r = await fetch('/api/notify/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ initData: getInitData(), kind: b.dataset.test }) });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Ошибка');
+      note.textContent = d.sent ? 'Отправлено в Telegram' : (d.note || 'Сейчас нечего показать');
+    } catch (e) { note.textContent = e.message; }
+  }));
+  el('profile-notify-settings-btn').addEventListener('click', () => {
+    PAGES.forEach((p) => { const e2 = el('page-' + p); if (e2) e2.style.display = (p === 'notify') ? 'block' : 'none'; });
+    el('morning-save-note').textContent = '';
+    window.scrollTo(0, 0);
+  });
+  el('notify-back-btn').addEventListener('click', () => {
+    PAGES.forEach((p) => { const e2 = el('page-' + p); if (e2) e2.style.display = (p === 'profile') ? 'block' : 'none'; });
+  });
+
   async function refreshPlaceOffset() {
     const s = getPlace();
     if (!s) return;
@@ -3947,6 +4280,7 @@
       const d = await r.json();
       if (r.ok && typeof d.utcOffset === 'number' && d.utcOffset !== s.utcOffset) {
         localStorage.setItem('jy_place', JSON.stringify({ ...s, utcOffset: d.utcOffset }));
+        syncPlaceToServer();
       }
     } catch (e) {}
   }
@@ -3977,7 +4311,7 @@
     input.focus();
     document.getElementById('place-cancel').addEventListener('click', (e) => { e.preventDefault(); renderPlaceBar(false); });
     const reset = document.getElementById('place-reset');
-    if (reset) reset.addEventListener('click', (e) => { e.preventDefault(); try { localStorage.removeItem('jy_place'); } catch (er) {} renderPlaceBar(false); reloadForPlace(); });
+    if (reset) reset.addEventListener('click', (e) => { e.preventDefault(); try { localStorage.removeItem('jy_place'); } catch (er) {} syncPlaceToServer(); renderPlaceBar(false); reloadForPlace(); });
     input.addEventListener('input', () => {
       clearTimeout(placeSuggestTimer);
       const q = input.value.trim();
@@ -3997,6 +4331,7 @@
               const td = await tr.json();
               if (!tr.ok || typeof td.utcOffset !== 'number') throw new Error('tz');
               localStorage.setItem('jy_place', JSON.stringify({ name: c.city, lat: c.lat, lon: c.lon, utcOffset: td.utcOffset }));
+              syncPlaceToServer();
               renderPlaceBar(false);
               reloadForPlace();
             } catch (er) {
@@ -4059,20 +4394,18 @@
       // особых дней (затмение, Экадаши/Амавасья, смена даши) — обычные «хорошее время для шагов»
       // могли спорить с цветом.
       const specialTier = ['eclipse', 'inward', 'dashaChange'].includes(data.dayTierKey);
-      document.getElementById('today-energy-descriptor').textContent = specialTier ? (data.energyDescriptor || '') : '';
-      document.getElementById('today-tara').innerHTML = `${data.taraBala.name} <span class="sub">(${data.taraBala.quality})</span>`
-        + (data.daySegments && data.daySegments.length
-          ? `<div style="margin-top:6px;text-align:left;">${daySegmentsHtml(data.daySegments, data.currentSegmentIndex)}</div>` : '');
-      document.getElementById('today-tithi').textContent = `${data.tithi.name} (№${data.tithi.number}, ${data.tithi.paksha})`;
-      document.getElementById('today-nak').textContent = data.nakshatraOfDay;
-      document.getElementById('today-moon-house').textContent = data.moonHouseMeaning || `${data.moonTransitHouse}-й дом`;
-
       const toneKey = data.dayTone || 'moderate';
       document.getElementById('today-summary-text').innerHTML =
         `<div style="display:flex;align-items:center;justify-content:center;gap:7px;margin-bottom:6px;">
            <span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${TONE_DOT[toneKey]};"></span>
            <span style="font-size:15px;">${TONE_LABEL[toneKey]}</span>
          </div>${specialTier ? escapeHtml(data.daySummary || '') : ''}`;
+      const energyBox = document.getElementById('today-energy');
+      if (data.dayEnergyText && data.dayEnergyText.text) {
+        energyBox.innerHTML = `<div style="font-family:'Playfair Display',serif;font-size:16px;margin-bottom:6px;">${escapeHtml(data.dayEnergyText.title)}</div>
+          <div style="font-size:14px;line-height:1.55;">${escapeHtml(data.dayEnergyText.text)}</div>`;
+        energyBox.style.display = 'block';
+      } else { energyBox.innerHTML = ''; energyBox.style.display = 'none'; }
 
       const eventsCard = document.getElementById('today-events-card');
       if (data.events && data.events.length > 0) {
@@ -4086,10 +4419,13 @@
       }
 
       const supportedCard = document.getElementById('today-supported-card');
-      document.getElementById('today-supported').innerHTML = (data.supported && data.supported.length > 0)
-        ? actionChipsHtml(data.supported, 'today-sup') + '<div style="font-size:11px;color:var(--taupe);margin-top:8px;">Нажмите на дело, чтобы увидеть, почему.</div>'
-        : '<div style="font-size:13px;color:var(--taupe);">Сейчас нет дел с выраженной поддержкой.</div>';
-      supportedCard.style.display = 'block';
+      if (data.supported && data.supported.length > 0) {
+        document.getElementById('today-supported').innerHTML = actionChipsHtml(data.supported, 'today-sup') + '<div style="font-size:11px;color:var(--taupe);margin-top:8px;">Нажмите на дело, чтобы увидеть, почему.</div>';
+        supportedCard.style.display = 'block';
+      } else {
+        document.getElementById('today-supported').innerHTML = '';
+        supportedCard.style.display = 'none';
+      }
 
       const postponeCard = document.getElementById('today-postpone-card');
       if (data.postpone && data.postpone.length > 0) {
@@ -4224,9 +4560,10 @@
     contentEl.style.display = 'block';
     await renderCalendarMonth();
     await loadActionsIntoSelect();
-    const today = new Date();
-    document.getElementById('search-from-date').value = today.toISOString().slice(0, 10);
-    document.getElementById('search-to-date').value = new Date(today.getTime() + 90 * 86400000).toISOString().slice(0, 10);
+    setSearchRange(90);
+    setSearchMode(searchMode);
+    renderSearchPlaceLine();
+    loadSavedGoals();
   }
 
   document.getElementById('days-upgrade-btn').addEventListener('click', showUpgradePrompt);
@@ -4244,49 +4581,123 @@
   });
 
   let yearEventsYear = new Date().getUTCFullYear();
+  let yearSel = 'soon'; // 'soon' | 'all' | 0..11
+  let yearCache = { year: null, events: null };
+  const YEAR_MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+  const YEAR_MONTHS_SHORT = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
+  const YEAR_DOW = ['вс','пн','вт','ср','чт','пт','сб'];
+  function yearChipsHtml() {
+    const chip = (key, text) => {
+      const on = String(yearSel) === String(key);
+      return `<button type="button" data-ychip="${key}" style="flex:0 0 auto;border:1px solid ${on ? 'var(--gold)' : 'var(--border, #e5dccb)'};background:${on ? 'var(--gold)' : 'transparent'};color:${on ? '#fff' : 'var(--taupe)'};border-radius:16px;padding:6px 12px;font-size:13px;font-family:inherit;cursor:pointer;">${text}</button>`;
+    };
+    let h = chip('soon', 'Ближайшие') + chip('all', 'Весь год');
+    for (let i = 0; i < 12; i++) h += chip(i, YEAR_MONTHS_SHORT[i]);
+    return h;
+  }
+  function yearItemHtml(ev, todayIso) {
+    const [yy, mm, dd] = ev.date.split('-').map(Number);
+    const dow = YEAR_DOW[new Date(Date.UTC(yy, mm - 1, dd)).getUTCDay()];
+    const diff = Math.round((Date.UTC(yy, mm - 1, dd) - Date.UTC(+todayIso.slice(0, 4), +todayIso.slice(5, 7) - 1, +todayIso.slice(8, 10))) / 86400000);
+    let when = '';
+    if (diff === 0) when = 'сегодня';
+    else if (diff === 1) when = 'завтра';
+    else if (diff > 1 && diff <= 60) when = `через ${diff} дн.`;
+    const desc = ev.description || '';
+    const long = desc.length > 110;
+    return `<div class="note-item" style="text-align:left;${diff === 0 ? 'border-color:var(--gold);' : ''}${diff < 0 ? 'opacity:.6;' : ''}">
+      <div style="display:flex;gap:12px;align-items:flex-start;text-align:left;width:100%;">
+        <div style="flex:0 0 46px;text-align:left;">
+          <div style="font-family:'Playfair Display',serif;font-size:22px;line-height:1;color:var(--gold);font-weight:600;">${dd}</div>
+          <div style="font-size:11px;color:var(--taupe);margin-top:3px;">${YEAR_MONTHS_SHORT[mm - 1]}, ${dow}</div>
+        </div>
+        <div style="flex:1;min-width:0;text-align:left;">
+          <div style="font-size:14px;"><b>${eventIconSvg(ev.type)}${escapeHtml(ev.label)}</b>${when ? ` <span style="color:var(--gold);font-size:12px;">· ${when}</span>` : ''}</div>
+          ${desc ? `<div class="year-desc" style="color:var(--taupe);font-size:12px;margin-top:3px;line-height:1.45;${long ? 'display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;' : ''}">${escapeHtml(desc)}</div>` : ''}
+          ${long ? '<div class="year-more" style="color:var(--gold);font-size:12px;margin-top:3px;cursor:pointer;">Подробнее</div>' : ''}
+        </div>
+      </div>
+    </div>`;
+  }
+  function paintYearEvents() {
+    const listEl = document.getElementById('year-events-list');
+    const chipsEl = document.getElementById('year-chips');
+    chipsEl.innerHTML = yearChipsHtml();
+    const act = chipsEl.querySelector(`[data-ychip="${yearSel}"]`);
+    if (act && act.scrollIntoView) { try { chipsEl.scrollLeft = Math.max(0, act.offsetLeft - 60); } catch (e) {} }
+    const now = new Date();
+    const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const all = yearCache.events || [];
+    let items, grouped = true;
+    if (yearSel === 'soon') {
+      items = all.filter(e => e.date >= todayIso).slice(0, 12);
+      grouped = false;
+      if (!items.length) { yearSel = 'all'; return paintYearEvents(); }
+    } else if (yearSel === 'all') {
+      items = all;
+    } else {
+      items = all.filter(e => parseInt(e.date.split('-')[1], 10) - 1 === yearSel);
+    }
+    if (!items.length) {
+      listEl.innerHTML = '<div class="form-card" style="padding:16px;font-size:13px;color:var(--taupe);text-align:left;">В этом месяце праздников в списке нет.</div>';
+      return;
+    }
+    let html = '', lastMonth = null;
+    for (const ev of items) {
+      const m = parseInt(ev.date.split('-')[1], 10) - 1;
+      if (grouped && yearSel === 'all' && m !== lastMonth) {
+        html += `<div style="font-family:'Playfair Display',serif;font-weight:600;font-size:15px;color:var(--gold);margin:${lastMonth === null ? '0' : '18px'} 0 8px;text-align:left;">${YEAR_MONTHS[m]}</div>`;
+        lastMonth = m;
+      }
+      html += yearItemHtml(ev, todayIso);
+    }
+    listEl.innerHTML = html;
+  }
+  document.getElementById('year-chips').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-ychip]');
+    if (!b) return;
+    const v = b.dataset.ychip;
+    yearSel = (v === 'soon' || v === 'all') ? v : parseInt(v, 10);
+    paintYearEvents();
+  });
+  document.getElementById('year-events-list').addEventListener('click', (e) => {
+    const more = e.target.closest('.year-more');
+    if (!more) return;
+    const d = more.previousElementSibling;
+    const open = d.style.display !== '-webkit-box';
+    d.style.display = open ? '-webkit-box' : 'block';
+    more.textContent = open ? 'Подробнее' : 'Свернуть';
+  });
   async function renderYearEvents() {
     const errorEl = document.getElementById('days-error-msg');
     errorEl.style.display = 'none';
     document.getElementById('year-label').textContent = yearEventsYear;
     const listEl = document.getElementById('year-events-list');
-    listEl.innerHTML = '<div style="font-size:13px;color:var(--taupe);text-align:center;">Загрузка…</div>';
+    const curYear = new Date().getFullYear();
+    if (yearEventsYear !== curYear && yearSel === 'soon') yearSel = new Date().getFullYear() === yearEventsYear ? 'soon' : 'all';
+    listEl.innerHTML = '<div style="font-size:13px;color:var(--taupe);text-align:left;">Загрузка…</div>';
     try {
       const res = await fetch('/api/year-events', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData: getInitData(), year: yearEventsYear })
+        body: JSON.stringify({ initData: getInitData(), year: yearEventsYear, ...(currentChartMeta ? placeParams() : {}) })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Ошибка');
+      yearCache = { year: yearEventsYear, events: data.events };
       if (data.events.length === 0) {
-        listEl.innerHTML = '<div class="form-card" style="padding:16px;font-size:13px;color:var(--taupe);text-align:center;">На этот год пока нет данных в таблице — она заполнена на 2026 (и частично 2027).</div>';
+        document.getElementById('year-chips').innerHTML = '';
+        listEl.innerHTML = '<div class="form-card" style="padding:16px;font-size:13px;color:var(--taupe);text-align:left;">На этот год пока нет данных в таблице — она заполнена на 2026 (и частично 2027).</div>';
         return;
       }
-      const MONTH_NAMES = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
-      let lastMonth = null, html = '';
-      for (const ev of data.events) {
-        const m = parseInt(ev.date.split('-')[1], 10) - 1;
-        if (m !== lastMonth) {
-          html += `<div style="font-family:'Playfair Display',serif;font-weight:600;font-size:15px;color:var(--gold);margin:${lastMonth===null?'0':'18px'} 0 8px;text-align:left;">${MONTH_NAMES[m]}</div>`;
-          lastMonth = m;
-        }
-        html += `
-        <div class="note-item" style="text-align:left;">
-          <div class="note-text" style="text-align:left;">
-            <span style="color:var(--gold);font-weight:600;">${ev.date.split('-').reverse().join('.')}</span><br>
-            <b>${eventIconSvg(ev.type)}${escapeHtml(ev.label)}</b>
-            ${ev.description ? '<br><span style="color:var(--taupe);font-size:12px;">' + escapeHtml(ev.description) + '</span>' : ''}
-          </div>
-        </div>`;
-      }
-      listEl.innerHTML = html;
+      paintYearEvents();
     } catch (e) {
       errorEl.textContent = 'Не удалось загрузить: ' + e.message;
       errorEl.style.display = 'block';
       listEl.innerHTML = '';
     }
   }
-  document.getElementById('year-prev-btn').addEventListener('click', () => { yearEventsYear--; renderYearEvents(); });
-  document.getElementById('year-next-btn').addEventListener('click', () => { yearEventsYear++; renderYearEvents(); });
+  document.getElementById('year-prev-btn').addEventListener('click', () => { yearEventsYear--; yearSel = (yearEventsYear === new Date().getFullYear()) ? 'soon' : 'all'; renderYearEvents(); });
+  document.getElementById('year-next-btn').addEventListener('click', () => { yearEventsYear++; yearSel = (yearEventsYear === new Date().getFullYear()) ? 'soon' : 'all'; renderYearEvents(); });
 
   const MONTH_NAMES = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
 
@@ -4343,15 +4754,24 @@
         : MH_STATUS_RU[items[0].status];
       const prelim = first.needsFullMuhurta ? ' (предварительно: нужна полноценная мухурта' + (first.needsVastu ? ' и проверка по Васту' : '') + ')' : '';
       const per = dd.majorPeriod && dd.majorPeriod[first.key];
-      const perHtml = per ? `<br><span style="font-size:12px;">Даша: ${escapeHtml(per.dasha.label)}. Гочара: ${escapeHtml(per.gochara.label)}.</span>
-        <details style="margin-top:4px;"><summary style="font-size:11px;color:var(--taupe);cursor:pointer;">почему</summary>
+      const muhOk = items.some(it => it.status === 'supported');
+      let verdict = '';
+      if (per) {
+        if (per.dasha.status === 'not') verdict = 'Период не поддерживает — лучше отложить, даже если мухурта дня подходит.';
+        else if (per.gochara.status === 'load') verdict = 'Транзиты дают нагрузку — действовать осторожно.';
+        else if (muhOk && items.every(it => it.status === 'supported')) verdict = 'Период и мухурта дня подходят.';
+        else if (muhOk) verdict = 'Период подходит; мухурта подходит только в части дня (см. время выше).';
+        else verdict = 'Период подходит, но мухурта дня выраженной поддержки не даёт.';
+      }
+      const perHtml = per ? `<span style="font-size:13px;">Даша: <b>${escapeHtml(per.dasha.label)}</b>. Гочара: <b>${escapeHtml(per.gochara.label)}</b>.</span><br>` : '';
+      const whyHtml2 = per ? `<details style="margin-top:4px;"><summary style="font-size:11px;color:var(--taupe);cursor:pointer;">почему</summary>
         ${[...per.dasha.lines, ...per.gochara.lines].map(l => `<div style="font-size:12px;margin-top:2px;">${escapeHtml(l)}</div>`).join('')}</details>` : '';
-      return `<div class="note-item"><div class="note-text"><b>${actionIconSvg(first.key)}${label}</b><br><span style="color:var(--taupe);font-size:12px;">Мухурта: ${escapeHtml(statusLine)}${prelim}</span>${perHtml}</div></div>`;
+      return `<div class="note-item"><div class="note-text"><b>${actionIconSvg(first.key)}${label}</b><br>${perHtml}<span style="color:var(--taupe);font-size:12px;">Мухурта дня: ${escapeHtml(statusLine)}${prelim}</span>${verdict ? `<br><b style="font-size:12px;${per && per.dasha.status === 'not' ? 'color:#a8654a;' : ''}">${verdict}</b>` : ''}${whyHtml2}</div></div>`;
     }).join('');
-    return `<div style="margin-top:16px;"><b style="font-size:13px;">Крупные дела</b><div style="font-size:11px;color:var(--taupe);margin-bottom:6px;">Мухурта дня плюс период (даша и гочара). Полный подбор дат — во вкладке «Поиск по цели».</div>${rows}</div>`;
+    return `<div style="margin-top:16px;"><b style="font-size:13px;">Крупные дела</b><div style="font-size:11px;color:var(--taupe);margin-bottom:6px;">Сначала период (даша и гочара), затем мухурта дня. Полный подбор дат — во вкладке «Поиск по цели».</div>${rows}</div>`;
   }
   let __mhCounter = 0;
-  function muhurtaBySegmentHtml(dd) {
+  function muhurtaBySegmentHtml(dd, withMajor) {
     const parts = (dd.muhurtaBySegment && dd.muhurtaBySegment.length ? dd.muhurtaBySegment : [{ supported: dd.supported, postpone: dd.postpone, tone: dd.dayTone }]);
     const multi = parts.length > 1;
     const base = 'dd' + (++__mhCounter) + '_';
@@ -4361,30 +4781,36 @@
         <div style="margin-top:6px;"><b style="font-size:13px;">Благоприятно:</b>
           ${m.supported && m.supported.length ? actionChipsHtml(m.supported, base + mi + 's') : '<div style="font-size:12px;color:var(--taupe);margin-top:4px;">Явной поддержки нет.</div>'}
         </div>
-        ${m.postpone && m.postpone.length ? `<div style="margin-top:6px;"><b style="font-size:13px;">Лучше отложить:</b>${actionChipsHtml(m.postpone, base + mi + 'p')}</div>` : ''}
+        ${m.postpone && m.postpone.length ? `<div style="margin-top:6px;"><b style="font-size:13px;">Неблагоприятно:</b>${actionChipsHtml(m.postpone, base + mi + 'p')}</div>` : ''}
       </div>`;
     }).join('');
-    return segs + majorBlockHtml(dd);
+    return withMajor ? segs + majorBlockHtml(dd) : segs;
   }
 
+  const calMonthCache = new Map(); // уже посчитанные месяцы — повторный заход без ожидания
   async function renderCalendarMonth() {
     const errorEl = document.getElementById('days-error-msg');
     errorEl.style.display = 'none';
     document.getElementById('cal-month-label').textContent = `${MONTH_NAMES[calMonth-1]} ${calYear}`;
     document.getElementById('cal-day-detail').style.display = 'none';
     const grid = document.getElementById('cal-grid');
-    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;font-size:12px;color:var(--taupe);">Загрузка…</div>';
-
     const p = currentChartMeta.params;
     const birthDateUTC = new Date(Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, 0) - p.utcOffset * 3600000).toISOString();
+    const monthKey = [JSON.stringify(p), JSON.stringify(placeParams()), calYear, calMonth].join('|');
 
     try {
-      const res = await fetch('/api/calendar-month', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData: getInitData(), chart: currentChart, birthDateUTC, year: calYear, month: calMonth, ...placeParams() })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Ошибка');
+      let data = calMonthCache.get(monthKey);
+      if (!data) {
+        grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;font-size:13px;color:var(--taupe);padding:18px 8px;line-height:1.5;">Подождите немного — идёт расчёт относительно вашей натальной карты…</div>';
+        const res = await fetch('/api/calendar-month', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ initData: getInitData(), chart: currentChart, birthDateUTC, year: calYear, month: calMonth, ...placeParams() })
+        });
+        data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Ошибка');
+        if (calMonthCache.size > 24) calMonthCache.clear();
+        calMonthCache.set(monthKey, data);
+      }
 
       const firstDow = (new Date(Date.UTC(calYear, calMonth - 1, 1)).getUTCDay() + 6) % 7; // 0=понедельник
       let html = '';
@@ -4415,7 +4841,7 @@
           const day = Number(cell.dataset.day);
           const detail = document.getElementById('cal-day-detail');
           detail.style.display = 'block';
-          detail.innerHTML = '<div style="font-size:13px;color:var(--taupe);">Загрузка…</div>';
+          detail.innerHTML = '<div style="font-size:13px;color:var(--taupe);">Подождите немного — идёт расчёт относительно вашей натальной карты…</div>';
           try {
             const p2 = currentChartMeta.params;
             const birthDateUTC2 = new Date(Date.UTC(p2.year, p2.month - 1, p2.day, p2.hour, p2.minute, 0) - p2.utcOffset * 3600000).toISOString();
@@ -4434,6 +4860,7 @@
               <div class="current-period-row"><span class="label">Титхи</span><span class="value">${pn.tithi.name} (${pn.tithi.paksha})</span></div>
               <div class="current-period-row"><span class="label">Йога</span><span class="value">${pn.yoga.name}</span></div>
               <div class="current-period-row"><span class="label">Карана</span><span class="value">${pn.karana.name}</span></div>
+              ${dd.moonHouseMeaning ? `<div style="font-size:12px;color:var(--taupe);margin:6px 0;">${escapeHtml(dd.moonHouseMeaning)}</div>` : ''}
               <div style="margin:10px 0 4px;"><b style="font-size:13px;">Накшатра и тара-бала</b><div style="font-size:11px;color:var(--taupe);">день от восхода ${dd.sunrise} до следующего восхода ${dd.nextSunrise}</div>${daySegmentsHtml(dd.daySegments, -1)}</div>
               ${dd.dashaChangeToday ? `<div class="current-period-row"><span class="label">Смена периода</span><span class="value">${dd.dashaChangeToday.level}: ${dd.dashaChangeToday.lord}</span></div>` : ''}
               <div class="current-period-row"><span class="label">🌅 Восход</span><span class="value">${pn.sunrise||'—'}</span></div>
@@ -4473,12 +4900,203 @@
         const items = data.actions.filter(a => a.category === cat);
         return items.length ? `<optgroup label="${title}">${items.map(a => `<option value="${a.key}">${a.label}</option>`).join('')}</optgroup>` : '';
       }).join('');
+      window.__actionCats = Object.fromEntries(data.actions.map(a => [a.key, a.category]));
       select.dataset.loaded = '1';
+      syncFactorsField();
       document.getElementById('search-direction-field').style.display = select.value === 'travel' ? 'block' : 'none';
     } catch (e) { /* останется пустым — не критично */ }
   }
 
+  // ---------- Поиск по цели: период, город события, сохранённые цели ----------
+  let searchRangeDays = null;      // 7 | 30 | 90, либо null, если даты выставлены руками
+  let searchPlaceOverride = null;  // {name, lat, lon, utcOffset} — город события; null = «Где я сейчас»
+
+  function searchPlaceParams() {
+    return searchPlaceOverride
+      ? { lat: searchPlaceOverride.lat, lon: searchPlaceOverride.lon, utcOffset: searchPlaceOverride.utcOffset }
+      : placeParams();
+  }
+  function renderSearchPlaceLine() {
+    const line = document.getElementById('search-place-line');
+    const edit = document.getElementById('search-place-edit');
+    if (!line) return;
+    edit.style.display = 'none';
+    const label = searchPlaceOverride ? shortPlace(searchPlaceOverride.name) : shortPlace(placeName());
+    line.innerHTML = `📍 ${escapeHtml(label)}${searchPlaceOverride ? '' : ' <span style="opacity:.7">(где вы сейчас)</span>'} · <a href="#" id="search-place-change" style="color:var(--gold);text-decoration:underline;">другой город</a>${searchPlaceOverride ? ' · <a href="#" id="search-place-reset" style="color:var(--gold);text-decoration:underline;">сбросить</a>' : ''}`;
+    document.getElementById('search-place-change').addEventListener('click', (e) => {
+      e.preventDefault();
+      edit.style.display = 'block';
+      document.getElementById('search-place-input').focus();
+    });
+    const rs = document.getElementById('search-place-reset');
+    if (rs) rs.addEventListener('click', (e) => { e.preventDefault(); searchPlaceOverride = null; renderSearchPlaceLine(); });
+  }
+  let searchPlaceTimer = null;
+  document.getElementById('search-place-input').addEventListener('input', (e) => {
+    clearTimeout(searchPlaceTimer);
+    const q = e.target.value.trim();
+    const box = document.getElementById('search-place-suggestions');
+    if (q.length < 2) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    searchPlaceTimer = setTimeout(async () => {
+      try {
+        const r = await fetch('/api/geocode-suggest', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q }) });
+        const d = await r.json();
+        if (!d.candidates || !d.candidates.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+        box.style.cssText = 'display:block;position:absolute;z-index:5;background:var(--bg);border:1px solid var(--line);border-radius:10px;margin-top:2px;max-height:220px;overflow-y:auto;width:100%;box-shadow:0 4px 12px rgba(0,0,0,0.08);';
+        box.innerHTML = d.candidates.map((c, i) => `<div data-si="${i}" style="padding:10px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--line);">${escapeHtml(c.city)}</div>`).join('');
+        box.querySelectorAll('[data-si]').forEach(el => el.addEventListener('click', async () => {
+          const c = d.candidates[Number(el.dataset.si)];
+          // часовой пояс — на дату начала поиска (учёт летнего времени)
+          const fd = (document.getElementById('search-from-date').value || new Date().toISOString().slice(0, 10)).split('-').map(Number);
+          try {
+            const tr = await fetch('/api/timezone-for-coords', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lat: c.lat, lon: c.lon, year: fd[0], month: fd[1], day: fd[2], hour: 12, minute: 0 }) });
+            const td = await tr.json();
+            if (!tr.ok || typeof td.utcOffset !== 'number') throw new Error('tz');
+            searchPlaceOverride = { name: c.city, lat: c.lat, lon: c.lon, utcOffset: td.utcOffset };
+            box.style.display = 'none'; box.innerHTML = '';
+            document.getElementById('search-place-input').value = '';
+            renderSearchPlaceLine();
+          } catch (er) {
+            box.innerHTML = '<div style="padding:10px 12px;font-size:13px;">Не удалось определить часовой пояс. Попробуйте другой город.</div>';
+          }
+        }));
+      } catch (er) {}
+    }, 350);
+  });
+
+  function setSearchRange(days) {
+    searchRangeDays = days;
+    const today = new Date();
+    document.getElementById('search-from-date').value = today.toISOString().slice(0, 10);
+    document.getElementById('search-to-date').value = new Date(today.getTime() + days * 86400000).toISOString().slice(0, 10);
+    markRangeChips();
+  }
+  function markRangeChips() {
+    document.querySelectorAll('#search-range-chips .chip').forEach(c => {
+      const on = Number(c.dataset.days) === searchRangeDays;
+      c.style.background = on ? 'var(--gold)' : '';
+      c.style.color = on ? '#fff' : '';
+    });
+  }
+  document.querySelectorAll('#search-range-chips .chip').forEach(c => c.addEventListener('click', () => setSearchRange(Number(c.dataset.days))));
+  ['search-from-date', 'search-to-date'].forEach(id => document.getElementById(id).addEventListener('change', () => { searchRangeDays = null; markRangeChips(); }));
+
+  async function loadSavedGoals() {
+    const box = document.getElementById('search-saved-goals');
+    if (!box) return;
+    try {
+      const r = await fetch('/api/search-goals/list', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ initData: getInitData() }) });
+      const d = await r.json();
+      if (!r.ok || !d.goals || !d.goals.length) { box.innerHTML = ''; return; }
+      const sel = document.getElementById('search-action-select');
+      const labelOf = (key) => { const o = sel.querySelector(`option[value="${key}"]`); return o ? o.textContent : key; };
+      box.innerHTML = `<div class="form-card" style="padding:14px;"><div class="name" style="margin-bottom:8px;">Мои цели</div><div class="chip-row">${d.goals.map(g => `
+        <span class="chip" data-goal='${escapeHtml(JSON.stringify(g))}' style="cursor:pointer;">${escapeHtml(labelOf(g.action))}${g.rangeDays ? ' · ' + g.rangeDays + ' дн.' : ''}${g.place ? ' · ' + escapeHtml(shortPlace(g.place.name)) : ''}
+        <span data-goal-del="${g.id}" style="margin-left:6px;opacity:.6;">✕</span></span>`).join('')}</div></div>`;
+      box.querySelectorAll('[data-goal-del]').forEach(x => x.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await fetch('/api/search-goals/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ initData: getInitData(), id: Number(x.dataset.goalDel) }) });
+        loadSavedGoals();
+      }));
+      box.querySelectorAll('[data-goal]').forEach(ch => ch.addEventListener('click', () => {
+        const g = JSON.parse(ch.dataset.goal);
+        sel.value = g.action;
+        sel.dispatchEvent(new Event('change'));
+        if (g.direction) document.getElementById('search-direction-select').value = g.direction;
+        searchPlaceOverride = g.place || null;
+        renderSearchPlaceLine();
+        if (g.factors) {
+          document.getElementById('sf-muhurta').checked = !!g.factors.muhurta;
+          document.getElementById('sf-dasha').checked = !!g.factors.dasha;
+          document.getElementById('sf-gochara').checked = !!g.factors.gochara;
+        }
+        setSearchRange(g.rangeDays || 30);
+        document.getElementById('search-run-btn').click();
+      }));
+    } catch (e) { box.innerHTML = ''; }
+  }
+  async function saveCurrentGoal(btn) {
+    const actionKey = document.getElementById('search-action-select').value;
+    try {
+      const r = await fetch('/api/search-goals/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        initData: getInitData(), action: actionKey,
+        direction: actionKey === 'travel' ? document.getElementById('search-direction-select').value : null,
+        rangeDays: searchRangeDays, place: searchPlaceOverride, factors: (window.__actionCats || {})[actionKey] === 'major' ? searchFactors() : null, chartName: currentChartMeta ? currentChartMeta.name : null,
+      }) });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Ошибка');
+      btn.textContent = 'Цель сохранена ✓';
+      btn.disabled = true;
+      loadSavedGoals();
+    } catch (e) { btn.textContent = e.message; }
+  }
+
+  // ---------- Режимы поиска: «По делу» / «Все дела на день» ----------
+  let searchMode = 'goal';
+  function setSearchMode(mode) {
+    searchMode = mode;
+    document.getElementById('search-mode-goal').style.display = mode === 'goal' ? 'block' : 'none';
+    document.getElementById('search-mode-day').style.display = mode === 'day' ? 'block' : 'none';
+    document.querySelectorAll('#search-mode-chips .chip').forEach(c => {
+      const on = c.dataset.mode === mode;
+      c.style.background = on ? 'var(--gold)' : '';
+      c.style.color = on ? '#fff' : '';
+    });
+    if (mode === 'day') {
+      const inp = document.getElementById('sd-date');
+      if (!inp.value) inp.value = new Date().toISOString().slice(0, 10);
+      loadDayAll();
+    }
+  }
+  document.querySelectorAll('#search-mode-chips .chip').forEach(c => c.addEventListener('click', () => setSearchMode(c.dataset.mode)));
+  document.getElementById('sd-today-btn').addEventListener('click', () => {
+    document.getElementById('sd-date').value = new Date().toISOString().slice(0, 10);
+    loadDayAll();
+  });
+  document.getElementById('sd-run-btn').addEventListener('click', loadDayAll);
+  document.getElementById('sd-date').addEventListener('change', loadDayAll);
+
+  async function loadDayAll() {
+    const box = document.getElementById('sd-result');
+    const v = document.getElementById('sd-date').value;
+    if (!v) { box.innerHTML = ''; return; }
+    const [yy, mm, dd0] = v.split('-').map(Number);
+    box.innerHTML = '<div class="form-card" style="padding:16px;font-size:13px;color:var(--taupe);line-height:1.5;">Подождите немного — идёт расчёт относительно вашей натальной карты…</div>';
+    const p = currentChartMeta.params;
+    const birthDateUTC = new Date(Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, 0) - p.utcOffset * 3600000).toISOString();
+    try {
+      const r = await fetch('/api/day-detail', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: getInitData(), chart: currentChart, birthDateUTC, year: yy, month: mm, day: dd0, ...placeParams() }) });
+      const dd = await r.json();
+      if (!r.ok) throw new Error(dd.error || 'Ошибка');
+      if (document.getElementById('sd-date').value !== v) return; // дату уже сменили
+      const major = majorBlockHtml(dd);
+      box.innerHTML = `
+        <div class="form-card" style="padding:16px;">
+          <div class="name" style="margin-bottom:4px;">${dd.date}</div>
+          ${dd.events && dd.events.length ? `<div style="margin-bottom:6px;">${dd.events.map(ev => `<div class="note-item"><div class="note-text">${eventIconSvg(ev.type)}${escapeHtml(ev.label)}${ev.timing ? ' — ' + escapeHtml(ev.timing) : ''}</div></div>`).join('')}</div>` : ''}
+          <div style="font-size:12px;color:var(--taupe);">день от восхода ${dd.sunrise} до следующего восхода ${dd.nextSunrise}</div>
+          <div style="margin-top:14px;font-family:'Playfair Display',serif;font-size:16px;">Повседневные дела</div>
+          ${muhurtaBySegmentHtml(dd, false)}
+        </div>
+        ${major ? `<div class="form-card" style="padding:16px;">${major.replace('margin-top:16px;', 'margin-top:0;')}</div>` : ''}`;
+    } catch (e) {
+      box.innerHTML = `<div class="error-msg" style="display:block;">Не удалось загрузить: ${escapeHtml(e.message)}</div>`;
+    }
+  }
+
+  function searchFactors() {
+    const f = { muhurta: document.getElementById('sf-muhurta').checked, dasha: document.getElementById('sf-dasha').checked, gochara: document.getElementById('sf-gochara').checked };
+    if (!f.muhurta && !f.dasha && !f.gochara) { f.muhurta = true; document.getElementById('sf-muhurta').checked = true; }
+    return f;
+  }
+  function syncFactorsField() {
+    const key = document.getElementById('search-action-select').value;
+    const major = (window.__actionCats || {})[key] === 'major';
+    document.getElementById('search-factors-field').style.display = major ? 'block' : 'none';
+  }
   document.getElementById('search-action-select').addEventListener('change', (e) => {
+    syncFactorsField();
     document.getElementById('search-direction-field').style.display = e.target.value === 'travel' ? 'block' : 'none';
   });
 
@@ -4490,7 +5108,7 @@
     dayDetail.style.display = 'none';
     document.getElementById('search-results').innerHTML = '';
     calCard.style.display = 'block';
-    document.getElementById('search-cal-grid').innerHTML = '<div style="text-align:center;font-size:12px;color:var(--taupe);">Считаю…</div>';
+    document.getElementById('search-cal-grid').innerHTML = '<div style="text-align:center;font-size:13px;color:var(--taupe);">Подождите немного — идёт расчёт относительно вашей натальной карты…</div>';
 
     const actionKey = document.getElementById('search-action-select').value;
     const travelDirection = actionKey === 'travel' ? document.getElementById('search-direction-select').value : undefined;
@@ -4502,7 +5120,7 @@
     try {
       const res = await fetch('/api/action-date-search', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData: getInitData(), chart: currentChart, birthDateUTC, ...placeParams(), action: actionKey, fromDate, toDate, travelDirection })
+        body: JSON.stringify({ initData: getInitData(), chart: currentChart, birthDateUTC, ...searchPlaceParams(), action: actionKey, fromDate, toDate, travelDirection, factors: searchFactors() })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Ошибка');
@@ -4531,12 +5149,14 @@
       if (data.best && data.best.length) {
         const title = data.preliminary ? 'Предварительно подходящие даты' : 'Наиболее подходящие даты';
         rh += `<div class="form-card" style="padding:16px;"><div class="name" style="margin-bottom:6px;">${title}</div>
-          ${data.best.map(b => `<div class="note-item"><div class="note-text"><b>${fmtIso(b.date)}</b> — ${b.segments.map(sg => segLbl(sg, b.date)).join(', ')}${b.period ? `<br><span style="color:var(--taupe);font-size:12px;">${escapeHtml(b.period)}</span>` : ''}</div></div>`).join('')}
+          ${data.best.map(b => `<div class="note-item"><div class="note-text"><b>${fmtIso(b.date)}</b> — ${b.segments.length ? b.segments.map(sg => segLbl(sg, b.date)).join(', ') : 'весь день'}${b.period ? `<br><span style="color:var(--taupe);font-size:12px;">${escapeHtml(b.period)}</span>` : ''}</div></div>`).join('')}
           ${data.preliminary ? `<div style="font-size:11px;color:var(--taupe);margin-top:6px;">Нужна полноценная мухурта${data.needsVastu ? ' и проверка по Васту' : ''}: лагна и положение планет на момент действия пока не рассчитываются.</div>` : ''}</div>`;
       } else {
-        rh += `<div class="form-card" style="padding:16px;"><div style="font-size:13px;color:var(--taupe);">В этом диапазоне подходящих дат по мухурте не найдено. Можно расширить диапазон.</div></div>`;
+        rh += `<div class="form-card" style="padding:16px;"><div style="font-size:13px;color:var(--taupe);">${data.periodBlocksAll ? 'В выбранном периоде даша или гочара не поддерживают это дело, поэтому даты не рекомендуются. Чтобы увидеть даты только по мухурте, снимите галочку «Период» или «Транзиты». Можно также выбрать другой срок.' : 'В этом диапазоне подходящих дат не найдено. Можно расширить диапазон.'}</div></div>`;
       }
+      rh += `<button class="btn-secondary" id="search-save-goal-btn" style="margin-bottom:12px;">Сохранить цель</button>`;
       resEl.innerHTML = rh;
+      document.getElementById('search-save-goal-btn').addEventListener('click', (e) => saveCurrentGoal(e.currentTarget));
 
       document.getElementById('search-cal-label').textContent = data.actionLabel;
       const grid = document.getElementById('search-cal-grid');

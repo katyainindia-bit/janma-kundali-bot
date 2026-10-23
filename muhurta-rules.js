@@ -71,7 +71,7 @@ const HARSH = ['Угра', 'Тикшна'];
 // ПРОСТЫЕ ДЕЛА — «Сегодня» и «Дни». Панчанга + личные показатели.
 // ============================================================
 // Поля действия:
-//   category        'simple' | 'major' | 'pending'
+//   category        'simple' | 'major'
 //   nakshatraPlus   явный список накшатр (индексы) — основной плюс
 //   groupsPlus      группы Свабхавы — основной плюс
 //   groupsMinus     группы Свабхавы — основной минус (не красный, просто «не поддержано»)
@@ -289,10 +289,20 @@ const ACTION_RULES = {
     },
   },
 
-  // ---------------- ПРАВИЛА ТРЕБУЮТ УТОЧНЕНИЯ ----------------
-  conception: { label: 'Зачатие (планирование)', icon: '🌱', category: 'pending', note: 'Правила требуют уточнения.' },
-  surgery: { label: 'Операция', icon: '⚕️', category: 'pending', note: 'Правила требуют уточнения.' },
-  initiation: { label: 'Посвящения / духовные церемонии', icon: '🕉️', category: 'pending', note: 'Правила будут добавлены отдельно (авторская традиция).' },
+  // ---------------- ЗАЧАТИЕ (классика, Гарбхадхана) ----------------
+  conception: {
+    label: 'Зачатие (планирование)', icon: '🌱', category: 'major',
+    // Накшатры: Рохини, Мригашира, три Уттары, Хаста, Свати, Анурадха, Шравана, Дханишта, Шатабхиша
+    nakshatraPlus: nak('Рохини', 'Мригашира', 'Уттара Пхалгуни', 'Хаста', 'Свати', 'Анурадха', 'Уттара Ашадха', 'Шравана', 'Дханишта', 'Шатабхиша', 'Уттара Бхадрапада'),
+    tithiPlus: [2, 3, 5, 7, 10, 11, 13],
+    varaPlus: [1, 3, 4, 5], varaMinus: [0, 2, 6],
+    needsFullMuhurta: true,
+    personal: 'additional',
+    period: {
+      dashaHouses: [5, 2, 9], dashaKarakas: ['Юпитер'],
+      gocharaHouses: [5], gocharaPlanets: ['Юпитер'],
+    },
+  },
 };
 
 module.exports = { NAKSHATRA_NAMES, SVABHAVA, GENERAL, TITHI_PLUS_BASE, ACTION_RULES, GOOD_WEEKDAYS_COMMON, nak };

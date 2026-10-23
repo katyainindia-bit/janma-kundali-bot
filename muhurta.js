@@ -87,7 +87,7 @@ function evaluateAction(actionKey, ctx) {
   if (ctx.yogaName && !ignores(rule, 'yoga') && GENERAL.yogaStrict.includes(ctx.yogaName)) {
     strict.push(`Нитья-йога ${ctx.yogaName} — неблагоприятная для начинаний.`);
   }
-  if (GENERAL.eclipseStrict && !ignores(rule, 'eclipse') && eventTypes.some(t => t === 'Затмение (лунное)' || t === 'Затмение (солнечное)')) {
+  if (GENERAL.eclipseStrict && !ignores(rule, 'eclipse') && events.some(e => (e.type === 'Затмение (лунное)' || e.type === 'Затмение (солнечное)') && !e.penumbral)) {
     strict.push('День затмения — для начинаний не рекомендуется.');
   }
   if (rule.gandantaPada && ctx.nakshatraIdx != null && ctx.nakshatraPada != null) {

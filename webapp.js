@@ -11,7 +11,7 @@ const { calculateChart, jdFromDate } = require('./engine.js');
 const { bhriguBindu, specialLagnas } = require('./special-points.js');
 const { computeVimshottariDasha, findCurrentDashaChain } = require('./dasha.js');
 const { computeCurrentTransits, transitDignity } = require('./transits.js');
-const { computePanchanga, computeTaraBala, computeDayNakshatraSegments } = require('./panchanga.js');
+const { computePanchanga, computeTaraBala, computeDayNakshatraSegments, moonSignSpan } = require('./panchanga.js');
 const { calculateNavamsha } = require('./navamsha.js');
 const { calculateDashamsha } = require('./dashamsha.js');
 const { calculateVarga: calculateOtherVarga, VARGA_DEFS } = require('./divisional-charts.js');
@@ -20,6 +20,8 @@ const { ACTIONS } = require('./muhurta.js');
 const { getEventsForDate, findUpcomingEvents, getYearEvents } = require('./calendar-events.js');
 const { computeSadeSati } = require('./sade-sati.js');
 const { findSignExitDate } = require('./transit-forecast.js');
+const { buildDayEnergy } = require('./day-energy.js');
+const { normalizePrefs } = require('./notify-engine.js');
 const { houseMeaningPhrase, computeDayTier, transitPhrase } = require('./day-summary.js');
 const { buildChartExportPDF } = require('./chart-export-pdf.js');
 const { resolveCity } = require('./ru-timezone.js');
@@ -79,6 +81,7 @@ function validateBirthParams({ day, month, year, hour, minute, lat, lon, utcOffs
   if (!Number.isInteger(day) || day < 1 || day > 31) return 'Некорректный день';
   if (!Number.isInteger(month) || month < 1 || month > 12) return 'Некорректный месяц';
   if (!Number.isInteger(year) || year < 1900 || year > 2100) return 'Некорректный год (допустимо 1900–2100)';
+  if (day > new Date(Date.UTC(year, month, 0)).getUTCDate()) return 'Такой даты не существует: в этом месяце нет ' + day + '-го числа';
   if (!Number.isInteger(hour) || hour < 0 || hour > 23) return 'Некорректный час';
   if (!Number.isInteger(minute) || minute < 0 || minute > 59) return 'Некорректная минута';
   if (lat < -90 || lat > 90) return 'Широта должна быть в диапазоне от -90 до 90';
@@ -548,7 +551,7 @@ function startWebApp() {
 
       // 7. Астрологические события сегодня (нужны заранее — движок мухурты учитывает
       // Санкранти/затмения как «особые дни», не только Экадаши/Пурниму/Амавасью из титхи)
-      const events = getEventsForDate(ly, lm, ld, todayPanchanga.tithi.number);
+      const events = getEventsForDate(ly, lm, ld, todayPanchanga.tithi.number, undefined, { lat, lon, utcOffset });
       const displayEvents = windowEventsForDate(ly, lm, ld, lat, lon, utcOffset);
 
       // 8. Движок мухурты: прогоняем сегодняшний день по всем настроенным действиям,
@@ -576,7 +579,7 @@ function startWebApp() {
       const allUpcoming = findUpcomingEvents(now, 120, (d) => {
         const pp = computePanchanga(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(), 12, 0, lat, lon, utcOffset);
         return pp.tithi.number;
-      }, (d) => tithiWindow(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(), lat, lon, utcOffset)).filter(e => e.daysAhead > 0);
+      }, (d) => tithiWindow(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(), lat, lon, utcOffset), { lat, lon, utcOffset }).filter(e => e.daysAhead > 0);
       let upcomingEvents = allUpcoming.slice(0, 4);
       // Праздники редки по сравнению с Пурнимой/Экадаши/Санкранти — гарантируем,
       // что ближайший праздник всегда виден, даже если формально не попал в топ-4
@@ -586,7 +589,7 @@ function startWebApp() {
       }
 
       // 9. Заголовок дня + индикатор энергии — единая логика тона (не должны противоречить друг другу)
-      const hasEclipse = events.some(ev => ev.type === 'Затмение (лунное)' || ev.type === 'Затмение (солнечное)');
+      const hasEclipse = events.some(ev => (ev.type === 'Затмение (лунное)' || ev.type === 'Затмение (солнечное)') && !ev.penumbral);
       const dayTier = computeDayTier({
         dateISO: `${ly}-${String(lm).padStart(2, '0')}-${String(ld).padStart(2, '0')}`,
         hasEclipse,
@@ -619,6 +622,7 @@ function startWebApp() {
         daySummary: dayTier.headline,
         dayEnergy: { emoji: dayTier.emoji, label: dayTier.energyLabel },
         energyDescriptor: dayTier.energyDescriptor,
+        dayEnergyText: buildDayEnergy(dayNak.segments, chart.ascendant.sign.index, moonSignSpan(dayNak.startJD + 1e-4, utcOffset, chart.ayanamshaType, chart.customAyanamshaBase)),
       });
     } catch (e) {
       console.error(e);
@@ -702,16 +706,57 @@ function startWebApp() {
 
   app.post('/api/action-date-search', requireTelegramUser, requirePremium, (req, res) => {
     try {
-      const { chart, birthDateUTC, lat, lon, utcOffset, action, fromDate, toDate, travelDirection } = req.body;
+      const { chart, birthDateUTC, lat, lon, utcOffset, action, fromDate, toDate, travelDirection, factors } = req.body;
       const result = computeActionDateSearch(
         chart, new Date(birthDateUTC), lat, lon, utcOffset, action,
-        new Date(fromDate), new Date(toDate), travelDirection
+        new Date(fromDate), new Date(toDate), travelDirection, factors
       );
       res.json(result);
     } catch (e) {
       console.error(e);
       res.status(500).json({ error: e.message });
     }
+  });
+
+  // ----- Сохранённые цели поиска -----
+  app.post('/api/search-goals/list', requireTelegramUser, requirePremium, (req, res) => {
+    try {
+      const goals = db.listSearchGoals(req.tgUser.id).map(g => ({
+        id: g.id, action: g.action, direction: g.direction, rangeDays: g.range_days,
+        place: g.place_json ? JSON.parse(g.place_json) : null, chartName: g.chart_name,
+        factors: g.factors_json ? JSON.parse(g.factors_json) : null,
+      }));
+      res.json({ goals });
+    } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
+  });
+  app.post('/api/search-goals/save', requireTelegramUser, requirePremium, (req, res) => {
+    try {
+      const { action, direction, rangeDays, place, chartName, factors } = req.body;
+      let factorsJson = null;
+      if (factors && typeof factors === 'object') {
+        const f = { muhurta: !!factors.muhurta, dasha: !!factors.dasha, gochara: !!factors.gochara };
+        if (f.muhurta || f.dasha || f.gochara) factorsJson = JSON.stringify(f);
+      }
+      if (!ACTIONS[action]) return res.status(400).json({ error: 'Неизвестное дело' });
+      const days = Number(rangeDays);
+      let placeJson = null;
+      if (place && typeof place.lat === 'number' && typeof place.lon === 'number' && typeof place.utcOffset === 'number') {
+        placeJson = JSON.stringify({ name: String(place.name || '').slice(0, 120), lat: place.lat, lon: place.lon, utcOffset: place.utcOffset });
+      }
+      const id = db.saveSearchGoal(req.tgUser.id, {
+        action, direction: direction ? String(direction).slice(0, 20) : null,
+        rangeDays: [7, 30, 90].includes(days) ? days : null, placeJson, factorsJson,
+        chartName: chartName ? String(chartName).slice(0, 80) : null,
+      });
+      if (id === null) return res.status(400).json({ error: `Можно хранить до ${db.MAX_SEARCH_GOALS} целей — удалите лишние.` });
+      res.json({ ok: true, id });
+    } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
+  });
+  app.post('/api/search-goals/delete', requireTelegramUser, requirePremium, (req, res) => {
+    try {
+      db.deleteSearchGoal(req.tgUser.id, Number(req.body.id));
+      res.json({ ok: true });
+    } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
   });
 
   app.post('/api/calendar-month', requireTelegramUser, requirePremium, (req, res) => {
@@ -727,8 +772,9 @@ function startWebApp() {
 
   app.post('/api/year-events', requireTelegramUser, (req, res) => {
     try {
-      const { year } = req.body;
-      res.json({ events: getYearEvents(year) });
+      const { year, lat, lon, utcOffset } = req.body;
+      const place = (typeof lat === 'number' && typeof lon === 'number' && typeof utcOffset === 'number') ? { lat, lon, utcOffset } : null;
+      res.json({ events: getYearEvents(year, place) });
     } catch (e) {
       console.error(e);
       res.status(500).json({ error: e.message });
@@ -793,6 +839,7 @@ function startWebApp() {
       isPremium: db.isPremium(req.tgUser.id),
       notifyEnabled: !!row.notify_enabled,
       notifyRitualsEnabled: !!row.notify_rituals_enabled,
+      notifyPrefs: normalizePrefs(db.getNotifyPrefsRaw(req.tgUser.id)),
       primaryChartId: row.primary_chart_id,
       nodeType: row.node_type,
       zodiacType: row.zodiac_type,
@@ -820,6 +867,64 @@ function startWebApp() {
       console.error(e);
       res.status(500).json({ error: e.message });
     }
+  });
+
+  // «Где я сейчас» — сервер должен знать место, чтобы слать уведомления по местному времени
+  app.post('/api/place/save', requireTelegramUser, (req, res) => {
+    try {
+      const { place } = req.body;
+      if (place === null) { db.setUserPlace(req.tgUser.id, null); return res.json({ ok: true }); }
+      if (!place || typeof place.lat !== 'number' || typeof place.lon !== 'number' || typeof place.utcOffset !== 'number' ||
+          Math.abs(place.lat) > 90 || Math.abs(place.lon) > 180 || Math.abs(place.utcOffset) > 15) {
+        return res.status(400).json({ error: 'Некорректное место' });
+      }
+      db.setUserPlace(req.tgUser.id, { name: String(place.name || '').slice(0, 120), lat: place.lat, lon: place.lon, utcOffset: place.utcOffset });
+      res.json({ ok: true });
+    } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
+  });
+
+  // Автовключение после первой построенной карты: лунный календарь — всем, личные уведомления — Premium
+  app.post('/api/notify/auto-enable', requireTelegramUser, (req, res) => {
+    try {
+      res.json({ ok: true, ...db.autoEnableNotifications(req.tgUser.id) });
+    } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
+  });
+
+  // «Прислать пример»: собирает выбранное сообщение за сегодняшний день и отправляет самому пользователю
+  app.post('/api/notify/test', requireTelegramUser, requirePremium, async (req, res) => {
+    try {
+      const kind = String(req.body.kind || '');
+      const u = db.getNotifyUser(req.tgUser.id);
+      if (!u) return res.status(400).json({ error: 'Сначала сохраните карту в архиве или выберите основную карту.' });
+      if (!BOT_TOKEN) return res.status(500).json({ error: 'Бот не настроен' });
+      const tgBot = { telegram: { sendMessage: async (chatId, text, extra) => {
+        const r = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: chatId, text, ...(extra || {}) }),
+        });
+        const j = await r.json();
+        if (!j.ok) throw new Error(j.description || 'Telegram не принял сообщение');
+        return j;
+      } } };
+      const notifications = require('./notifications.js');
+      const now = new Date();
+      let sent = false;
+      if (kind === 'morning') sent = await notifications.sendMorningFor(tgBot, u, now, true);
+      else if (kind === 'weekly') sent = await notifications.sendWeeklyFor(tgBot, u, now, true);
+      else if (kind === 'evening') sent = await notifications.sendEveningFor(tgBot, u, now, true);
+      else if (kind === 'intraday') sent = await notifications.sendIntradaySample(tgBot, u, now);
+      else if (kind === 'watch') sent = await notifications.sendWatchAlertFor(tgBot, u, now, true);
+      else return res.status(400).json({ error: 'Неизвестный тип' });
+      res.json({ ok: true, sent: !!sent, note: sent ? null : 'Сейчас в этом сообщении нечего показать (нет подходящих событий).' });
+    } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
+  });
+
+  app.post('/api/notify/prefs', requireTelegramUser, requirePremium, (req, res) => {
+    try {
+      const prefs = normalizePrefs(req.body.prefs);
+      db.saveNotifyPrefs(req.tgUser.id, prefs);
+      res.json({ ok: true, prefs });
+    } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
   });
 
   app.post('/api/notify/toggle', requireTelegramUser, requirePremium, (req, res) => {

@@ -100,7 +100,7 @@ const birthDataWizard = new Scenes.WizardScene(
       return;
     }
     const day = parseInt(m[1]), month = parseInt(m[2]), year = parseInt(m[3]);
-    if (day < 1 || day > 31 || month < 1 || month > 12 || year < 1900 || year > 2100) {
+    if (day < 1 || day > 31 || month < 1 || month > 12 || year < 1900 || year > 2100 || day > new Date(Date.UTC(year, month, 0)).getUTCDate()) {
       await ctx.reply('Проверьте дату — что-то не сходится. Введите ещё раз, например: 15.08.1990');
       return;
     }
@@ -286,7 +286,7 @@ const transitWizard = new Scenes.WizardScene(
       return;
     }
     const day = parseInt(m[1]), month = parseInt(m[2]), year = parseInt(m[3]);
-    if (day < 1 || day > 31 || month < 1 || month > 12) {
+    if (day < 1 || day > 31 || month < 1 || month > 12 || day > new Date(Date.UTC(year, month, 0)).getUTCDate()) {
       await ctx.reply('Проверьте дату — что-то не сходится. Введите ещё раз.');
       return;
     }
@@ -432,7 +432,7 @@ const panchangaWizard = new Scenes.WizardScene(
         return;
       }
       day = parseInt(m[1]); month = parseInt(m[2]); year = parseInt(m[3]);
-      if (day < 1 || day > 31 || month < 1 || month > 12) {
+      if (day < 1 || day > 31 || month < 1 || month > 12 || day > new Date(Date.UTC(year, month, 0)).getUTCDate()) {
         await ctx.reply('Проверьте дату — что-то не сходится. Введите ещё раз.');
         return;
       }
@@ -1002,6 +1002,14 @@ bot.command('help', async (ctx) => {
   );
 });
 
+bot.command('engine', async (ctx) => {
+  if (!ADMIN_ID || ctx.from.id !== ADMIN_ID) return; // только для администратора
+  const { SWISSEPH_AVAILABLE } = require('./engine.js');
+  await ctx.reply(SWISSEPH_AVAILABLE
+    ? 'Расчёт: Swiss Ephemeris (режим Moshier)'
+    : 'Расчёт: запасной (Swiss Ephemeris не установился на сервере)');
+});
+
 bot.command('testnotify', async (ctx) => {
   if (!ADMIN_ID || ctx.from.id !== ADMIN_ID) {
     return; // тихо игнорируем для всех, кроме администратора
@@ -1009,7 +1017,8 @@ bot.command('testnotify', async (ctx) => {
   await ctx.reply('Запускаю проверку прямо сейчас (не жду 5:00 UTC)...');
   try {
     const { runDailyCheck, runRitualDailyCheck } = require('./notifications.js');
-    await runDailyCheck(bot);
+    const { runMorningCheck } = require('./notifications.js');
+    await runMorningCheck(bot, true, ctx.from.id); // только администратору, принудительно
     await runRitualDailyCheck(bot);
     await ctx.reply('Готово. Если сообщение не пришло — условия для рассылки сегодня не выполнены (см. /whoami и /mystatus), а не сбой планировщика.');
   } catch (e) {

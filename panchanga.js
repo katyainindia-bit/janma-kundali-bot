@@ -479,4 +479,16 @@ function computeTithiSpans(startJD, endJD) {
   return spans;
 }
 
-module.exports = { sunriseJD, computeTithiSpans, computePanchanga, computeTaraBala, sunriseSunsetMinutesUTC, jdToLocalDateTimeStr, computeDayNakshatraSegments, computeFactorBoundariesJD };
+// Когда Луна вошла в текущий знак и когда выйдет (локальное время «ГГГГ-ММ-ДД ЧЧ:ММ»)
+function moonSignSpan(jd, utcOffset, ayanamshaType, customAyanamshaBase) {
+  const fn = (j) => pmod(moonLongitude(j) - ayanamshaFor(j, ayanamshaType, customAyanamshaBase), 360);
+  const enter = findBoundaryJD(jd, fn, 30, -1);
+  const exit = findBoundaryJD(jd, fn, 30, 1);
+  return {
+    enterJD: enter, exitJD: exit,
+    enter: enter === null ? null : jdToLocalDateTimeStr(enter, utcOffset),
+    exit: exit === null ? null : jdToLocalDateTimeStr(exit, utcOffset),
+  };
+}
+
+module.exports = { moonSignSpan, sunriseJD, computeTithiSpans, computePanchanga, computeTaraBala, sunriseSunsetMinutesUTC, jdToLocalDateTimeStr, computeDayNakshatraSegments, computeFactorBoundariesJD };

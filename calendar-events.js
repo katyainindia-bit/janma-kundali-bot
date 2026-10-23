@@ -24,6 +24,7 @@
 
 const { jdFromDate, sunLongitude, moonLongitude, lahiriAyanamsha } = require('./engine.js');
 const { jdToLocalDateTimeStr } = require('./panchanga.js');
+const hindu = require('./hindu-calendar.js');
 
 function pmod(x, y) { let r = x % y; if (r < 0) r += y; return r; }
 
@@ -76,9 +77,9 @@ function tithiEvents(tithiNumber, year, month, day) {
     let label = 'Экадаши', desc = null;
     if (year != null) {
       const dateISO = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      label = namedEkadashi(dateISO);
-      const baseName = label.replace(' Экадаши', '');
-      desc = EKADASHI_THEMES[baseName] || null;
+      const nm = hindu.ekadashiNameAt(jd, year, tithiNumber);
+      label = nm ? `${nm} Экадаши` : 'Экадаши';
+      desc = nm ? (EKADASHI_THEMES[nm] || null) : null;
     }
     events.push({ type: EVENT_TYPES.EKADASHI, label, description: desc });
   }
@@ -103,17 +104,10 @@ function tithiEventsInWindow(year, month, day, win) {
   for (const sp of win.spans) {
     if (![11, 15, 26, 30].includes(sp.number)) continue;
     const evs = tithiEvents(sp.number, year, month, day);
-    // имя Экадаши: на дату восхода, а если титхи только начинается — ещё и на следующую
     if (sp.number === 11 || sp.number === 26) {
-      const next = new Date(Date.UTC(year, month - 1, day) + 86400000);
-      const iso2 = `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, '0')}-${String(next.getUTCDate()).padStart(2, '0')}`;
-      const prev = new Date(Date.UTC(year, month - 1, day) - 86400000);
-      const iso0 = `${prev.getUTCFullYear()}-${String(prev.getUTCMonth() + 1).padStart(2, '0')}-${String(prev.getUTCDate()).padStart(2, '0')}`;
-      if (evs[0] && evs[0].label === 'Экадаши') {
-        // титхи уже шло с прошлых суток — имя по прошлой дате; только начинается — по следующей
-        const l2 = sp.startsBefore ? namedEkadashi(iso0) : namedEkadashi(iso2);
-        if (l2 !== 'Экадаши') { evs[0].label = l2; evs[0].description = EKADASHI_THEMES[l2.replace(' Экадаши', '')] || evs[0].description; }
-      }
+      const midJD = (sp.fromJD + sp.toJD) / 2;
+      const nm = hindu.ekadashiNameAt(midJD, year, sp.number);
+      if (evs[0] && nm) { evs[0].label = `${nm} Экадаши`; evs[0].description = EKADASHI_THEMES[nm] || evs[0].description; }
     }
     const timing = timingText(sp, win);
     evs.forEach(e => out.push({ ...e, timing, startsBefore: sp.startsBefore, endsAfter: sp.endsAfter }));
@@ -304,8 +298,57 @@ const ECLIPSES = [
   { date: '2027-08-02', type: EVENT_TYPES.ECLIPSE_SOLAR, label: 'Солнечное затмение (полное)' },
 ];
 
-function eclipseEventForDate(dateISO) {
-  return ECLIPSES.find(e => e.date === dateISO) || null;
+// Затмения считаются астрономически (astronomy-engine) на любой год.
+// Дата — по UTC пика затмения; на экранах с окном суток — по ведическим суткам пользователя.
+let AstronomyLib = null;
+try { AstronomyLib = require('astronomy-engine'); } catch (e) { AstronomyLib = null; }
+const LUNAR_KIND_RU = { penumbral: 'полутеневое', partial: 'частное', total: 'полное' };
+const SOLAR_KIND_RU = { partial: 'частное', annular: 'кольцеобразное', total: 'полное' };
+const eclipseYearCache = new Map();
+function eclipsesForYear(year) {
+  if (eclipseYearCache.has(year)) return eclipseYearCache.get(year);
+  const out = [];
+  if (AstronomyLib) {
+    const end = Date.UTC(year + 1, 0, 1);
+    const push = (peak, type, label, penumbral) => {
+      const d = peak.date;
+      out.push({
+        date: d.toISOString().slice(0, 10), type,
+        label, penumbral: !!penumbral,
+        peakJD: d.getTime() / 86400000 + 2440587.5,
+      });
+    };
+    try {
+      let le = AstronomyLib.SearchLunarEclipse(new Date(Date.UTC(year, 0, 1)));
+      while (le.peak.date.getTime() < end) {
+        if (le.peak.date.getUTCFullYear() === year) push(le.peak, EVENT_TYPES.ECLIPSE_LUNAR, `Лунное затмение (${LUNAR_KIND_RU[String(le.kind).toLowerCase()] || ''})`.replace(' ()', ''), String(le.kind).toLowerCase() === 'penumbral');
+        le = AstronomyLib.NextLunarEclipse(le.peak);
+      }
+      let se = AstronomyLib.SearchGlobalSolarEclipse(new Date(Date.UTC(year, 0, 1)));
+      while (se.peak.date.getTime() < end) {
+        if (se.peak.date.getUTCFullYear() === year) push(se.peak, EVENT_TYPES.ECLIPSE_SOLAR, `Солнечное затмение (${SOLAR_KIND_RU[String(se.kind).toLowerCase()] || ''})`.replace(' ()', ''));
+        se = AstronomyLib.NextGlobalSolarEclipse(se.peak);
+      }
+    } catch (e) { /* при сбое расчёта остаётся резервная таблица ниже */ }
+  }
+  if (!out.length) out.push(...ECLIPSES.filter(e => e.date.startsWith(String(year))));
+  out.sort((a, b) => a.date.localeCompare(b.date));
+  eclipseYearCache.set(year, out);
+  return out;
+}
+
+function eclipseEventForDate(dateISO, win) {
+  const y = Number(dateISO.slice(0, 4));
+  const list = [...eclipsesForYear(y - 1).slice(-1), ...eclipsesForYear(y), ...eclipsesForYear(y + 1).slice(0, 1)];
+  if (win && win.startJD != null) {
+    const hit = list.find(e => e.peakJD != null && e.peakJD >= win.startJD && e.peakJD < win.endJD);
+    if (!hit) return null;
+    const hhmm = jdToLocalDateTimeStr(hit.peakJD, win.utcOffset).slice(11);
+    const dayOf = jdToLocalDateTimeStr(hit.peakJD, win.utcOffset).slice(0, 10);
+    const base = jdToLocalDateTimeStr(win.startJD, win.utcOffset).slice(0, 10);
+    return { ...hit, timing: 'максимум в ' + hhmm + (dayOf !== base ? ' следующего дня' : '') };
+  }
+  return list.find(e => e.date === dateISO) || null;
 }
 
 // --- Именованные праздники: статическая таблица на 2026 год ---
@@ -351,17 +394,22 @@ function festivalEventForDate(dateISO) {
 }
 
 // --- Все события на конкретную календарную дату ---
-function getEventsForDate(year, month, day, tithiNumber, win) {
+function getEventsForDate(year, month, day, tithiNumber, win, place) {
+  if (!place && win && win.lat != null) place = { lat: win.lat, lon: win.lon, utcOffset: win.utcOffset };
   const dateISO = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   const events = [];
   if (win) events.push(...tithiEventsInWindow(year, month, day, win));
   else events.push(...tithiEvents(tithiNumber, year, month, day));
   const sankranti = sankrantiEvent(year, month, day);
   if (sankranti) events.push(sankranti);
-  const eclipse = eclipseEventForDate(dateISO);
+  const eclipse = eclipseEventForDate(dateISO, win);
   if (eclipse) events.push(eclipse);
-  const festival = festivalEventForDate(dateISO);
-  if (festival) events.push(festival);
+  if (place) {
+    hindu.festivalsForDate(dateISO, place.lat, place.lon, place.utcOffset).forEach(f => events.push({ ...f, type: EVENT_TYPES.FESTIVAL }));
+  } else {
+    const festival = festivalEventForDate(dateISO);
+    if (festival) events.push(festival);
+  }
   return events.map(ev => ({ ...ev, description: ev.description || EVENT_DESCRIPTIONS[ev.type] || null }));
 }
 
@@ -370,14 +418,14 @@ function getEventsForDate(year, month, day, tithiNumber, win) {
 // tithiNumberForDate(date) — функция, которую вызывающий код должен
 // передать (обычно через computePanchanga), чтобы не тащить сюда
 // зависимость от панчанги напрямую.
-function findUpcomingEvents(fromDate, daysAhead, tithiNumberForDate, windowForDate) {
+function findUpcomingEvents(fromDate, daysAhead, tithiNumberForDate, windowForDate, place) {
   const found = {};
   const dayMs = 24 * 3600 * 1000;
   for (let i = 0; i <= daysAhead; i++) {
     const d = new Date(fromDate.getTime() + i * dayMs);
     const year = d.getUTCFullYear(), month = d.getUTCMonth() + 1, day = d.getUTCDate();
     const tithiNumber = tithiNumberForDate(d);
-    const events = getEventsForDate(year, month, day, tithiNumber, windowForDate ? windowForDate(d) : undefined);
+    const events = getEventsForDate(year, month, day, tithiNumber, windowForDate ? windowForDate(d) : undefined, place);
     for (const ev of events) {
       const key = ev.type + ':' + ev.label;
       if (!found[key]) found[key] = { ...ev, daysAhead: i, date: `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}` };
@@ -403,10 +451,14 @@ function findUpcomingEvents(fromDate, daysAhead, tithiNumberForDate, windowForDa
 // Праздники + затмения за конкретный год, отсортированные по дате —
 // для отдельного экрана «Праздники и затмения на год». Праздники теперь
 // не таблица дат, а правило — поэтому сканируем год день за днём.
-function getYearEvents(year) {
+function getYearEvents(year, place) {
+  const festivalItems = place
+    ? Object.entries(hindu.computeYear(year, place.lat, place.lon, place.utcOffset).festivals)
+        .flatMap(([date, list]) => list.map(f => ({ date, label: f.label, type: EVENT_TYPES.FESTIVAL, description: f.description })))
+    : NAMED_FESTIVALS.map(f => ({ date: f.date, label: f.label, type: EVENT_TYPES.FESTIVAL, description: f.description }));
   const items = [
-    ...ECLIPSES.map(e => ({ date: e.date, label: e.label, type: e.type })),
-    ...NAMED_FESTIVALS.map(f => ({ date: f.date, label: f.label, type: EVENT_TYPES.FESTIVAL, description: f.description })),
+    ...eclipsesForYear(year).map(e => ({ date: e.date, label: e.label, type: e.type })),
+    ...festivalItems,
   ].filter(e => e.date.startsWith(String(year)));
   items.sort((a, b) => a.date.localeCompare(b.date));
   return items;
@@ -423,6 +475,7 @@ module.exports = {
   findUpcomingEvents,
   getYearEvents,
   ECLIPSES,
+  eclipsesForYear,
   NAMED_FESTIVALS,
   namedEkadashi,
 };

@@ -30,8 +30,9 @@ const { ACTION_RULES } = require('./muhurta-rules.js');
 
 const SIGN_LORDS = ['Марс', 'Венера', 'Меркурий', 'Луна', 'Солнце', 'Меркурий', 'Венера', 'Марс', 'Юпитер', 'Сатурн', 'Сатурн', 'Юпитер'];
 // Графа-дришти: на какие дома (считая от своего = 1) смотрит планета
-const ASPECTS = { 'Марс': [4, 7, 8], 'Юпитер': [5, 7, 9], 'Сатурн': [3, 7, 10], 'Раху': [5, 7, 9], 'Кету': [5, 7, 9] };
-const aspectsOf = (planet) => ASPECTS[planet] || [7];
+const ASPECTS = { 'Марс': [4, 7, 8], 'Юпитер': [5, 7, 9], 'Сатурн': [3, 7, 10] };
+// Раху и Кету аспектов не имеют — только положение и управление
+const aspectsOf = (planet) => (planet === 'Раху' || planet === 'Кету') ? [] : (ASPECTS[planet] || [7]);
 const houseFrom = (fromHouse, k) => ((fromHouse - 1 + (k - 1)) % 12) + 1;
 
 function houseLord(chart, h) {
