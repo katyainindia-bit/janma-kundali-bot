@@ -4,6 +4,19 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Janma Kundali</title>
+<meta name="description" content="Натальная карта по джйотиш, периоды и благоприятные дни — Janma Kundali by Katya Das">
+<meta property="og:title" content="Janma Kundali">
+<meta property="og:description" content="Натальная карта по джйотиш, периоды и благоприятные дни">
+<meta property="og:type" content="website">
+<meta property="og:image" content="/assets/pwa-512.png">
+<meta name="theme-color" content="#F6F2EC">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" href="/assets/pwa-192.png">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Janma Kundali">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="/engine.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -510,17 +523,85 @@
   .nav-item.active { color: var(--ink); font-weight: 600; }
   .nav-item .icon { width: 21px; height: 21px; color: var(--taupe); }
   .nav-item.active .icon { color: var(--gold); }
-  /* ---------- Широкий экран (сайт на компьютере): колонка по центру ---------- */
-  @media (min-width: 700px) {
+  /* ---------- Сайт на компьютере и планшете ---------- */
+  @media (min-width: 700px) and (max-width: 999px) {
     html { background: color-mix(in srgb, var(--bg) 90%, #000); }
     body { max-width: 720px; margin: 0 auto; min-height: 100vh; background: var(--bg); box-shadow: 0 0 0 1px var(--line); }
     .bottom-nav { left: 50%; right: auto; width: 720px; transform: translateX(-50%); border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
   }
+  @media (min-width: 1000px) {
+    body { padding-bottom: 0; padding-left: 240px; min-height: 100vh; }
+    /* левая колонка: логотип и меню */
+    header { position: fixed; left: 0; top: 0; width: 240px; padding: 22px 18px 10px; z-index: 5; }
+    .bottom-nav {
+      top: 84px; bottom: 0; left: 0; right: auto; width: 240px;
+      flex-direction: column; justify-content: flex-start; gap: 4px;
+      padding: 12px 12px; border-top: none;
+    }
+    header::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; }
+    body::before { content: ''; position: fixed; left: 0; top: 0; bottom: 0; width: 240px; background: var(--card-light); border-right: 1px solid var(--line); z-index: 4; }
+    header, .bottom-nav { z-index: 6; background: transparent; }
+    .nav-item { flex-direction: row; justify-content: flex-start; gap: 12px; font-size: 14px; padding: 12px 14px; border-radius: 12px; width: 100%; }
+    .nav-item:hover { background: var(--card); }
+    .nav-item.active { background: var(--card); }
+    .nav-item .icon { width: 22px; height: 22px; }
+    main { max-width: 1180px; margin: 0 auto; padding: 28px 36px 60px; }
+    /* главная: слева форма, справа карта */
+    .home-grid { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 28px; align-items: start; }
+    .home-left { position: sticky; top: 24px; }
+    .home-right { min-width: 0; }
+    .tabs { margin-bottom: 20px; }
+    #install-banner { left: auto !important; right: 24px !important; bottom: 24px !important; max-width: 380px; }
+  }
+  @media (max-width: 999px) { .home-grid, .home-left, .home-right { display: block; } }
+  /* стартовый экран */
+  #welcome { position: fixed; inset: 0; z-index: 100; background: var(--bg); overflow-y: auto; display: none; }
+  #welcome .w-wrap { max-width: 420px; margin: 0 auto; padding: 48px 20px 40px; text-align: center; }
+  #welcome .w-logo { width: 84px; height: 84px; margin: 0 auto 14px; display: block; }
+  #welcome h1 { font-size: 30px; margin: 0 0 4px; }
+  #welcome .w-by { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--taupe); margin-bottom: 18px; }
+  #welcome .w-lead { font-size: 15px; line-height: 1.55; color: var(--ink); margin: 0 0 26px; }
+  #welcome .w-card { background: var(--card-light); border: 1px solid var(--line); border-radius: 18px; padding: 20px; text-align: left; }
+  #welcome .w-note { font-size: 12px; color: var(--taupe); line-height: 1.5; margin-top: 12px; }
+  #welcome .w-or { font-size: 12px; color: var(--taupe); margin: 16px 0 10px; text-align: center; }
+  #welcome .w-link { background: none; border: none; color: var(--gold); font-size: 14px; cursor: pointer; margin-top: 16px; padding: 6px; font-family: inherit; }
+  #install-banner { display: none; position: fixed; left: 12px; right: 12px; bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 60; background: var(--card-light); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; box-shadow: 0 6px 24px rgba(0,0,0,.12); font-size: 13px; line-height: 1.45; text-align: left; }
+  #install-banner .ib-row { display: flex; gap: 10px; margin-top: 10px; }
+  #install-banner button { font-family: inherit; font-size: 13px; border-radius: 10px; padding: 8px 14px; cursor: pointer; border: 1px solid var(--line); background: transparent; color: var(--ink); }
+  #install-banner button.ib-go { background: var(--ink); color: var(--bg); border-color: var(--ink); }
   .nrow{display:flex;align-items:center;gap:8px;font-size:14px;margin:6px 0;text-transform:none;letter-spacing:0;color:var(--ink);}
   .nrow input{width:16px;height:16px;flex:none;}
 </style>
 </head>
 <body>
+
+<div id="welcome">
+  <div class="w-wrap">
+    <img class="w-logo" src="/assets/janma-icon.png" alt="">
+    <h1>Janma Kundali</h1>
+    <div class="w-by">by Katya Das</div>
+    <p class="w-lead">Натальная карта по джйотиш, периоды и благоприятные дни — в одном месте.</p>
+    <div class="w-card">
+      <h2 style="font-size:17px;margin:0 0 12px;">Войти по почте</h2>
+      <div class="field"><label>Почта</label><input type="email" id="w-email" placeholder="name@example.com" autocomplete="email"></div>
+      <button class="btn-primary" id="w-send" style="margin-top:8px;">Получить код</button>
+      <div id="w-code-block" style="display:none;margin-top:12px;">
+        <div class="field"><label>Код из письма</label><input type="text" inputmode="numeric" maxlength="6" id="w-code" placeholder="6 цифр" autocomplete="one-time-code"></div>
+        <button class="btn-primary" id="w-confirm" style="margin-top:8px;">Войти</button>
+      </div>
+      <div id="w-msg" style="font-size:13px;margin-top:10px;display:none;"></div>
+      <div class="w-note">Пароль не нужен: мы пришлём код на почту. Вход нужен, чтобы сохранять карты и видеть их на всех устройствах.</div>
+    </div>
+    <div class="w-or" id="w-or-tg" style="display:none;">или</div>
+    <a class="btn-secondary" id="w-tg" href="#" target="_blank" rel="noopener" style="display:none;text-decoration:none;text-align:center;">Открыть в Telegram</a>
+    <button class="w-link" id="w-guest">Продолжить без входа</button>
+  </div>
+</div>
+
+<div id="install-banner">
+  <div id="ib-text">Установите приложение на экран телефона, чтобы открывать его одним касанием.</div>
+  <div class="ib-row"><button class="ib-go" id="ib-install">Установить</button><button id="ib-close">Не сейчас</button></div>
+</div>
 
 <header>
   <div class="brand" id="brand-logo" style="cursor:pointer;">
@@ -536,6 +617,7 @@
 <main>
 
 <div id="page-home">
+  <div class="home-grid"><div class="home-left">
   <button class="btn-secondary" id="form-collapsed-btn" style="display:none;width:100%;margin-bottom:14px;justify-content:center;align-items:center;gap:6px;">
     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
     Построить новую карту
@@ -589,6 +671,7 @@
     <div class="error-msg" id="error-msg"></div>
   </div>
 
+  </div><div class="home-right">
   <div id="results">
     <div class="info-card">
       <div>
@@ -858,6 +941,7 @@
       <div class="error-msg" id="varga-error-msg"></div>
     </div>
   </div>
+  </div></div>
 
 </div>
 
@@ -1181,6 +1265,7 @@
       </div>
     </div>
     <div id="acc-note" style="font-size:12px;margin-top:8px;display:none;"></div>
+    <button class="btn-secondary" id="acc-logout" style="display:none;margin-top:12px;">Выйти из аккаунта</button>
     <div id="acc-tg-block" style="display:none;margin-top:12px;">
       <button class="btn-secondary" id="acc-tg-link">Привязать Telegram</button>
     </div>
@@ -2352,9 +2437,95 @@
   // Архив: сохранённые карты, папки, избранное, заметки
   // ============================================================
 
+  // ---------- Вход: Telegram (подпись) или сайт (токен сессии по почте) ----------
+  const JK_TOKEN_KEY = 'jk_token';
+  function jkToken() { try { return localStorage.getItem(JK_TOKEN_KEY) || ''; } catch (e) { return ''; } }
+  function jkSetToken(t) { try { if (t) localStorage.setItem(JK_TOKEN_KEY, t); else localStorage.removeItem(JK_TOKEN_KEY); } catch (e) {} }
+  function inTelegram() { return !!(window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData); }
   function getInitData() {
-    return (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || '';
+    if (inTelegram()) return window.Telegram.WebApp.initData;
+    const t = jkToken();
+    return t ? 'web:' + t : '';
   }
+  // если сервер сказал, что сессия не действует — возвращаем на экран входа
+  (function () {
+    const _fetch = window.fetch.bind(window);
+    window.fetch = async function (...a) {
+      const r = await _fetch(...a);
+      try {
+        if (r.status === 401 && !inTelegram() && jkToken() && String(a[0]).startsWith('/api/')) { jkSetToken(''); showWelcome(); }
+      } catch (e) {}
+      return r;
+    };
+  })();
+  let jkBotUsername = null;
+  function wMsg(text, bad) { const m = document.getElementById('w-msg'); m.textContent = text; m.style.color = bad ? '#a8654a' : '#4f7a52'; m.style.display = text ? 'block' : 'none'; }
+  async function wApi(path, body) {
+    const res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Ошибка');
+    return data;
+  }
+  function showWelcome() { document.getElementById('welcome').style.display = 'block'; }
+  function hideWelcome() { document.getElementById('welcome').style.display = 'none'; }
+  document.getElementById('w-send').addEventListener('click', async () => {
+    wMsg('');
+    try { await wApi('/api/auth/email/request', { email: document.getElementById('w-email').value }); document.getElementById('w-code-block').style.display = 'block'; wMsg('Код отправлен на почту. Он действует 10 минут.'); }
+    catch (e) { wMsg(e.message, true); }
+  });
+  document.getElementById('w-confirm').addEventListener('click', async () => {
+    wMsg('');
+    try {
+      const r = await wApi('/api/auth/email/verify', { email: document.getElementById('w-email').value, code: document.getElementById('w-code').value });
+      jkSetToken(r.token);
+      location.reload();
+    } catch (e) { wMsg(e.message, true); }
+  });
+  document.getElementById('w-guest').addEventListener('click', () => { try { sessionStorage.setItem('jk_guest', '1'); } catch (e) {} hideWelcome(); maybeShowInstall(); });
+  (async function initWelcome() {
+    if (inTelegram()) return;
+    try {
+      const c = await (await fetch('/api/config')).json();
+      jkBotUsername = c.botUsername || null;
+      if (jkBotUsername) {
+        const a = document.getElementById('w-tg'); a.href = 'https://t.me/' + jkBotUsername; a.style.display = 'block';
+        document.getElementById('w-or-tg').style.display = 'block';
+      }
+    } catch (e) {}
+    let guest = false; try { guest = sessionStorage.getItem('jk_guest') === '1'; } catch (e) {}
+    if (!jkToken() && !guest) showWelcome(); else maybeShowInstall();
+    if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js').catch(() => {}); }
+  })();
+
+  // ---------- Установка на экран телефона ----------
+  let deferredInstall = null;
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredInstall = e; maybeShowInstall(); });
+  function isStandalone() { return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; }
+  function maybeShowInstall() {
+    if (inTelegram() || isStandalone()) return;
+    try { if (localStorage.getItem('jk_install_dismissed') === '1') return; } catch (e) {}
+    if (document.getElementById('welcome').style.display === 'block') return;
+    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const b = document.getElementById('install-banner');
+    if (ios) {
+      document.getElementById('ib-text').textContent = 'Чтобы установить приложение на экран: нажмите «Поделиться» внизу браузера и выберите «На экран Домой».';
+      document.getElementById('ib-install').style.display = 'none';
+      b.style.display = 'block';
+    } else if (deferredInstall) {
+      b.style.display = 'block';
+    }
+  }
+  document.getElementById('ib-install').addEventListener('click', async () => {
+    if (!deferredInstall) return;
+    deferredInstall.prompt();
+    try { await deferredInstall.userChoice; } catch (e) {}
+    deferredInstall = null;
+    document.getElementById('install-banner').style.display = 'none';
+  });
+  document.getElementById('ib-close').addEventListener('click', () => {
+    document.getElementById('install-banner').style.display = 'none';
+    try { localStorage.setItem('jk_install_dismissed', '1'); } catch (e) {}
+  });
 
   async function archiveApi(endpoint, body) {
     const res = await fetch('/api/archive/' + endpoint, {
@@ -3877,6 +4048,12 @@
       accNote(r.merged ? 'Почта подтверждена. Данные с сайта объединены с этим аккаунтом.' : 'Почта подтверждена.');
       await loadAccountInfo();
     } catch (e) { accNote(e.message, true); }
+  });
+  document.getElementById('acc-logout').style.display = inTelegram() ? 'none' : 'block';
+  document.getElementById('acc-logout').addEventListener('click', async () => {
+    try { await fetch('/api/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ initData: getInitData() }) }); } catch (e) {}
+    jkSetToken(''); try { sessionStorage.removeItem('jk_guest'); } catch (e) {}
+    location.reload();
   });
   document.getElementById('acc-tg-link').addEventListener('click', async () => {
     accNote('');

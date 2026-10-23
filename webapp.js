@@ -787,6 +787,10 @@ function startWebApp() {
     return false;
   }
 
+  app.get('/api/config', (req, res) => {
+    res.json({ botUsername: process.env.BOT_USERNAME || null });
+  });
+
   // Вход с сайта: 1) запросить код
   app.post('/api/auth/email/request', async (req, res) => {
     if (ipLimited(req, 20)) return res.status(429).json({ error: 'Слишком много запросов. Попробуйте позже.' });
