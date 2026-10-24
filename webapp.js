@@ -478,7 +478,9 @@ function startWebApp() {
       if (!chart || !chart.planets || !chart.ascendant || !Number.isFinite(chart.jd)) return res.status(400).json({ error: 'Нет натальной карты' });
       if (!Number.isInteger(y) || y < 1900 || y > 2200) return res.status(400).json({ error: 'Год вне диапазона' });
       if (![lat, lon, utcOffset].every(Number.isFinite) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return res.status(400).json({ error: 'Неверное место' });
-      const r = computeVarshaphala(chart, { year: y, mode: mode === 'tithi' ? 'tithi' : 'varsha', lat, lon, utcOffset });
+      // Часовой пояс считаем по координатам на момент самой правеши, а не на 1 декабря (летнее время)
+      const tzAt = (jdv) => { try { const d = new Date((jdv - 2440587.5) * 864e5); return resolveTimezoneForCoords(lat, lon, d).utcOffset; } catch (e) { return null; } };
+      const r = computeVarshaphala(chart, { year: y, mode: mode === 'tithi' ? 'tithi' : 'varsha', lat, lon, utcOffset, tzAt });
       if (r.error) return res.status(404).json({ error: r.error });
       res.json(r);
     } catch (e) {
@@ -815,6 +817,7 @@ function startWebApp() {
   // Вход с сайта: 1) запросить код
   app.post('/api/auth/email/request', async (req, res) => {
     if (ipLimited(req, 20)) return res.status(429).json({ error: 'Слишком много запросов. Попробуйте позже.' });
+    if (req.body.consentPd !== true) return res.status(400).json({ error: 'Нужно согласие на обработку персональных данных' });
     const r = await accounts.requestEmailCode(req.body.email);
     if (r.error) return res.status(400).json({ error: r.error });
     res.json({ ok: true });
@@ -824,12 +827,13 @@ function startWebApp() {
     if (ipLimited(req, 60)) return res.status(429).json({ error: 'Слишком много запросов. Попробуйте позже.' });
     const c = accounts.checkEmailCode(req.body.email, req.body.code);
     if (c.error) return res.status(400).json({ error: c.error });
-    const { token } = accounts.loginWithEmail(c.email);
+    const { token } = accounts.loginWithEmail(c.email, { pd: req.body.consentPd === true, marketing: req.body.consentMarketing === true });
     res.json({ ok: true, token });
   });
   app.post('/api/auth/telegram/start', (req, res) => {
     if (ipLimited(req, 40)) return res.status(429).json({ error: 'Слишком много запросов. Попробуйте позже.' });
-    res.json({ code: accounts.createTgLogin() });
+    if (req.body.consentPd !== true) return res.status(400).json({ error: 'Нужно согласие на обработку персональных данных' });
+    res.json({ code: accounts.createTgLogin({ pd: true, marketing: req.body.consentMarketing === true }) });
   });
   app.post('/api/auth/telegram/poll', (req, res) => {
     if (ipLimited(req, 600)) return res.status(429).json({ error: 'Слишком много запросов.' });

@@ -29,7 +29,7 @@ const EXALT = { Солнце: [0, 10], Луна: [1, 3], Марс: [9, 28], Ме
 const HADDA = [
   [['Юпитер',6],['Венера',12],['Меркурий',20],['Марс',25],['Сатурн',30]],
   [['Венера',8],['Меркурий',14],['Юпитер',22],['Сатурн',27],['Марс',30]],
-  [['Меркурий',6],['Юпитер',12],['Венера',17],['Марс',24],['Сатурн',30]],
+  [['Меркурий',6],['Венера',12],['Юпитер',17],['Марс',24],['Сатурн',30]], // Близнецы по «Таджика Нилаканти» (ст. 21)
   [['Марс',7],['Венера',13],['Меркурий',19],['Юпитер',26],['Сатурн',30]],
   [['Юпитер',6],['Венера',11],['Сатурн',18],['Меркурий',24],['Марс',30]],
   [['Меркурий',7],['Венера',17],['Юпитер',21],['Марс',28],['Сатурн',30]],
@@ -60,7 +60,7 @@ function haddaRuler(lon) {
   for (const [pl, end] of HADDA[s]) if (d < end) return pl;
   return HADDA[s][4][0];
 }
-function drekkanaRuler(lon) { const s = Math.floor(lon / 30), k = Math.floor((lon % 30) / 10); return DREK_ORDER[(3 * s + k) % 7]; }
+function drekkanaRuler(lon) { const sg = Math.floor(lon / 30), k = Math.floor((lon % 30) / 10); return LORD[(sg + 4 * k) % 12]; } // 1-я, 5-я, 9-я от знака (книга, ст. 25 и 27)
 /** signs: {планета: индекс знака в годовой карте}; lons — долготы планет */
 function panchaVargiya(planet, lon, signs) {
   const sign = Math.floor(lon / 30);
@@ -71,7 +71,7 @@ function panchaVargiya(planet, lon, signs) {
   const drekkana = 10 * relTo(planet, drekkanaRuler(lon), signs);
   const navamsha = 5 * relTo(planet, navamshaPosition(lon).lord, signs);
   const total = Math.round((griha + uccha + hudda + drekkana + navamsha) / 4 * 100 + 1e-7) / 100;
-  const label = total >= 10 ? 'Пурна-бали' : total >= 5 ? 'Мадхья-бали' : 'Альпа-бали';
+  const label = total >= 15 ? 'Пурна-бали' : total >= 10 ? 'Мадхья-бали' : total >= 5 ? 'Хина-бали' : 'Нишкришта-бали';
   return { total, griha, uccha, hudda, drekkana, navamsha, label };
 }
 
@@ -135,10 +135,13 @@ function aspectsLagna(houseOfPlanet) { return [1, 3, 4, 5, 7, 9, 10, 11].include
  * @param opts       { year, mode: 'varsha'|'tithi', lat, lon, utcOffset }
  */
 function computeVarshaphala(natal, opts) {
-  const { year, mode, lat, lon, utcOffset } = opts;
+  const { year, mode, lat, lon } = opts;
+  let utcOffset = opts.utcOffset;
   const ay = natal.ayanamshaType || 'lahiri', base = natal.customAyanamshaBase || null;
   const natalSun = natal.planets['Солнце'].siderealLon;
   const natalJD = natal.jd;
+  const birthY = new Date((natalJD - 2440587.5) * 864e5).getUTCFullYear();
+  if (year <= birthY) return { error: 'Годовая карта считается начиная с первого года жизни: выберите год позже ' + birthY + '.' };
   let jd, extra = {};
   if (mode === 'tithi') {
     const el = elong(natalJD);
@@ -150,6 +153,8 @@ function computeVarshaphala(natal, opts) {
   } else {
     jd = findVarsha(natalJD, natalSun, year, ay, base);
   }
+  // Часовой пояс — на момент самой правеши (летнее время и переводы стрелок), если передана функция по координатам
+  if (typeof opts.tzAt === 'function') { const o = opts.tzAt(jd); if (Number.isFinite(o)) utcOffset = o; }
   const lp = localParts(jd, utcOffset);
   const chart = calculateChart({ ...lp, utcOffset, lat, lon, ayanamshaType: ay, nodeType: natal.nodeType || 'mean', customAyanamshaBase: base });
   const age = Math.round((jd - natalJD) / 365.2425);
@@ -158,9 +163,9 @@ function computeVarshaphala(natal, opts) {
   const munthaSign = (natalLagnaSign + age) % 12;
   const munthaHouse = pmod(munthaSign - lagnaSign, 12) + 1;
 
-  // День/ночь: Солнце над горизонтом (дома 7–12)
-  const sunHouse = chart.planets['Солнце'].house;
-  const isDay = sunHouse >= 7;
+  // День/ночь: Солнце над горизонтом — по градусу, а не по знаку. Над горизонтом Солнце, если оно
+  // между Десцендентом и Асцендентом (идя против часовой через MC), то есть на 180–360° от лагны.
+  const isDay = pmod(chart.planets['Солнце'].siderealLon - chart.ascendant.siderealLon, 360) >= 180;
   const signsMap = {}; SEVEN.forEach(n => { signsMap[n] = chart.planets[n].sign.index; });
   const triRashi = (isDay ? TRI_DAY : TRI_NIGHT)[lagnaSign];
   const dinaRatri = LORD[chart.planets[isDay ? 'Солнце' : 'Луна'].sign.index];
@@ -187,7 +192,7 @@ function computeVarshaphala(natal, opts) {
   else { best = officers[0]; rule = 'muntesha'; }
 
   // Таблица планет с ПВБ
-  const table = SEVEN.map(n => { const b = panchaVargiya(n, chart.planets[n].siderealLon, signsMap); const pl = chart.planets[n]; return { planet: n, pvb: b.total, griha: b.griha, uccha: b.uccha, hudda: b.hudda, drekkana: b.drekkana, navamsha: b.navamsha, label: b.label, harsha: harshaBala(n, pl.house, pl.sign.index, isDay) }; });
+  const table = SEVEN.map(n => { const b = panchaVargiya(n, chart.planets[n].siderealLon, signsMap); const pl = chart.planets[n]; return { planet: n, pvb: b.total, griha: b.griha, uccha: b.uccha, hudda: b.hudda, drekkana: b.drekkana, navamsha: b.navamsha, label: b.label, harsha: harshaBala(n, pl.house, pl.sign.index, isDay), dvadasha: dvadashaVargiya(n, pl.siderealLon) }; });
 
   return {
     mode, year, jd, local: lp, age, extra,
@@ -196,43 +201,100 @@ function computeVarshaphala(natal, opts) {
     officers, varshesh: { planet: best.planet, role: best.role, pvb: best.pvb, byAspect: rule === 'pvb', rule },
     pvbTable: table,
     sahams: (() => { const L = { Лагна: chart.ascendant.siderealLon }; SEVEN.forEach(n => { L[n] = chart.planets[n].siderealLon; }); L.ЛагнаПати = L[LORD[lagnaSign]]; return computeSahams(L, isDay).map(x => { const si = Math.floor(x.lon / 30); return { ...x, sign: SIGNS[si], deg: x.lon % 30, house: pmod(si - lagnaSign, 12) + 1, nakshatra: NAK_NAMES[Math.min(26, Math.floor(x.lon / (360 / 27)))] }; }); })(),
+    munthaMonths: (() => {
+      // Мунта по месяцам (книга, стр. 112–113): за месяц +2°30′. Масапраveша — когда Солнце ушло от натальной долготы на 30°·i.
+      const baseLon = pmod(natal.ascendant.siderealLon + 30 * age, 360);
+      const rows = [];
+      for (let i = 0; i < 12; i++) {
+        let j = jd + i * 30.4;
+        for (let k = 0; k < 10; k++) { const dd = signedDiff(siderealSun(j, ay, base) - (natalSun + 30 * i)); j -= dd / 0.9856; }
+        const lonM = pmod(baseLon + 2.5 * i, 360), si = Math.floor(lonM / 30);
+        const lp2 = localParts(j, utcOffset), pad = (n) => String(n).padStart(2, '0');
+        rows.push({ n: i + 1, date: pad(lp2.day) + '.' + pad(lp2.month) + '.' + lp2.year, sign: SIGNS[si], deg: lonM % 30, house: pmod(si - lagnaSign, 12) + 1, lord: LORD[si] });
+      }
+      return rows;
+    })(),
     mudda: muddaDasha(natal.planets['Луна'].siderealLon, age, jd, utcOffset),
     yogas: (() => { try { const m = {}; table.forEach(t => { m[t.planet] = t.pvb; }); return computeTajikaYogas(chart, m, { LORD, EXALT, FRIENDS, haddaRuler, drekkanaRuler, navamshaLord: (lon) => navamshaPosition(lon).lord }); } catch (e) { console.error('Таджика-йоги:', e.message); return []; } })(),
   };
 }
 
 const NAK_NAMES = ['Ашвини','Бхарани','Криттика','Рохини','Мригашира','Ардра','Пунарвасу','Пушья','Ашлеша','Магха','Пурва Пхалгуни','Уттара Пхалгуни','Хаста','Читра','Свати','Вишакха','Анурадха','Джьештха','Мула','Пурва Ашадха','Уттара Ашадха','Шравана','Дханишта','Шатабхиша','Пурва Бхадрапада','Уттара Бхадрапада','Ревати'];
+
+// ---------- Дваадашаваргия-бала (книга, стр. 24–28) ----------
+// Двенадцать варг. Десятая (дашамша) в тексте книги читается неоднозначно, поэтому не учитывается: считаем 11.
+// Для каждой варги берётся её владыка; свой или друг по натуральной дружбе = благоприятная варга (шубха),
+// враг = неблагоприятная (папа), остальное нейтрально. В раши: экзальтация = шубха, падение = папа.
+const PANCHAMSHA_ODD = ['Марс','Сатурн','Юпитер','Меркурий','Венера'];
+const EKADASHA_ORDER = [0, 11, 8, 9, 2, 7, 6, 5, 4, 3, 1];
+function vargaLords(lon) {
+  const sg = Math.floor(lon / 30), d = lon % 30, odd = sg % 2 === 0; // Овен (0) — нечётный знак
+  const movable = [0, 3, 6, 9].includes(sg), fixed = [1, 4, 7, 10].includes(sg);
+  const L = (i) => LORD[pmod(i, 12)];
+  const out = [];
+  out.push(['Раши', L(sg)]);
+  out.push(['Хора', (odd ? d < 15 : d >= 15) ? 'Солнце' : 'Луна']);
+  out.push(['Дреккана', L(sg + 4 * Math.floor(d / 10))]);
+  out.push(['Чатуртхамша', L(sg + 3 * Math.floor(d / 7.5))]);
+  const k5 = Math.floor(d / 6);
+  out.push(['Панчамша', odd ? PANCHAMSHA_ODD[k5] : PANCHAMSHA_ODD[4 - k5]]);
+  out.push(['Шаштхамша', L((odd ? 0 : 6) + Math.floor(d / 5))]);
+  out.push(['Саптамша', L(sg + (odd ? 0 : 6) + Math.floor(d / (30 / 7)))]);
+  out.push(['Аштамша', L((movable ? 0 : fixed ? 8 : 4) + Math.floor(d / 3.75))]);
+  out.push(['Навамша', navamshaPosition(lon).lord]);
+  out.push(['Экадашамша', L(EKADASHA_ORDER[Math.min(10, Math.floor(d / (30 / 11)))])]);
+  out.push(['Двадашамша', L(sg + Math.floor(d / 2.5))]);
+  return out;
+}
+function dvadashaVargiya(planet, lon) {
+  const sg = Math.floor(lon / 30);
+  let good = 0, bad = 0;
+  const rows = vargaLords(lon).map(([name, lord], i) => {
+    let t = 'sama';
+    if (lord === planet || FRIENDS[planet].f.includes(lord)) t = 'shubha';
+    else if (FRIENDS[planet].e.includes(lord)) t = 'papa';
+    if (i === 0) { if (EXALT[planet][0] === sg) t = 'shubha'; else if ((EXALT[planet][0] + 6) % 12 === sg) t = 'papa'; }
+    if (t === 'shubha') good++; else if (t === 'papa') bad++;
+    return { varga: name, lord, type: t };
+  });
+  const label = good > bad ? 'Шубха' : good < bad ? 'Папа' : 'Поровну';
+  return { good, bad, neutral: rows.length - good - bad, label, rows };
+}
+
 // ---------- Сахамы ----------
-// Формулы A − B + C для дня (ночью меняем A и B местами, где это положено). Если C не лежит
-// на дуге от B до A вперёд, к результату добавляется 30°. Сверено с J108 на карте Katya (16 сахам).
+// Формулы A − B + C берутся из таблицы сахам (Сахамасарани) «Таджика Нилаканти», стр. 84-86:
+// отдельно для дня и для ночи (где-то ночью меняются местами A и B, где-то нет, у Гаурава меняются B и C).
+// Если C не лежит на дуге от B до A вперёд, к результату добавляется 30°.
+// hidden: сахам нужен для расчёта другого и в списке не показывается.
 const SAHAMS = [
-  ['Пунья', 'Удача', 'Луна', 'Солнце', 'Лагна', true],
-  ['Видья', 'Образование', 'Солнце', 'Луна', 'Лагна', true],
-  ['Йаша', 'Слава', 'Юпитер', 'Пунья', 'Лагна', true],
-  ['Митра', 'Друг', 'Юпитер', 'Пунья', 'Венера', true],
-  ['Махатмья', 'Величие', 'Пунья', 'Марс', 'Лагна', true],
-  ['Аша', 'Желания', 'Сатурн', 'Марс', 'Лагна', true],
-  ['Самартха', 'Способности, предприимчивость', 'Марс', 'ЛагнаПати', 'Лагна', true],
-  ['Бхратру', 'Брат', 'Юпитер', 'Сатурн', 'Лагна', false],
-  ['Гаурава', 'Уважение, признание, респектабельность', 'Юпитер', 'Луна', 'Солнце', true],
-  ['Питру', 'Отец', 'Сатурн', 'Солнце', 'Лагна', true],
-  ['Раджья', 'Царство', 'Сатурн', 'Солнце', 'Лагна', true],
-  ['Матру', 'Мать', 'Луна', 'Венера', 'Лагна', true],
-  ['Путра', 'Дети', 'Юпитер', 'Луна', 'Лагна', true],
-  ['Джива', 'Жизнь', 'Юпитер', 'Сатурн', 'Лагна', false],
-  ['Карма', 'Деятельность', 'Марс', 'Меркурий', 'Лагна', true],
-  ['Рога', 'Болезни', 'Лагна', 'Луна', 'Лагна', false],
+  ['Пунья', 'Удача', ['Луна','Солнце','Лагна'], ['Солнце','Луна','Лагна']],
+  ['Гуру', 'Наставник', ['Солнце','Луна','Лагна'], ['Луна','Солнце','Лагна'], true],
+  ['Видья', 'Образование', ['Солнце','Луна','Лагна'], ['Луна','Солнце','Лагна']],
+  ['Йаша', 'Слава', ['Юпитер','Пунья','Лагна'], ['Пунья','Юпитер','Лагна']],
+  ['Митра', 'Друг', ['Гуру','Пунья','Венера'], ['Пунья','Гуру','Венера']],
+  ['Махатмья', 'Величие', ['Пунья','Марс','Лагна'], ['Марс','Пунья','Лагна']],
+  ['Аша', 'Желания', ['Сатурн','Венера','Лагна'], ['Венера','Сатурн','Лагна']],
+  ['Самартха', 'Способности, предприимчивость', ['Марс','ЛагнаПати','Лагна'], ['ЛагнаПати','Марс','Лагна']],
+  ['Бхратру', 'Брат', ['Юпитер','Сатурн','Лагна'], ['Юпитер','Сатурн','Лагна']],
+  ['Гаурава', 'Уважение, признание, респектабельность', ['Юпитер','Луна','Солнце'], ['Юпитер','Солнце','Луна']],
+  ['Питру', 'Отец', ['Сатурн','Солнце','Лагна'], ['Солнце','Сатурн','Лагна']],
+  ['Раджья', 'Царство', ['Сатурн','Солнце','Лагна'], ['Солнце','Сатурн','Лагна']],
+  ['Матру', 'Мать', ['Луна','Венера','Лагна'], ['Венера','Луна','Лагна']],
+  ['Путра', 'Дети', ['Юпитер','Луна','Лагна'], ['Юпитер','Луна','Лагна']],
+  ['Джива', 'Жизнь', ['Сатурн','Юпитер','Лагна'], ['Юпитер','Сатурн','Лагна']],
+  ['Карма', 'Деятельность', ['Марс','Меркурий','Лагна'], ['Меркурий','Марс','Лагна']],
+  ['Рога', 'Болезни', ['Лагна','Луна','Лагна'], ['Лагна','Луна','Лагна']], // по тексту книги (ст. 12): всегда лагна − Луна + лагна; в таблице для дня опечатка
 ];
 function computeSahams(lons, isDay) {
   const val = { ...lons };
   const out = [];
-  for (const [name, mean, A, B, C, rev] of SAHAMS) {
-    let a = val[A], b = val[B], c = val[C];
-    if (rev && !isDay) { const t = a; a = b; b = t; }
+  for (const [name, mean, day, night, hidden] of SAHAMS) {
+    const [A, B, C] = isDay ? day : night;
+    const a = val[A], b = val[B], c = val[C];
     let r = pmod(a - b + c, 360);
     if (!(pmod(c - b, 360) <= pmod(a - b, 360))) r = pmod(r + 30, 360);
     val[name] = r;
-    out.push({ name, mean, lon: r });
+    if (!hidden) out.push({ name, mean, lon: r });
   }
   return out;
 }
@@ -269,4 +331,4 @@ function muddaDasha(natalMoonLon, age, praveshJD, utcOffset) {
   return periods;
 }
 
-module.exports = { computeVarshaphala, panchaVargiya, muddaDasha, computeSahams };
+module.exports = { computeVarshaphala, panchaVargiya, muddaDasha, computeSahams, dvadashaVargiya };

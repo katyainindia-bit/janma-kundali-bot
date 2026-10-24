@@ -30,6 +30,8 @@ const TEXT = {
   khallasara: ['Кхалласара', 'Луна «пустая» и не связана итхасалой или соединением с Лагнешем и Карьешем', 'Разрушает результат Камбулы, неблагоприятно'],
   rudda: ['Рудда', 'Итхасала, где одна из планет сожжена, в падении, в знаке врага или ретроградна', 'Итхасала не даёт результата: слабая планета не может ни взять, ни отдать силу'],
   duphalli: ['Дупхалли-кутта', 'Медленный граха в достоинстве (свой знак, экзальтация, своя хадда, дрекана, навамша), быстрый без достоинства', 'Дело сбывается с трудом'],
+  kuttha: ['Куттха', 'Итхасала, где одна из планет сильна: стоит в Лагне или кендре, смотрит на Лагну, в своём знаке, экзальтации, хадде, дреккане или навамше (по книге, стр. 70–73)', 'Итхасала даёт результат полностью, сила зависит от того, чем сильна планета'],
+  duruph: ['Дурупха', 'Итхасала, где одна из планет слаба: в 6, 8, 12 от Лагны, сожжена, ретроградна, в падении или знаке врага, с злой планетой, не смотрит на Лагну, без достоинств (по книге, стр. 74–76)', 'Итхасала не даёт обещанного результата'],
   duttotta: ['Дутхотта-вира', 'Лагнеш и Карьеш слабы, но есть итхасала, и быстрый соединён с сильной третьей планетой', 'Дело сбывается через помощь другого'],
   tambira: ['Тамбира', 'Итхасалы нет, одна из планет на 29° и в следующем знаке стоит сильная планета в орбе, связанная с другой планетой пары', 'Дело сбывается'],
 };
@@ -59,6 +61,8 @@ function makeAnalyzer(chart, H) {
   return { P, lagnaSign };
 }
 
+const hasDrishtiLagna = (X) => ASPECT.includes(pmod(X.sign - LAGNA_SIGN[0], 12) + 1);
+const LAGNA_SIGN = [0];
 const dist = (a, b) => pmod(b.sign - a.sign, 12) + 1;
 const hasDrishti = (a, b) => ASPECT.includes(dist(a, b)) && ASPECT.includes(dist(b, a));
 const axisKind = (a, b) => { const d = dist(a, b); return [3, 5, 9, 11].includes(d) ? 'митра' : [4, 7, 10].includes(d) ? 'шатру' : 'один знак'; };
@@ -78,6 +82,7 @@ function pairState(f, s) {
 function computeTajikaYogas(chart, pvbMap, H) {
   if (!H) return [];
   const { P, lagnaSign } = makeAnalyzer(chart, H);
+  LAGNA_SIGN[0] = lagnaSign;
   const out = [];
   const add = (key, planets, extra) => out.push({ key, name: TEXT[key][0], how: TEXT[key][1], result: TEXT[key][2], planets, ...(extra || {}) });
   const lagnesh = H.LORD[lagnaSign];
@@ -162,6 +167,29 @@ function computeTajikaYogas(chart, pvbMap, H) {
             add('gairi', [f.name, s.name, 'Луна', qn], ctx);
           }
         }
+      }
+      // Куттха и Дурупха (книга, стр. 70–76): сильные и слабые стороны планет в итхасале
+      for (const X of [f, s]) {
+        const strong = [];
+        if (X.house === 1) strong.push('в Лагне');
+        else if ([4, 7, 10].includes(X.house)) strong.push('в кендре (' + X.house + '-й дом)');
+        if (hasDrishtiLagna(X)) strong.push('смотрит на Лагну');
+        if (X.uttama) strong.push('в своём знаке или экзальтации');
+        if (H.haddaRuler(X.lon) === X.name) strong.push('в своей хадде');
+        if (H.drekkanaRuler(X.lon) === X.name) strong.push('в своей дреккане');
+        if (H.navamshaLord(X.lon) === X.name) strong.push('в своей навамше');
+        if (strong.length) add('kuttha', [f.name, s.name], { ...ctx, flags: [X.name + ': ' + strong.join(', ')] });
+        const weak = [];
+        if ([6, 8, 12].includes(X.house)) weak.push('в ' + X.house + '-м доме от Лагны');
+        for (const w of X.weakFlags) weak.push(w);
+        if (!hasDrishtiLagna(X)) weak.push('не смотрит на Лагну');
+        const evil = ['Марс', 'Сатурн'].filter(m => m !== X.name && P[m].sign === X.sign);
+        if (evil.length) weak.push('с ' + evil.join(', '));
+        if (X.name === 'Луна' && pmod(X.sign - P['Солнце'].sign, 12) === 11) weak.push('в 12-м знаке от Солнца');
+        const own = H.LORD[X.sign] === X.name ? X.sign : null;
+        if (!X.hasDignity) weak.push('нет достоинств (ни знака, ни хадды, ни дреккана, ни навамши)');
+        if (weak.length && (X.house === 6 || X.house === 8 || X.house === 12 || X.weak || evil.length)) add('duruph', [f.name, s.name], { ...ctx, flags: [X.name + ': ' + weak.join(', ')] });
+        void own;
       }
       // Рудда: итхасала, где слабая планета
       const wk = [f, s].filter(X => X.weak).map(X => X.name + ': ' + X.weakFlags.join(', '));

@@ -37,6 +37,13 @@ raw.exec(`
     last_used INTEGER NOT NULL,
     expires_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS consents (
+    user_id INTEGER PRIMARY KEY,
+    pd_at TEXT,
+    marketing INTEGER NOT NULL DEFAULT 0,
+    marketing_at TEXT,
+    updated_at TEXT NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS tg_logins (
     code TEXT PRIMARY KEY,
     user_id INTEGER,
@@ -186,14 +193,36 @@ function mergeUsers(fromId, toId) {
   tx();
 }
 
+try { raw.exec('ALTER TABLE tg_logins ADD COLUMN pd INTEGER NOT NULL DEFAULT 0'); } catch (e) { /* уже есть */ }
+try { raw.exec('ALTER TABLE tg_logins ADD COLUMN mk INTEGER NOT NULL DEFAULT 0'); } catch (e) { /* уже есть */ }
+
+/** Согласия: на обработку персональных данных (обязательно) и на рекламные письма (по желанию). */
+function saveConsent(userId, pd, marketing) {
+  const now = new Date().toISOString();
+  const cur = raw.prepare('SELECT * FROM consents WHERE user_id = ?').get(userId);
+  const mk = marketing ? 1 : 0;
+  if (!cur) {
+    raw.prepare('INSERT INTO consents (user_id, pd_at, marketing, marketing_at, updated_at) VALUES (?, ?, ?, ?, ?)')
+      .run(userId, pd ? now : null, mk, mk ? now : null, now);
+  } else {
+    raw.prepare('UPDATE consents SET pd_at = COALESCE(pd_at, ?), marketing = ?, marketing_at = ?, updated_at = ? WHERE user_id = ?')
+      .run(pd ? now : null, mk, mk ? (cur.marketing ? cur.marketing_at : now) : cur.marketing_at, now, userId);
+  }
+}
+/** Почты тех, кто согласился на рекламные письма. */
+function marketingEmails() {
+  return raw.prepare(`SELECT DISTINCT i.value AS email FROM consents c JOIN auth_identities i ON i.user_id = c.user_id AND i.kind = 'email' WHERE c.marketing = 1`).all().map((r) => r.email);
+}
+
 // ---------- сценарии ----------
 /** Вход с сайта по почте: возвращает { token, userId } */
-function loginWithEmail(email) {
+function loginWithEmail(email, consent) {
   let uid = identityUser('email', email);
   if (uid == null) {
     uid = createWebUser(email);
     addIdentity(uid, 'email', email);
   }
+  if (consent && consent.pd) saveConsent(uid, true, !!consent.marketing);
   return { token: createSession(uid), userId: uid };
 }
 
@@ -238,10 +267,10 @@ function consumeLinkCode(code, tgId) {
 }
 
 // ---------- вход на сайт через Telegram ----------
-function createTgLogin() {
+function createTgLogin(consent) {
   raw.prepare('DELETE FROM tg_logins WHERE expires_at < ?').run(Date.now());
   const code = crypto.randomBytes(18).toString('base64url');
-  raw.prepare('INSERT INTO tg_logins (code, user_id, expires_at) VALUES (?, NULL, ?)').run(code, Date.now() + 10 * 60 * 1000);
+  raw.prepare('INSERT INTO tg_logins (code, user_id, expires_at, pd, mk) VALUES (?, NULL, ?, ?, ?)').run(code, Date.now() + 10 * 60 * 1000, consent && consent.pd ? 1 : 0, consent && consent.marketing ? 1 : 0);
   return code;
 }
 /** Вызывается ботом: человек нажал Start по ссылке с сайта. */
@@ -260,6 +289,7 @@ function pollTgLogin(code) {
   if (!r || r.expires_at < Date.now()) return { error: 'Время вышло. Попробуйте ещё раз.' };
   if (r.user_id == null) return { pending: true };
   raw.prepare('DELETE FROM tg_logins WHERE code = ?').run(code);
+  if (r.pd) saveConsent(r.user_id, true, !!r.mk);
   return { token: createSession(r.user_id) };
 }
 
@@ -269,4 +299,4 @@ function accountInfo(userId) {
   return { userId, hasTelegram: userId > 0, emails: listEmails(userId) };
 }
 
-module.exports = { normalizeEmail, requestEmailCode, checkEmailCode, loginWithEmail, attachEmail, createSession, userBySession, endSession, createLinkCode, consumeLinkCode, createTgLogin, approveTgLogin, pollTgLogin, findUserByEmail, accountInfo, mergeUsers };
+module.exports = { normalizeEmail, requestEmailCode, checkEmailCode, loginWithEmail, attachEmail, createSession, userBySession, endSession, createLinkCode, consumeLinkCode, createTgLogin, saveConsent, marketingEmails, approveTgLogin, pollTgLogin, findUserByEmail, accountInfo, mergeUsers };

@@ -646,6 +646,10 @@
     <div id="w-reason" style="display:none;background:var(--card);border-radius:12px;padding:10px 14px;font-size:13px;line-height:1.45;margin:-8px 0 16px;"></div>
     <div class="w-card">
       <h2 style="font-size:17px;margin:0 0 12px;">Войти по почте</h2>
+      <div style="margin:0 0 12px;font-size:13px;line-height:1.45;">
+        <label style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;cursor:pointer;"><input type="checkbox" id="w-consent-pd" style="margin-top:3px;flex:none;"><span>Даю согласие на обработку персональных данных (почта, данные рождения) для работы сервиса</span></label>
+        <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer;"><input type="checkbox" id="w-consent-mk" style="margin-top:3px;flex:none;"><span>Хочу получать информационные и рекламные письма от Katya Das (по желанию, можно отписаться)</span></label>
+      </div>
       <div class="field"><label>Почта</label><input type="email" id="w-email" placeholder="name@example.com" autocomplete="email"></div>
       <button class="btn-primary" id="w-send" style="margin-top:8px;">Получить код</button>
       <div id="w-code-block" style="display:none;margin-top:12px;">
@@ -987,6 +991,7 @@
           <div class="info-card" id="vs-officers" style="display:block;"></div>
           <div class="info-card" id="vs-planets" style="display:block;"></div>
           <div class="info-card" id="vs-bala" style="display:block;overflow-x:auto;"></div>
+          <div class="info-card" id="vs-muntha-m" style="display:block;"></div>
           <div class="info-card" id="vs-mudda" style="display:block;"></div>
           <div class="info-card" id="vs-sahams" style="display:block;overflow-x:auto;"></div>
           <div class="info-card" id="vs-yogas" style="display:block;"></div>
@@ -2645,13 +2650,13 @@
   function hideWelcome() { document.getElementById('welcome').style.display = 'none'; }
   document.getElementById('w-send').addEventListener('click', async () => {
     wMsg('');
-    try { await wApi('/api/auth/email/request', { email: document.getElementById('w-email').value }); document.getElementById('w-code-block').style.display = 'block'; wMsg('Код отправлен на почту. Он действует 10 минут.'); }
+    try { if (!document.getElementById('w-consent-pd').checked) throw new Error('Отметьте согласие на обработку персональных данных'); await wApi('/api/auth/email/request', { email: document.getElementById('w-email').value, consentPd: true }); document.getElementById('w-code-block').style.display = 'block'; wMsg('Код отправлен на почту. Он действует 10 минут.'); }
     catch (e) { wMsg(e.message, true); }
   });
   document.getElementById('w-confirm').addEventListener('click', async () => {
     wMsg('');
     try {
-      const r = await wApi('/api/auth/email/verify', { email: document.getElementById('w-email').value, code: document.getElementById('w-code').value });
+      const r = await wApi('/api/auth/email/verify', { email: document.getElementById('w-email').value, code: document.getElementById('w-code').value, consentPd: document.getElementById('w-consent-pd').checked, consentMarketing: document.getElementById('w-consent-mk').checked });
       jkSetToken(r.token);
       location.reload();
     } catch (e) { wMsg(e.message, true); }
@@ -2659,7 +2664,7 @@
   document.getElementById('w-tg').addEventListener('click', async () => {
     wMsg('');
     try {
-      const { code } = await wApi('/api/auth/telegram/start', {});
+      if (!document.getElementById('w-consent-pd').checked) throw new Error('Отметьте согласие на обработку персональных данных'); const { code } = await wApi('/api/auth/telegram/start', { consentPd: true, consentMarketing: document.getElementById('w-consent-mk').checked });
       const url = 'https://t.me/' + jkBotUsername + '?start=login_' + code;
       const w = window.open(url, '_blank');
       const m = document.getElementById('w-msg');
@@ -5002,9 +5007,10 @@
       order.map((n) => { const p = d.chart.planets[n]; if (!p) return ''; return '<tr><td>' + vsEsc(n) + (p.retrograde ? ' ℞' : '') + '</td><td>' + vsEsc(p.sign.name) + ' ' + vsDeg(p.siderealLon) + '</td><td>' + p.house + '</td><td>' + vsEsc(p.nakshatra.name) + '</td><td>' + (pv[n] != null ? pv[n].toFixed(2) : '') + '</td></tr>'; }).join('') + '</table>';
     document.getElementById('vs-bala').innerHTML = '<div class="name" style="margin-bottom:6px;">Бала</div>' +
       '<div style="font-size:11px;color:var(--taupe);margin-bottom:6px;">Панча-варгия: Грига (до 30) + Уччха (до 20) + Худда (до 15) + Дреккана (до 10) + Навамша (до 5), сумма делится на 4. Харша — до 20.</div>' +
-      '<table style="width:100%;font-size:12px;border-collapse:collapse;min-width:420px;"><tr style="color:var(--taupe);font-size:11px;text-align:left;"><th>Планета</th><th>Грига</th><th>Уччха</th><th>Худда</th><th>Дрек.</th><th>Нав.</th><th>ПВБ</th><th>Сила</th><th>Харша</th></tr>' +
-      d.pvbTable.map((r) => '<tr><td>' + vsEsc(r.planet) + '</td><td>' + r.griha + '</td><td>' + r.uccha + '</td><td>' + r.hudda + '</td><td>' + r.drekkana + '</td><td>' + r.navamsha + '</td><td><b>' + r.pvb.toFixed(2) + '</b></td><td>' + vsEsc(r.label) + '</td><td>' + r.harsha + '</td></tr>').join('') + '</table>';
+      '<table style="width:100%;font-size:12px;border-collapse:collapse;min-width:420px;"><tr style="color:var(--taupe);font-size:11px;text-align:left;"><th>Планета</th><th>Грига</th><th>Уччха</th><th>Худда</th><th>Дрек.</th><th>Нав.</th><th>ПВБ</th><th>Сила</th><th>Харша</th><th>12 варг (+/−)</th></tr>' +
+      d.pvbTable.map((r) => '<tr><td>' + vsEsc(r.planet) + '</td><td>' + r.griha + '</td><td>' + r.uccha + '</td><td>' + r.hudda + '</td><td>' + r.drekkana + '</td><td>' + r.navamsha + '</td><td><b>' + r.pvb.toFixed(2) + '</b></td><td>' + vsEsc(r.label) + '</td><td>' + r.harsha + '</td><td>' + (r.dvadasha ? r.dvadasha.good + ' / ' + r.dvadasha.bad + ' ' + vsEsc(r.dvadasha.label) : '') + '</td></tr>').join('') + '</table>' + '<div style="font-size:11px;color:var(--taupe);margin-top:6px;">Дваадашаваргия: сколько варг благоприятны (свой знак или друг) и неблагоприятны (враг). Считаются 11 варг из 12: дашамша в книге читается неоднозначно, поэтому не учтена.</div>';
     const nowJD = Date.now() / 86400000 + 2440587.5;
+    document.getElementById('vs-muntha-m').innerHTML = '<div class="name" style="margin-bottom:6px;">Мунта по месяцам</div><div style="font-size:11px;color:var(--taupe);margin-bottom:6px;">За месяц Мунта проходит 2°30′ (книга «Таджика Нилаканти»). Месяц начинается, когда Солнце уходит от натальной долготы на 30° вперёд.</div><table style="width:100%;font-size:12px;border-collapse:collapse;"><tr style="color:var(--taupe);font-size:11px;text-align:left;"><th>Месяц</th><th>Дата</th><th>Мунта</th><th>Дом</th><th>Мунтеша</th></tr>' + (d.munthaMonths || []).map((r) => '<tr><td>' + r.n + '</td><td>' + vsEsc(r.date) + '</td><td>' + vsEsc(r.sign) + ' ' + vsDeg(r.deg) + '</td><td>' + r.house + '</td><td>' + vsEsc(r.lord) + '</td></tr>').join('') + '</table>';
     document.getElementById('vs-mudda').innerHTML = '<div class="name" style="margin-bottom:6px;">Мудда-даша</div>' +
       (d.mudda || []).map((m) => {
         const cur = nowJD >= m.fromJD && nowJD < m.toJD;
@@ -5014,7 +5020,7 @@
     document.getElementById('vs-sahams').innerHTML = '<div class="name" style="margin-bottom:6px;">Сахамы</div>' +
       '<table style="width:100%;font-size:12px;border-collapse:collapse;min-width:420px;"><tr style="color:var(--taupe);font-size:11px;text-align:left;"><th>Имя</th><th>Значение</th><th>Спхута</th><th>Бхава</th><th>Накшатра</th></tr>' +
       (d.sahams || []).map((x) => '<tr><td>' + vsEsc(x.name) + '</td><td>' + vsEsc(x.mean) + '</td><td>' + vsEsc(x.sign) + ' ' + vsDeg(x.lon) + '</td><td>' + x.house + '</td><td>' + vsEsc(x.nakshatra) + '</td></tr>').join('') + '</table>';
-    const YORDER = ['ikkavala','induvara','vartama','purna','rashyanta','ishrafa','nakta','yamaya','manau','kamboola','gairi','khallasara','rudda','duphalli','duttotta','tambira'];
+    const YORDER = ['ikkavala','induvara','vartama','purna','rashyanta','ishrafa','nakta','yamaya','manau','kamboola','gairi','khallasara','rudda','duphalli','kuttha','duruph','duttotta','tambira'];
     const ygroups = {}; (d.yogas || []).forEach((y) => { (ygroups[y.key] = ygroups[y.key] || []).push(y); });
     const yhtml = YORDER.filter((k) => ygroups[k]).map((k) => {
       const g = ygroups[k], f = g[0];
