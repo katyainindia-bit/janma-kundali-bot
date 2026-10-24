@@ -57,18 +57,42 @@ function dignityInSign(planet, signIndex, chart, isRasi, degInSign) {
   return DIGNITY_POINTS[String(relationScore(planet, lord, chart))];
 }
 
-// Значение дришти (вирупы) по угловому расстоянию d от аспектирующей планеты до цели (0..360)
-function drishtiValue(d) {
+// Спхута-дришти по БПХШ, гл. 26, шлоки 6-12 (проверено по санскритскому тексту).
+// d — расстояние от аспектирующей планеты до цели по долготе (0..360), результат в вирупах (0..60).
+function drishtiGeneral(d) {
   if (d < 30) return 0;
-  if (d < 60) return (d - 30) / 2;
-  if (d < 90) return (d - 60) + 15;
-  if (d < 120) return (120 - d) / 2 + 30;
-  if (d < 150) return 150 - d;
-  if (d < 180) return (d - 150) * 2;
-  if (d <= 300) return (300 - d) / 2;
+  if (d < 60) return (d - 30) / 2;          // шл. 9: больше 1 знака — градусы сверх знака пополам
+  if (d < 90) return (d - 60) + 15;         // шл. 8: больше 2 знаков — градусы сверх знаков плюс 15
+  if (d < 120) return (120 - d) / 2 + 30;   // шл. 8: от 4 знаков вычесть, пополам, плюс 30
+  if (d < 150) return 150 - d;              // шл. 7: больше 4 знаков — вычесть из 5 знаков
+  if (d < 180) return (d - 150) * 2;        // шл. 7: больше 5 знаков — градусы сверх знаков вдвое
+  if (d <= 300) return (300 - d) / 2;       // шл. 6: больше 6 знаков — вычесть из 10 знаков и пополам
   return 0;
 }
-const SPECIAL = { Марс: [4, 8], Юпитер: [5, 9], Сатурн: [3, 10] };
+// Особые формулы Сатурна (шл. 9-10), Марса (шл. 11), Юпитера (шл. 12)
+function drishtiSpecial(planet, d) {
+  if (planet === 'Сатурн') {
+    if (d >= 30 && d < 60) return [2 * (d - 30), 'Сатурн: в 1-м знаке пройденные градусы вдвое'];
+    if (d >= 60 && d < 90) return [60 - (d - 60) / 2, 'Сатурн: во 2-м знаке 60 минус половина градусов'];
+    if (d >= 240 && d < 270) return [30 + (d - 240), 'Сатурн: в 8-м знаке 30 плюс градусы'];
+    if (d >= 270 && d < 300) return [2 * (300 - d), 'Сатурн: в 9-м знаке оставшиеся градусы вдвое'];
+  } else if (planet === 'Марс') {
+    if (d >= 60 && d < 90) return [1.5 * (d - 60) + 15, 'Марс: во 2-м знаке 1,5 × градусы плюс 15'];
+    if (d >= 90 && d < 120) return [60 - (d - 90), 'Марс: в 3-м знаке 60 минус градусы'];
+    if (d >= 180 && d < 210) return [60, 'Марс: в 6-м знаке всегда 60'];
+    if (d >= 210 && d < 240) return [60 - (d - 210), 'Марс: в 7-м знаке 60 минус градусы'];
+  } else if (planet === 'Юпитер') {
+    if (d >= 90 && d < 120) return [(d - 90) / 2 + 45, 'Юпитер: в 3-м знаке половина градусов плюс 45'];
+    if (d >= 120 && d < 150) return [60 - 2 * (d - 120), 'Юпитер: в 4-м знаке 60 минус двойные градусы'];
+    if (d >= 210 && d < 240) return [(d - 210) / 2 + 45, 'Юпитер: в 7-м знаке половина градусов плюс 45'];
+    if (d >= 240 && d < 270) return [60 - 2 * (d - 240), 'Юпитер: в 8-м знаке 60 минус двойные градусы'];
+  }
+  return null;
+}
+function drishtiValue(planet, d) {
+  const sp = drishtiSpecial(planet, d);
+  return sp ? { value: sp[0], rule: sp[1] } : { value: drishtiGeneral(d), rule: 'общая формула' };
+}
 
 function eclipticToDeclination(planet, date) {
   const t = Astronomy.MakeTime(date);
@@ -164,14 +188,19 @@ function computeShadbala(chart, geo) {
   const horaIdx = Math.floor((jd - vd.rise) * 24);
   const horaLord = CHALDEAN[(CHALDEAN.indexOf(weekdayLord) + horaIdx) % 7];
 
-  // --- Абда и Маса по ахарargане (Сурья-сиддханта / Парашара) ---
-  // Ахаргана — число суток от начала Кали-юги (эпоха: JD 588465,5, пятница). Савана-год = 360 суток, месяц = 30 суток;
-  // управитель года (месяца) — владыка вары первых суток этого года (месяца).
+  // --- Абда и Маса по ахаргане (БПХШ 27.13, перевод Сантанама) ---
+  // Номер дня N: дни от эпохи Кали-юги (пятница) с выравниванием по вара: N mod 7 = 1 — воскресенье ... 6 — пятница, 0 — суббота.
+  // Год: (N div 360) × 3 + 1, остаток от деления на 7 даёт вару первого дня года.
+  // Месяц: (N div 30) × 2 + 1, остаток от деления на 7 даёт вару первого дня месяца.
   const dayStart = civilDate(vd.rise, utcOffset);
-  const ahargana = Math.floor(jdFromDate(dayStart.y, dayStart.m, dayStart.d, 12, 0, 0, 0)) - 588466;
-  const lordOfDay = (n) => DAY_LORD_OF_DOW[(((5 + n) % 7) + 7) % 7];
-  const abdaLord = lordOfDay(Math.floor(ahargana / 360) * 360);
-  const masaLord = lordOfDay(Math.floor(ahargana / 30) * 30);
+  const keliDays = Math.floor(jdFromDate(dayStart.y, dayStart.m, dayStart.d, 12, 0, 0, 0)) - 588466;
+  const ahargana = keliDays + 6;
+  const lordOfRem = (r) => DAY_LORD_OF_DOW[(((r - 1) % 7) + 7) % 7];
+  const qYear = Math.floor(ahargana / 360), qMonth = Math.floor(ahargana / 30);
+  const remYear = (qYear * 3 + 1) % 7, remMonth = (qMonth * 2 + 1) % 7;
+  const abdaLord = lordOfRem(remYear);
+  const masaLord = lordOfRem(remMonth);
+  const abdaMasaInfo = { ahargana, qYear, prodYear: qYear * 3 + 1, remYear, qMonth, prodMonth: qMonth * 2 + 1, remMonth, abdaLord, masaLord, weekdayRem: ahargana % 7 };
 
   // --- Склонения для Аяна-балы ---
   const decl = {};
@@ -239,7 +268,7 @@ function computeShadbala(chart, geo) {
     r.kala = { natonnata, paksha, tribhaga, abda, masa, vara, hora, ayana, total: natonnata + paksha + tribhaga + abda + masa + vara + hora + (ayana || 0) };
 
     // Чешта
-    let cheshta;
+    let cheshta; let cheshtaInfo = null;
     if (p === 'Солнце') cheshta = ayana == null ? null : ayana / 2;
     else if (p === 'Луна') cheshta = paksha;
     else {
@@ -248,24 +277,37 @@ function computeShadbala(chart, geo) {
       if (p === 'Марс' || p === 'Юпитер' || p === 'Сатурн') ck = sunMean - (meanL(p) + trueL) / 2;
       else ck = meanL(p) - (sunMean + trueL) / 2;
       cheshta = fold180(ck) / 3;
+      cheshtaInfo = { shighrochcha: (p === 'Марс' || p === 'Юпитер' || p === 'Сатурн') ? sunMean : meanL(p), meanLongitude: (p === 'Марс' || p === 'Юпитер' || p === 'Сатурн') ? meanL(p) : sunMean, trueLongitude: trueL, kendra: fold180(ck) };
     }
     r.cheshta = cheshta;
     r.naisargika = NAISARGIKA[p];
 
-    // Дришти
+    // Дришти-бала (БПХШ 27.19): четверть дришти-пинды от благотворных плюс, от злотворных минус; дришти Меркурия и Юпитера добавляются целиком
     let drik = 0;
+    const drikList = [];
     for (const q of PL) {
       if (q === p) continue;
       const d = pmod(L[p] - L[q], 360);
-      let v = drishtiValue(d);
-      const spec = SPECIAL[q];
-      if (spec) {
-        const dist = pmod(chart.planets[p].sign.index - chart.planets[q].sign.index, 12) + 1;
-        if (spec.includes(dist)) v = Math.max(v, 60);
-      }
-      drik += (BENEFIC[q] ? v : -v) / 4;
+      const dv = drishtiValue(q, d);
+      let contrib;
+      if (q === 'Меркурий' || q === 'Юпитер') contrib = dv.value;
+      else contrib = (BENEFIC[q] ? dv.value : -dv.value) / 4;
+      drik += contrib;
+      drikList.push({ from: q, distance: d, value: dv.value, rule: dv.rule, nature: (q === 'Меркурий' || q === 'Юпитер') ? 'целиком' : (BENEFIC[q] ? 'благотворная, +¼' : 'злотворная, −¼'), contribution: contrib });
     }
     r.drik = drik;
+    r.drikDetails = drikList;
+    r.details = {
+      uccha: { debilPoint: DEBIL_POINT[p], distance: fold180(L[p] - DEBIL_POINT[p]) },
+      dig: { strongPoint, distance: fold180(L[p] - strongPoint) },
+      natonnata: { hoursFromNoon: hFromNoon, diurnal },
+      paksha: { elongation: elongFold, waxing, benefic: BENEFIC[p] },
+      ayana: { declination: decl[p] != null ? decl[p] : null },
+      tribhaga: { part: isDay ? 'день' : 'ночь', lord: tribhagaLord },
+      hora: { lord: horaLord, hoursFromSunrise: (jd - vd.rise) * 24 },
+      vara: { lord: weekdayLord },
+      cheshta: cheshtaInfo,
+    };
 
     r.total = r.sthana.total + r.dig + r.kala.total + (r.cheshta || 0) + r.naisargika + r.drik;
     r.rupas = r.total / 60;
@@ -275,16 +317,15 @@ function computeShadbala(chart, geo) {
     out[p] = r;
   }
 
-  // Юддха-бала: планетная война (Марс, Меркурий, Юпитер, Венера, Сатурн в пределах 1° по долготе)
-  const DIAM = { Марс: 9.4, Меркурий: 6.6, Юпитер: 190.4, Венера: 16.6, Сатурн: 158.0 };
+  // Юддха-бала (БПХШ 27.20): разница Шадбал двух планет прибавляется к победителю и вычитается у побеждённого.
+  // Победитель: планета с меньшей долготой (в тексте шлоки способ не указан, комментаторы расходятся — см. методы).
   const war = ['Марс', 'Меркурий', 'Юпитер', 'Венера', 'Сатурн'];
   const wars = [];
   for (let i = 0; i < war.length; i++) for (let j = i + 1; j < war.length; j++) {
     const a = war[i], b = war[j];
     if (Math.abs(L[a] - L[b]) < 1) {
       const win = L[a] < L[b] ? a : b, lose = win === a ? b : a;
-      const val = Math.abs(out[win].total - out[lose].total) / Math.abs(DIAM[win] - DIAM[lose]);
-      wars.push({ winner: win, loser: lose, value: val });
+      wars.push({ winner: win, loser: lose, winnerBefore: out[win].total, loserBefore: out[lose].total, value: Math.abs(out[win].total - out[lose].total) });
     }
   }
   for (const w of wars) {
@@ -294,7 +335,7 @@ function computeShadbala(chart, geo) {
       r.kala.total += sign * w.value; r.total += sign * w.value;
       r.rupas = r.total / 60; r.ratio = r.rupas / r.required; r.strong = r.rupas >= r.required;
     }
-    warnings.push('Планетная война: ' + w.winner + ' побеждает ' + w.loser + ' (меньшая долгота). Юддха-бала: +' + (Math.round(w.value * 10) / 10) + ' победителю, −' + (Math.round(w.value * 10) / 10) + ' проигравшему.');
+    warnings.push('Планетная война: ' + w.winner + ' побеждает ' + w.loser + ' (меньшая долгота). Разница Шадбал ' + (Math.round(w.value * 10) / 10) + ' вирупы: +' + (Math.round(w.value * 10) / 10) + ' победителю, −' + (Math.round(w.value * 10) / 10) + ' побеждённому.');
   }
   if (!Astronomy) warnings.push('Аяна-бала и Чешта-бала Солнца не посчитаны: нет данных склонения.');
 
@@ -307,14 +348,14 @@ function computeShadbala(chart, geo) {
   methods.push('Пакша: благотворные (Луна растущая, Меркурий, Юпитер, Венера) получают угол Луна–Солнце/3, злотворные — 60 минус это; у Луны значение удваивается. Меркурий считается благотворным всегда.');
   methods.push('Трибхага: день и ночь делятся на три части; Юпитер всегда 60.');
   methods.push('Вара — по восходу. Хора — равные часы от восхода в халдейской последовательности.');
-  methods.push('Абда и Маса: по ахарargане от начала Кали-юги (эпоха JD 588465,5). Год считается по 360 суток, месяц по 30; управитель — владыка вары первых суток текущего года и месяца.');
+  methods.push('Абда и Маса (БПХШ 27.13, перевод Сантанама): номер дня N (ахаргана) делится на 360 (год) или на 30 (месяц), частное умножается на 3 (год) или на 2 (месяц), прибавляется 1, остаток от деления на 7 даёт вару первого дня года или месяца (1 — воскресенье). В примечаниях к переводу делитель года напечатан как 60, но умножение на 3 даёт верную вару только для 360, поэтому взято 360. Эпоха ахарганы в доступном тексте не названа: взяты сутки от начала Кали-юги, выровненные по вара.');
   methods.push('Аяна-бала: (24° ± склонение)/48 × 60; у Солнца удваивается; у Меркурия 24° + модуль склонения. Склонение настоящее (с широтой планеты).');
   methods.push('Чешта-бала: расстояние чешта-кендры/3. Кендра = шигхрочча минус манда-спхута (среднее между средней и истинной долготой). Для Марса, Юпитера и Сатурна шигхрочча — средняя долгота Солнца; для Меркурия и Венеры — их средняя гелиоцентрическая долгота. У Солнца чешта равна аяна-бале без удвоения (максимум 60), у Луны — пакша-бале.');
-  methods.push('Дришти-бала: четверть суммы аспектов благотворных минус злотворных; значение аспекта по классической ломаной функции угла; особые аспекты (Марс 4/8, Юпитер 5/9, Сатурн 3/10) берутся полными (60), если цель в таком знаке от аспектирующей планеты.');
-  methods.push('Юддха-бала: война при расстоянии менее 1° по долготе между Марсом, Меркурием, Юпитером, Венерой и Сатурном; побеждает планета с меньшей долготой. Разница итоговых сил (без юддхи), делённая на разницу видимых диаметров, прибавляется победителю и вычитается у проигравшего. Диаметры (угловые минуты): Марс 9,4, Меркурий 6,6, Юпитер 190,4, Венера 16,6, Сатурн 158,0.');
+  methods.push('Дришти-бала (БПХШ гл. 26, шлоки 6-12 и 27.19): спхута-дришти по расстоянию от аспектирующей планеты, с особыми формулами Сатурна, Марса и Юпитера; четверть значений благотворных планет прибавляется, четверть злотворных вычитается, дришти Меркурия и Юпитера добавляются целиком. В шлоке «добавить целиком» можно понять и как «сверх четверти»; взято: вместо четверти.');
+  methods.push('Юддха-бала (БПХШ 27.20): при расстоянии менее 1° между Марсом, Меркурием, Юпитером, Венерой и Сатурном разница их Шадбал прибавляется к победителю и вычитается у побеждённого. В шлоке не сказано, кто побеждает; взято правило «меньшая долгота», комментаторы называют и другие (северная широта, зависит от аяны).');
   methods.push('Минимум по Парашаре (рупы): Солнце 6,5, Луна 6, Марс 5, Меркурий 7, Юпитер 6,5, Венера 5,5, Сатурн 5.');
 
-  return { planets: out, methods, warnings, order: PL };
+  return { planets: out, methods, warnings, order: PL, abdaMasa: abdaMasaInfo, wars };
 }
 
 module.exports = { computeShadbala };

@@ -87,7 +87,9 @@
     padding: 6px;
   }
 
-  main { padding: 0 16px; }
+  main { padding: 0 16px; min-width: 0; }
+  html, body { overflow-x: hidden; overflow-x: clip; max-width: 100%; }
+  .tab-content { min-width: 0; max-width: 100%; }
 
   /* ---------- Форма ввода ---------- */
   .form-card {
@@ -332,24 +334,36 @@
   /* ---------- Вкладки ---------- */
   .tabs {
     display: flex;
+    flex-wrap: nowrap;
     gap: 4px;
     background: var(--card);
     border-radius: 12px;
     padding: 4px;
     margin-bottom: 16px;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
   }
+  .tabs::-webkit-scrollbar { display: none; }
   .tab-btn {
-    flex: 1;
+    flex: none;
+    white-space: nowrap;
     border: none;
     background: none;
-    padding: 10px 2px;
+    padding: 10px 14px;
     border-radius: 9px;
     font-family: 'Inter', sans-serif;
-    font-size: 11.5px;
+    font-size: 13.5px;
     font-weight: 500;
     color: var(--taupe);
     cursor: pointer;
   }
+  /* «Сегодня» вынесено в нижнее меню отдельной кнопкой, из полосы вкладок убрано */
+  #home-tabs .tab-btn[data-tab="today"] { display: none; }
+  #home-tabs .tab-btn { padding: 11px 16px; font-size: 14.5px; }
+  .nav-extra { display: none; }
   .tab-btn.active {
     background: var(--card-light);
     color: var(--ink);
@@ -579,6 +593,9 @@
     }
     body::before { content: ''; position: fixed; left: 0; top: 0; bottom: 0; width: 248px; background: var(--card-light); border-right: 1px solid var(--line); z-index: 4; }
     .nav-item { flex-direction: row; justify-content: flex-start; gap: 12px; font-size: 14px; padding: 12px 14px; border-radius: 12px; width: 100%; }
+    .nav-extra { display: flex; align-items: center; background: none; border: none; cursor: pointer; font-family: inherit; color: var(--taupe); flex-direction: row; justify-content: flex-start; gap: 12px; font-size: 14px; padding: 12px 14px; border-radius: 12px; width: 100%; }
+    .nav-extra:hover { background: color-mix(in srgb, var(--card) 60%, transparent); color: var(--ink); }
+    .nav-extra .icon { width: 22px; height: 22px; color: var(--taupe); }
     .nav-item:hover { background: color-mix(in srgb, var(--card) 60%, transparent); }
     .nav-item.active { background: var(--card); }
     .nav-item .icon { width: 22px; height: 22px; }
@@ -592,7 +609,7 @@
 
     main { max-width: 1320px; margin: 0 auto; padding: 32px 44px 72px; }
     .tabs { width: fit-content; margin-bottom: 24px; }
-    .tab-btn { flex: none; padding: 9px 22px; font-size: 13px; }
+    .tab-btn, #home-tabs .tab-btn { flex: none; padding: 9px 22px; font-size: 13px; }
     .form-card { padding: 24px; border-radius: 18px; }
     #form-card h2 { margin-bottom: 20px !important; font-size: 20px; }
     .info-card { border-radius: 18px; }
@@ -818,7 +835,6 @@
     </div>
 
     <div class="tabs" id="home-tabs">
-      <button class="tab-btn" data-tab="today">Сегодня</button>
       <button class="tab-btn active" data-tab="chart">Карта</button>
       <button class="tab-btn" data-tab="dasha">Даши</button>
       <button class="tab-btn" data-tab="transits">Транзиты</button>
@@ -900,6 +916,13 @@
       </div>
 
       <div class="tab-col2">
+      <div style="display:flex;align-items:center;gap:12px;padding:0 16px 6px;font-size:10px;color:var(--taupe);text-transform:uppercase;letter-spacing:.03em;">
+        <div style="width:28px;flex-shrink:0;"></div>
+        <div style="width:90px;flex-shrink:0;">Планета</div>
+        <div style="width:60px;flex-shrink:0;">Градус</div>
+        <div>Знак и накшатра</div>
+      </div>
+      <div class="planet-list" id="planet-list"></div>
       <div class="form-card" id="lagna-scrub-card" style="padding:16px;">
         <div class="varga-chart-label" style="margin-bottom:6px;">Диапазон действия Лагны</div>
         <div style="text-align:center;font-family:'Playfair Display',serif;font-weight:600;font-size:15px;" id="lagna-range-label">—</div>
@@ -910,19 +933,14 @@
         <button class="btn-secondary" id="lagna-reset-btn" style="margin-top:12px;margin-bottom:0;">Сбросить на время рождения</button>
       </div>
 
-      <div class="form-card" id="arudha-card" style="padding:16px;display:none;">
-        <div class="varga-chart-label" style="margin-bottom:10px;">Арудха-пады</div>
-        <div id="arudha-body"></div>
-      </div>
+      <details class="form-card" id="arudha-card" style="padding:14px 16px;display:none;">
+        <summary class="varga-chart-label" style="cursor:pointer;margin:0;list-style:none;">Арудха-пады ▾</summary>
+        <div id="arudha-body" style="margin-top:10px;"></div>
+      </details>
 
       <div class="form-card" id="birth-panchanga-card" style="padding:16px;display:none;">
         <div class="varga-chart-label" style="margin-bottom:10px;">Панчанга момента рождения</div>
         <div id="birth-panchanga-body"></div>
-      </div>
-
-      <div class="form-card" id="friendship-card" style="padding:16px;display:none;overflow-x:auto;">
-        <div class="varga-chart-label" style="margin-bottom:10px;">Отношения планет</div>
-        <div id="friendship-body"></div>
       </div>
 
       <div class="form-card" id="special-points-card" style="padding:16px;display:none;">
@@ -935,13 +953,6 @@
         <div class="current-period-row" id="sp-mandi-row" style="display:none;"><span class="label">Манди</span><span class="value" id="sp-mandi">—</span></div>
       </div>
 
-      <div style="display:flex;align-items:center;gap:12px;padding:0 16px 6px;font-size:10px;color:var(--taupe);text-transform:uppercase;letter-spacing:.03em;">
-        <div style="width:28px;flex-shrink:0;"></div>
-        <div style="width:90px;flex-shrink:0;">Планета</div>
-        <div style="width:60px;flex-shrink:0;">Градус</div>
-        <div>Знак и накшатра</div>
-      </div>
-      <div class="planet-list" id="planet-list"></div>
 
       <button class="btn-secondary" id="export-open-btn">📄 Экспорт карты</button>
       <div class="form-card" id="export-panel" style="padding:16px;display:none;">
@@ -1790,6 +1801,10 @@
     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9a1 1 0 0 0 1 1H9a1 1 0 0 0 1-1v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1h2.5a1 1 0 0 0 1-1v-9"/></svg>
     Главная
   </button>
+  <button class="nav-item" data-nav="today">
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M18.4 5.6l-1.8 1.8M7.4 16.6l-1.8 1.8"/></svg>
+    Сегодня
+  </button>
   <button class="nav-item" data-nav="days">
     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5.5" width="16" height="15" rx="1.5"/><path d="M8 3.5v4M16 3.5v4M4 10h16"/><path d="M8 14h2M14 14h2M8 17h2M14 17h2"/></svg>
     Дни
@@ -1801,6 +1816,10 @@
   <button class="nav-item" data-nav="profile">
     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.3" r="3.3"/><path d="M5 20c0-3.5 3.1-6.3 7-6.3s7 2.8 7 6.3"/></svg>
     Мой аккаунт
+  </button>
+  <button class="nav-extra" id="nav-settings" type="button">
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
+    Настройки расчёта
   </button>
   <div id="side-user">
     <div class="su-ava" id="su-ava">К</div>
@@ -2788,6 +2807,7 @@
     });
   }
 
+  const SIGN_REL_LABEL = { exaltation: ['возвышение', '#2f6b3a'], own: ['свой знак', '#2f6b3a'], friend: ['друг', '#5f8f5a'], neutral: ['нейтр.', '#8a8070'], enemy: ['враг', '#c0775a'], debilitation: ['падение', '#9b3a2a'] };
   function renderPlanetList(chart) {
     const order = ['Солнце','Луна','Меркурий','Венера','Марс','Юпитер','Сатурн','Раху','Кету'];
     const container = document.getElementById('planet-list');
@@ -2808,11 +2828,12 @@
       const gand = gandantaOf(p.sign);
       const atWar = planetsAtWarWith(chart, name);
       const karaka = karakas[name];
+      const rel = (name === 'Раху' || name === 'Кету') ? null : SIGN_REL_LABEL[getDignityStatusD1(name, p.sign.index)];
       return `<div class="planet-row" data-planet="${name}" data-signidx="${p.sign.index}" data-retro="${p.retrograde ? '1' : '0'}" data-house="${p.house}" data-nak="${p.nakshatra.name}" data-pada="${p.nakshatra.pada}">
         <div class="sym" style="color:${color}">${p.retrograde ? `<span style="display:inline-block;border-top:2px solid currentColor;padding-top:3px;">${PLANET_SYMBOLS[name]}</span>` : PLANET_SYMBOLS[name]}</div>
         <div class="pname">${name}${karaka ? ` <span title="${CHARA_KARAKA_NAMES[karaka]} — ${CHARA_KARAKA_MEANINGS[karaka]}" style="color:var(--gold);font-size:11px;font-weight:700;border:1px solid var(--gold);border-radius:3px;padding:0 3px;">${karaka}</span>` : ''}${hasDigBala ? ' <span title="Диг-бала — направленная сила" style="color:var(--gold);font-size:11px;">◈</span>' : ''}${gand ? ` <span title="Гандатта — ${GANDANTA_TEXT[gand]}" style="color:#a8654a;font-size:11px;font-weight:700;">Г</span>` : ''}${vargot ? ' <span title="Варготтама — в навамше тот же знак, планета сильна" style="color:var(--gold);font-size:11px;font-weight:700;">V</span>' : ''}${combust ? ' <span title="Сожжена (близко к Солнцу)" style="color:#a8654a;font-size:11px;">☉</span>' : ''}${atWar.length ? ` <span title="Планетная война с ${atWar.join(', ')}" style="color:#a8654a;font-size:11px;">⚔</span>` : ''}</div>
         <div class="pdeg">${dms(p.sign.degInSign)}</div>
-        <div class="psign">${p.sign.name}<br><span style="font-size:11px;">${p.nakshatra.name} (пада ${p.nakshatra.pada})</span></div>
+        <div class="psign">${p.sign.name}${rel ? ` <span style="font-size:11px;color:${rel[1]};">· ${rel[0]}</span>` : ''}<br><span style="font-size:11px;">${p.nakshatra.name} (пада ${p.nakshatra.pada})</span></div>
       </div>`;
     }).join('');
     container.innerHTML = html;
@@ -2828,6 +2849,8 @@
       document.querySelectorAll('#home-tabs .tab-btn').forEach(b=>b.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
       btn.classList.add('active');
+      document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active', b.dataset.nav==='home'));
+      try { const bar = btn.parentElement; bar.scrollTo({ left: Math.max(0, btn.offsetLeft - (bar.clientWidth - btn.offsetWidth) / 2), behavior: 'smooth' }); } catch (e) {}
       document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
       if (btn.dataset.tab === 'vargas') renderVargaSingle();
       if (btn.dataset.tab === 'today') renderTodayTab();
@@ -2843,10 +2866,19 @@
       document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
       const nav = btn.dataset.nav;
+      const pageNav = nav === 'today' ? 'home' : nav;
       PAGES.forEach(p => {
         const el = document.getElementById('page-' + p);
-        if (el) el.style.display = (p === nav) ? 'block' : 'none';
+        if (el) el.style.display = (p === pageNav) ? 'block' : 'none';
       });
+      if (nav === 'today') {
+        document.querySelectorAll('#home-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.getElementById('tab-today').classList.add('active');
+        renderTodayTab();
+      } else if (nav === 'home' && document.getElementById('tab-today').classList.contains('active')) {
+        const ct = document.querySelector('#home-tabs .tab-btn[data-tab="chart"]'); if (ct) ct.click();
+      }
       if (nav === 'archive') {
         showArchiveListView();
         loadArchive();
@@ -2864,6 +2896,7 @@
   // (не через нижнюю навигацию), поверх той страницы, где был человек —
   // "Назад" возвращает его туда же.
   let pageBeforeSettings = 'home';
+  document.getElementById('nav-settings').addEventListener('click', () => document.getElementById('header-menu-btn').click());
   document.getElementById('header-menu-btn').addEventListener('click', () => {
     const activeNav = document.querySelector('.nav-item.active');
     pageBeforeSettings = activeNav ? activeNav.dataset.nav : 'home';
@@ -2972,7 +3005,7 @@
   function isGuest() { return !inTelegram() && !jkToken(); }
   const GUEST_LOCK_SVG = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-left:4px;opacity:.7;"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
   const GUEST_TAB_REASON = { today: 'Энергия дня и главное на сегодня доступны после входа.', dasha: 'Периоды (даши) доступны после входа.', transits: 'Транзиты доступны после входа.', vargas: 'Варги доступны после входа.', varsha: 'Годовая карта (Варшапхала) доступна после входа.', ashtaka: 'Аштакаварга доступна после входа.', shadbala: 'Шадбала доступна после входа.' };
-  const GUEST_NAV_REASON = { days: 'Календарь благоприятных дней доступен после входа.', archive: 'Архив карт доступен после входа.', profile: 'Личный кабинет доступен после входа.' };
+  const GUEST_NAV_REASON = { today: 'Энергия дня и главное на сегодня доступны после входа.', days: 'Календарь благоприятных дней доступен после входа.', archive: 'Архив карт доступен после входа.', profile: 'Личный кабинет доступен после входа.' };
   function applyGuestLocks() {
     if (!isGuest()) return;
     document.querySelectorAll('#home-tabs .tab-btn').forEach((b) => { if (b.dataset.tab !== 'chart' && !b.querySelector('svg')) b.insertAdjacentHTML('beforeend', GUEST_LOCK_SVG); });
@@ -3609,7 +3642,6 @@
     renderSpecialPoints(chart);
     renderArudhas(chart);
     renderBirthPanchanga(chart);
-    renderFriendship(chart);
     currentChart = chart;
     currentChartMeta = { name, params: { day, month, year, hour, minute, lat, lon, utcOffset }, placeLabel };
     updateBookmarkBtnState();
@@ -5463,12 +5495,17 @@
     h += '<div style="font-size:12px;color:var(--taupe);margin-top:8px;line-height:1.5;">«Сила» — отношение рупов к минимуму. Больше 1 — планета набрала нужную силу.</div>';
     if (d.warnings && d.warnings.length) h += '<div style="font-size:12px;color:#a8654a;margin-top:8px;line-height:1.5;">' + d.warnings.map((w) => '⚠ ' + w).join('<br>') + '</div>';
     h += '<details style="margin-top:14px;"><summary style="cursor:pointer;font-size:13px;font-weight:600;">Подробности по каждой планете</summary>';
+    const f2 = (v) => (v == null ? '—' : (Math.round(v * 100) / 100).toString().replace('.', ','));
+    if (d.abdaMasa) { const a = d.abdaMasa; h += '<div style="font-size:12px;line-height:1.6;margin-top:10px;color:var(--taupe);"><b>Абда и Маса (ахаргана ' + a.ahargana + '):</b> год: ' + a.ahargana + ' ÷ 360 = ' + a.qYear + ', ' + a.qYear + ' × 3 + 1 = ' + a.prodYear + ', остаток от деления на 7 = ' + a.remYear + ' → ' + a.abdaLord + '. Месяц: ' + a.ahargana + ' ÷ 30 = ' + a.qMonth + ', ' + a.qMonth + ' × 2 + 1 = ' + a.prodMonth + ', остаток = ' + a.remMonth + ' → ' + a.masaLord + '. Вара: остаток ' + a.weekdayRem + '.</div>'; }
     d.order.forEach((p) => {
-      const x = d.planets[p], k = x.kala, s = x.sthana;
+      const x = d.planets[p], k = x.kala, s = x.sthana, t = x.details || {};
       h += '<div style="margin-top:12px;"><div style="font-weight:700;margin-bottom:4px;">' + p + '</div><div style="font-size:12px;line-height:1.6;">' +
-        '<b>Стхана</b> ' + f1(s.total) + ': уччха ' + f1(s.uccha) + ', саптаваргаджа ' + f1(s.saptavargaja) + ', оджа-югма ' + f1(s.ojayugma) + ', кендрадi ' + f1(s.kendradi) + ', дреккана ' + f1(s.drekkana) + '<br>' +
-        '<b>Кала</b> ' + f1(k.total) + ': натоннната ' + f1(k.natonnata) + ', пакша ' + f1(k.paksha) + ', трибхага ' + f1(k.tribhaga) + ', абда ' + f1(k.abda) + ', маса ' + f1(k.masa) + ', вара ' + f1(k.vara) + ', хора ' + f1(k.hora) + ', аяна ' + f1(k.ayana) + (k.yuddha ? ', юддха ' + f1(k.yuddha) : '') + '<br>' +
-        '<span style="color:var(--taupe);">Саптаваргаджа по варгам: ' + s.saptavargajaDetails.map((v) => v.varga + ' — ' + v.dignity + ' (' + f1(v.points) + ')').join('; ') + '</span></div></div>';
+        '<b>Стхана</b> ' + f1(s.total) + ': уччха ' + f1(s.uccha) + ' (расстояние от точки падения ' + f2(t.uccha && t.uccha.distance) + '° ÷ 3), саптаваргаджа ' + f1(s.saptavargaja) + ', оджа-югма ' + f1(s.ojayugma) + ', кендрадi ' + f1(s.kendradi) + ', дреккана ' + f1(s.drekkana) + '<br>' +
+        '<span style="color:var(--taupe);">Саптаваргаджа по варгам: ' + s.saptavargajaDetails.map((v) => v.varga + ' — ' + v.dignity + ' (' + f1(v.points) + ')').join('; ') + '</span><br>' +
+        '<b>Диг</b> ' + f1(x.dig) + ': расстояние до точки силы ' + f2(t.dig && t.dig.distance) + '°, (180 − расстояние) ÷ 3<br>' +
+        '<b>Кала</b> ' + f1(k.total) + ': натоннната ' + f1(k.natonnata) + ' (' + f2(t.natonnata && t.natonnata.hoursFromNoon) + ' ч от полудня), пакша ' + f1(k.paksha) + ' (элонгация ' + f2(t.paksha && t.paksha.elongation) + '°), трибхага ' + f1(k.tribhaga) + ' (' + (t.tribhaga ? t.tribhaga.part + ', владыка части ' + t.tribhaga.lord : '') + '), абда ' + f1(k.abda) + ', маса ' + f1(k.masa) + ', вара ' + f1(k.vara) + ' (' + (t.vara ? t.vara.lord : '') + '), хора ' + f1(k.hora) + ' (' + (t.hora ? t.hora.lord + ', ' + f2(t.hora.hoursFromSunrise) + ' ч от восхода' : '') + '), аяна ' + f1(k.ayana) + ' (склонение ' + f2(t.ayana && t.ayana.declination) + '°)' + (k.yuddha ? ', юддха ' + f1(k.yuddha) : '') + '<br>' +
+        '<b>Чешта</b> ' + f1(x.cheshta) + (t.cheshta ? ': шигхрочча ' + f2(t.cheshta.shighrochcha) + '°, средняя ' + f2(t.cheshta.meanLongitude) + '°, истинная ' + f2(t.cheshta.trueLongitude) + '°, чешта-кендра ' + f2(t.cheshta.kendra) + '° ÷ 3' : ' (равна ' + (p === 'Солнце' ? 'аяна-бале' : 'пакша-бале') + ')') + '<br>' +
+        '<b>Дришти</b> ' + f1(x.drik) + ': ' + (x.drikDetails || []).map((v) => v.from + ' (угол ' + f2(v.distance) + '°, значение ' + f2(v.value) + ', ' + v.rule + ', ' + v.nature + ' → ' + f2(v.contribution) + ')').join('; ') + '</div></div>';
     });
     h += '</details>';
     h += '<details style="margin-top:14px;"><summary style="cursor:pointer;font-size:13px;font-weight:600;">Какие методы применены</summary><ul style="font-size:12px;line-height:1.6;padding-left:18px;margin-top:8px;">' + d.methods.map((m) => '<li>' + m + '</li>').join('') + '</ul></details>';
