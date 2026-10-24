@@ -529,29 +529,81 @@
     body { max-width: 720px; margin: 0 auto; min-height: 100vh; background: var(--bg); box-shadow: 0 0 0 1px var(--line); }
     .bottom-nav { left: 50%; right: auto; width: 720px; transform: translateX(-50%); border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
   }
+  #home-hero, #side-user { display: none; }
   @media (min-width: 1000px) {
-    body { padding-bottom: 0; padding-left: 240px; min-height: 100vh; }
-    /* левая колонка: логотип и меню */
-    header { position: fixed; left: 0; top: 0; width: 240px; padding: 22px 18px 10px; z-index: 5; }
+    body { padding-bottom: 0; padding-left: 248px; min-height: 100vh; }
+    header { position: fixed; left: 0; top: 0; width: 248px; padding: 24px 20px 10px; z-index: 6; background: transparent; }
     .bottom-nav {
-      top: 84px; bottom: 0; left: 0; right: auto; width: 240px;
+      top: 92px; bottom: 0; left: 0; right: auto; width: 248px;
       flex-direction: column; justify-content: flex-start; gap: 4px;
-      padding: 12px 12px; border-top: none;
+      padding: 14px 12px 16px; border-top: none; z-index: 6; background: transparent;
     }
-    header::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; }
-    body::before { content: ''; position: fixed; left: 0; top: 0; bottom: 0; width: 240px; background: var(--card-light); border-right: 1px solid var(--line); z-index: 4; }
-    header, .bottom-nav { z-index: 6; background: transparent; }
+    body::before { content: ''; position: fixed; left: 0; top: 0; bottom: 0; width: 248px; background: var(--card-light); border-right: 1px solid var(--line); z-index: 4; }
     .nav-item { flex-direction: row; justify-content: flex-start; gap: 12px; font-size: 14px; padding: 12px 14px; border-radius: 12px; width: 100%; }
-    .nav-item:hover { background: var(--card); }
+    .nav-item:hover { background: color-mix(in srgb, var(--card) 60%, transparent); }
     .nav-item.active { background: var(--card); }
     .nav-item .icon { width: 22px; height: 22px; }
-    main { max-width: 1180px; margin: 0 auto; padding: 28px 36px 60px; }
-    /* главная: слева форма, справа карта */
-    .home-grid { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 28px; align-items: start; }
-    .home-left { position: sticky; top: 24px; }
-    .home-right { min-width: 0; }
-    .tabs { margin-bottom: 20px; }
+    #side-user { display: flex; align-items: center; gap: 10px; margin-top: auto; padding: 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--bg); cursor: pointer; }
+    #side-user:hover { border-color: var(--gold); }
+    .su-ava { width: 36px; height: 36px; border-radius: 50%; background: var(--gold); color: #fff; display: flex; align-items: center; justify-content: center; font-family: 'Playfair Display', serif; font-size: 16px; flex: none; }
+    .su-txt { min-width: 0; }
+    .su-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .su-sub { font-size: 11.5px; color: var(--taupe); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    header .menu-btn { display: none; }
+
+    main { max-width: 1320px; margin: 0 auto; padding: 32px 44px 72px; }
+    .tabs { width: fit-content; margin-bottom: 24px; }
+    .tab-btn { flex: none; padding: 9px 22px; font-size: 13px; }
+    .form-card { padding: 24px; border-radius: 18px; }
+    #form-card h2 { margin-bottom: 18px; font-size: 20px; }
+    .info-card { border-radius: 18px; }
+    .chart-wrap { max-width: 600px; }
     #install-banner { left: auto !important; right: 24px !important; bottom: 24px !important; max-width: 380px; }
+
+    /* главная: до карты — форма слева, пояснение справа */
+    #page-home { position: relative; }
+    .home-grid { display: grid; grid-template-columns: 400px minmax(0, 1fr); gap: 36px; align-items: start; }
+    .home-left { position: sticky; top: 28px; }
+    .home-right { min-width: 0; }
+    #home-hero { display: block; padding: 40px 44px; border: 1px solid var(--line); border-radius: 20px; background: linear-gradient(135deg, var(--card-light), var(--bg)); position: relative; overflow: hidden; }
+    #home-hero .hero-art { position: absolute; right: -30px; top: -30px; width: 280px; height: 280px; color: var(--gold); opacity: .22; }
+    #home-hero h2 { font-size: 30px; margin: 0 0 12px; position: relative; }
+    #home-hero p { font-size: 15px; line-height: 1.6; color: var(--taupe); max-width: 520px; margin: 0 0 22px; position: relative; }
+    #home-hero ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; position: relative; max-width: 520px; }
+    #home-hero li { font-size: 14.5px; padding-left: 22px; position: relative; }
+    #home-hero li::before { content: ''; position: absolute; left: 0; top: 7px; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); }
+    body.has-results #home-hero { display: none; }
+
+    /* главная: после построения карты — на всю ширину, форма всплывает справа сверху */
+    body.has-results .home-grid { display: block; }
+    body.has-results .home-left { position: absolute; top: 0; right: 0; z-index: 30; width: 400px; }
+    body.has-results #form-collapsed-btn { width: auto !important; margin: 14px 74px 0 auto !important; padding: 10px 18px; }
+    body.has-results #form-card { box-shadow: 0 18px 50px rgba(0,0,0,.16); margin-top: 8px; }
+    body.has-results #person-bar { padding-right: 300px; min-height: 76px; align-items: center; }
+    body.has-results #person-bar .name { font-size: 20px; }
+    body.has-results #person-bar .bookmark { position: absolute; right: 18px; }
+    body.has-results #person-bar { position: relative; }
+
+    /* вкладка «Карта»: слева квадрат карты, справа таблицы */
+    #tab-chart.active { display: grid; grid-template-columns: minmax(0, 600px) minmax(0, 1fr); gap: 28px; align-items: start; }
+    #tab-chart .chart-wrap { position: sticky; top: 24px; }
+    #tab-chart .tab-col2 { min-width: 0; }
+    /* «Сегодня», аккаунт, транзиты — две колонки карточек */
+    #today-content, #page-profile, #tab-transits.active { columns: 2; column-gap: 24px; }
+    #today-content > *, #page-profile > *, #tab-transits > * { break-inside: avoid; }
+    #today-content > #place-bar { column-span: all; }
+    #page-profile > .info-card:first-child { column-span: all; }
+    /* даши: слева текущий период, справа список */
+    #tab-dasha.active { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 28px; align-items: start; }
+    #tab-dasha #dasha-current { grid-column: 1; grid-row: 1; position: sticky; top: 24px; }
+    #tab-dasha #dasha-list { grid-column: 2; grid-row: 1 / span 2; min-width: 0; }
+    #tab-dasha #event-composer { grid-column: 1; grid-row: 2; }
+    /* дни: календарь слева, подробности справа */
+    #daystab-calendar.active { display: grid; grid-template-columns: minmax(0, 700px) minmax(0, 1fr); gap: 24px; align-items: start; }
+    #daystab-search.active, #daystab-year.active { max-width: 900px; }
+    /* архив: карточки в сетке */
+    #archive-list-view { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; align-items: start; }
+    #archive-list-view > * { margin-bottom: 0; }
   }
   @media (max-width: 999px) { .home-grid, .home-left, .home-right { display: block; } }
   /* стартовый экран */
@@ -581,6 +633,7 @@
     <h1>Janma Kundali</h1>
     <div class="w-by">by Katya Das</div>
     <p class="w-lead">Натальная карта по джйотиш, периоды и благоприятные дни — в одном месте.</p>
+    <div id="w-reason" style="display:none;background:var(--card);border-radius:12px;padding:10px 14px;font-size:13px;line-height:1.45;margin:-8px 0 16px;"></div>
     <div class="w-card">
       <h2 style="font-size:17px;margin:0 0 12px;">Войти по почте</h2>
       <div class="field"><label>Почта</label><input type="email" id="w-email" placeholder="name@example.com" autocomplete="email"></div>
@@ -594,7 +647,7 @@
     </div>
     <div class="w-or" id="w-or-tg" style="display:none;">или</div>
     <a class="btn-secondary" id="w-tg" href="#" target="_blank" rel="noopener" style="display:none;text-decoration:none;text-align:center;">Открыть в Telegram</a>
-    <button class="w-link" id="w-guest">Продолжить без входа</button>
+    <button class="w-link" id="w-guest">Посмотреть свою карту без входа</button>
   </div>
 </div>
 
@@ -672,8 +725,26 @@
   </div>
 
   </div><div class="home-right">
+  <div id="home-hero">
+    <svg class="hero-art" viewBox="0 0 200 200" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.2"><rect x="10" y="10" width="180" height="180"/><path d="M10 10 190 190M190 10 10 190M100 10 190 100 100 190 10 100Z"/></g></svg>
+    <h2>Ваша натальная карта</h2>
+    <p>Введите данные рождения слева. Карта строится по джйотиш: сидерический зодиак, айанамша Лахири, дома Whole Sign.</p>
+    <ul>
+      <li><b>Карта</b> и положение планет по накшатрам</li>
+      <li><b>Даши</b>: периоды жизни и текущий период</li>
+      <li><b>Транзиты</b> и <b>Варги</b></li>
+      <li><b>Дни</b>: календарь благоприятных дней, праздники, панчанга</li>
+    </ul>
+  </div>
   <div id="results">
-    <div class="info-card">
+    <div class="info-card" id="guest-banner" style="display:none;">
+      <div style="flex:1;">
+        <div class="name" style="margin-bottom:4px;font-size:15px;">Сохраните карту</div>
+        <div class="meta" style="white-space:normal;line-height:1.45;">Войдите по почте, чтобы открыть периоды (даши), энергию дня, календарь, архив и уведомления. Карта сохранится и будет на всех ваших устройствах.</div>
+      </div>
+      <button class="btn-primary" id="guest-banner-login" style="width:auto;margin:0;padding:10px 16px;white-space:nowrap;">Войти</button>
+    </div>
+    <div class="info-card" id="person-bar">
       <div>
         <div class="name" id="res-name">—</div>
         <div class="meta" id="res-meta">—</div>
@@ -762,6 +833,7 @@
         <div id="chart-extras-panel" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--line);"></div>
       </div>
 
+      <div class="tab-col2">
       <div class="form-card" id="lagna-scrub-card" style="padding:16px;">
         <div class="varga-chart-label" style="margin-bottom:6px;">Диапазон действия Лагны</div>
         <div style="text-align:center;font-family:'Playfair Display',serif;font-weight:600;font-size:15px;" id="lagna-range-label">—</div>
@@ -802,6 +874,7 @@
         </select>
         <button class="btn-primary" id="export-run-btn" style="margin-bottom:0;">Скачать PDF</button>
         <div class="error-msg" id="export-error-msg"></div>
+      </div>
       </div>
     </div>
 
@@ -1496,6 +1569,10 @@
     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.3" r="3.3"/><path d="M5 20c0-3.5 3.1-6.3 7-6.3s7 2.8 7 6.3"/></svg>
     Мой аккаунт
   </button>
+  <div id="side-user">
+    <div class="su-ava" id="su-ava">К</div>
+    <div class="su-txt"><div class="su-name" id="su-name">Гость</div><div class="su-sub" id="su-sub">Войти, чтобы открыть всё</div></div>
+  </div>
 </div>
 
 <script>
@@ -1842,7 +1919,7 @@
   // Значок караки (АК, АмК и т.д.) рядом с символом планеты на самой карте
   function addKarakaBadge(svg, el, px, py, fs, karaka) {
     if (!karaka) return;
-    const b = el('text', { x: px + fs * 0.62, y: py - fs * 0.55, 'text-anchor': 'start', 'font-family': 'Inter, sans-serif', 'font-size': 6, 'font-weight': 700, fill: '#C8A26B', 'pointer-events': 'none' });
+    const b = el('text', { x: px, y: py + fs * 1.15 + 8.5, 'text-anchor': 'middle', 'font-family': 'Inter, sans-serif', 'font-size': 6.5, 'font-weight': 700, fill: '#B8914F', 'letter-spacing': '0.3', 'pointer-events': 'none' });
     b.textContent = karaka;
     svg.appendChild(b);
   }
@@ -2097,7 +2174,7 @@
         const cols = count > 2 ? 2 : 1;
         const rows = Math.ceil(count / cols);
         const colGap = count > 3 ? fs * 2.1 : fs * 2.4;
-        const rowGap = fs * 2.5;
+        const rowGap = fs * 2.5 + 6;
         const degFs = count > 3 ? 7 : 8.5;
         const gridW = (cols - 1) * colGap, gridH = (rows - 1) * rowGap;
         const startX = cx - gridW / 2, startY = cy - gridH / 2 + 6;
@@ -2158,7 +2235,8 @@
   }
 
   function addWatermark(svg, el) {
-    const wm = el('text', {x:200,y:396,'text-anchor':'middle','font-family':"'Playfair Display', serif",'font-size':9,fill:'#C8A26B','opacity':0.75});
+    svg.setAttribute('viewBox', '0 0 400 418');
+    const wm = el('text', {x:200,y:413,'text-anchor':'middle','font-family':"'Playfair Display', serif",'font-size':9.5,fill:'#C8A26B','opacity':0.85,'letter-spacing':'0.6'});
     wm.textContent = 'Janma Kundali';
     svg.appendChild(wm);
   }
@@ -2187,6 +2265,7 @@
       return e;
     }
 
+    svg.appendChild(el('polygon', {points: HP[1].map(pt => pt.join(',')).join(' '), fill:'#C8A26B', 'fill-opacity':0.12, stroke:'none'}));
     svg.appendChild(el('polygon', {points:'0,0 400,0 400,400 0,400', fill:'none', stroke:'#C8A26B', 'stroke-width':1.5}));
     svg.appendChild(el('line', {x1:0,y1:0,x2:400,y2:400, stroke:'#C8A26B','stroke-width':1.5}));
     svg.appendChild(el('line', {x1:400,y1:0,x2:0,y2:400, stroke:'#C8A26B','stroke-width':1.5}));
@@ -2249,7 +2328,7 @@
         const tFs = fs - 1;
         const degFs = totalCount > 4 ? 6.5 : totalCount > 2 ? 7.5 : 8.5;
         const colGap = fs * 2.1;
-        const rowGap = fs * 2.5;
+        const rowGap = fs * 2.5 + 6;
         // В маленьких угловых домах ряд из 3-4 планет по ширине может физически
         // не поместиться — считаем, сколько столбцов реально влезает по ширине
         // дома в его середине, и не даём желаемому числу столбцов превысить это.
@@ -2466,7 +2545,11 @@
     if (!res.ok) throw new Error(data.error || 'Ошибка');
     return data;
   }
-  function showWelcome() { document.getElementById('welcome').style.display = 'block'; }
+  function showWelcome(reason) {
+    const r = document.getElementById('w-reason');
+    r.textContent = reason || ''; r.style.display = reason ? 'block' : 'none';
+    document.getElementById('welcome').style.display = 'block';
+  }
   function hideWelcome() { document.getElementById('welcome').style.display = 'none'; }
   document.getElementById('w-send').addEventListener('click', async () => {
     wMsg('');
@@ -2481,6 +2564,7 @@
       location.reload();
     } catch (e) { wMsg(e.message, true); }
   });
+  document.getElementById('guest-banner-login').addEventListener('click', () => { showWelcome(); });
   document.getElementById('w-guest').addEventListener('click', () => { try { sessionStorage.setItem('jk_guest', '1'); } catch (e) {} hideWelcome(); maybeShowInstall(); });
   (async function initWelcome() {
     if (inTelegram()) return;
@@ -2495,6 +2579,57 @@
     let guest = false; try { guest = sessionStorage.getItem('jk_guest') === '1'; } catch (e) {}
     if (!jkToken() && !guest) showWelcome(); else maybeShowInstall();
     if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js').catch(() => {}); }
+  })();
+
+  // ---------- Гость без входа: закрытые функции и лимит ----------
+  function isGuest() { return !inTelegram() && !jkToken(); }
+  const GUEST_LOCK_SVG = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-left:4px;opacity:.7;"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+  const GUEST_TAB_REASON = { today: 'Энергия дня и главное на сегодня доступны после входа.', dasha: 'Периоды (даши) доступны после входа.', transits: 'Транзиты доступны после входа.', vargas: 'Варги доступны после входа.' };
+  const GUEST_NAV_REASON = { days: 'Календарь благоприятных дней доступен после входа.', archive: 'Архив карт доступен после входа.', profile: 'Личный кабинет доступен после входа.' };
+  function applyGuestLocks() {
+    if (!isGuest()) return;
+    document.querySelectorAll('#home-tabs .tab-btn').forEach((b) => { if (b.dataset.tab !== 'chart' && !b.querySelector('svg')) b.insertAdjacentHTML('beforeend', GUEST_LOCK_SVG); });
+    document.querySelectorAll('.nav-item').forEach((b) => { if (GUEST_NAV_REASON[b.dataset.nav] && !b.querySelector('.guest-lock')) b.insertAdjacentHTML('beforeend', GUEST_LOCK_SVG.replace('<svg ', '<svg class="guest-lock" ')); });
+  }
+  document.addEventListener('click', (e) => {
+    if (!isGuest()) return;
+    const tab = e.target.closest('#home-tabs .tab-btn');
+    if (tab && tab.dataset.tab !== 'chart') { e.preventDefault(); e.stopImmediatePropagation(); showWelcome(GUEST_TAB_REASON[tab.dataset.tab] || 'Эта функция доступна после входа.'); return; }
+    const nav = e.target.closest('.nav-item');
+    if (nav && GUEST_NAV_REASON[nav.dataset.nav]) { e.preventDefault(); e.stopImmediatePropagation(); showWelcome(GUEST_NAV_REASON[nav.dataset.nav]); return; }
+    if (e.target.closest('#header-menu-btn')) { e.preventDefault(); e.stopImmediatePropagation(); showWelcome('Настройки доступны после входа.'); }
+  }, true);
+  function guestBuildAllowed() {
+    if (!isGuest()) return true;
+    try {
+      const day = new Date().toISOString().slice(0, 10);
+      const st = JSON.parse(localStorage.getItem('jk_guest_builds') || '{}');
+      const n = st.day === day ? st.n : 0;
+      if (n >= 3) { showWelcome('Вы уже построили 3 карты сегодня. Войдите по почте, чтобы продолжить без ограничений.'); return false; }
+      localStorage.setItem('jk_guest_builds', JSON.stringify({ day, n: n + 1 }));
+    } catch (e) {}
+    return true;
+  }
+  applyGuestLocks();
+
+  // ---------- Блок аккаунта в меню (компьютер) ----------
+  (function () {
+    const box = document.getElementById('side-user');
+    if (!box) return;
+    async function paint() {
+      const nameEl = document.getElementById('su-name'), subEl = document.getElementById('su-sub'), ava = document.getElementById('su-ava');
+      if (isGuest()) { nameEl.textContent = 'Гость'; subEl.textContent = 'Войти, чтобы открыть всё'; ava.textContent = '?'; return; }
+      let name = '', sub = '';
+      try { const t = window.Telegram && Telegram.WebApp && Telegram.WebApp.initDataUnsafe && Telegram.WebApp.initDataUnsafe.user; if (t) name = t.first_name || ''; } catch (e) {}
+      try {
+        const r = await fetch('/api/account/info', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ initData: getInitData() }) });
+        const d = await r.json();
+        if (d && d.emails && d.emails[0]) { sub = d.emails[0].email || d.emails[0]; if (!name) name = String(sub).split('@')[0]; }
+      } catch (e) {}
+      nameEl.textContent = name || 'Мой аккаунт'; subEl.textContent = sub || 'Личный кабинет'; ava.textContent = (name || 'К').trim().charAt(0).toUpperCase();
+    }
+    box.addEventListener('click', () => { if (isGuest()) showWelcome('Войдите, чтобы открыть все функции.'); else document.querySelector('.nav-item[data-nav="profile"]').click(); });
+    paint();
   })();
 
   // ---------- Установка на экран телефона ----------
@@ -2946,6 +3081,7 @@
   // Используется и формой построения карты, и открытием карты из архива.
   async function displayChartResults({ name, day, month, year, hour, minute, lat, lon, utcOffset, placeLabel }) {
     currentArchiveChartId = null;
+    { const gb = document.getElementById('guest-banner'); if (gb) gb.style.display = (!inTelegram() && !jkToken()) ? 'flex' : 'none'; }
     // После первой построенной карты: лунный календарь включается всем, личные уведомления — Premium
     // (сервер делает это один раз, повторно не включает); заодно сообщаем серверу «Где я сейчас»
     if (!window.__autoNotifyAsked) {
@@ -2962,6 +3098,7 @@
     const { chart } = await chartRes.json();
 
     document.getElementById('results').style.display = 'block';
+    document.body.classList.add('has-results');
     collapseChartForm();
     document.getElementById('form-collapse-btn').style.display = 'inline-flex';
 
@@ -3008,6 +3145,7 @@
   document.getElementById('build-btn').addEventListener('click', async () => {
     const errorEl = document.getElementById('error-msg');
     errorEl.style.display = 'none';
+    if (!guestBuildAllowed()) return;
     const day = parseInt(document.getElementById('f-day').value);
     const month = parseInt(document.getElementById('f-month').value);
     const year = parseInt(document.getElementById('f-year').value);

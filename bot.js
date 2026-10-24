@@ -1057,6 +1057,38 @@ bot.command('export', async (ctx) => {
   await ctx.telegram.sendDocument(ctx.chat.id, { source: Buffer.from(csv, 'utf8'), filename: `users-${day}.csv` }, { caption: 'Все пользователи. Открывается в Excel и Google Таблицах. Файл содержит личные данные, храни его аккуратно.' });
 });
 
+bot.command('deleteuser', async (ctx) => {
+  if (!ADMIN_ID || ctx.from.id !== ADMIN_ID) return;
+  const parts = ctx.message.text.trim().split(/\s+/).slice(1);
+  const id = Number(parts[0]);
+  if (!id) { await ctx.reply('Использование: /deleteuser ID\nID берётся из /users.'); return; }
+  if (id === ADMIN_ID) { await ctx.reply('Свой аккаунт удалять нельзя.'); return; }
+  const u = db.getUser(id);
+  if (!u) { await ctx.reply('Такого пользователя нет.'); return; }
+  const who = `${u.username ? '@' + u.username : (u.first_name || 'без имени')} (id ${id})`;
+  if (parts[1] !== 'да') {
+    await ctx.reply(`Удалить ${who} вместе со всеми его картами, заметками и настройками? Это нельзя отменить.\nЧтобы подтвердить, напиши:\n/deleteuser ${id} да`);
+    return;
+  }
+  db.deleteUserData(id);
+  await ctx.reply(`Удалён: ${who}.`);
+});
+
+// Очистка «пустых» людей: без карт, без Premium, без почты (кроме тебя)
+bot.command('cleanup', async (ctx) => {
+  if (!ADMIN_ID || ctx.from.id !== ADMIN_ID) return;
+  const confirm = /\sда\s*$/i.test(ctx.message.text);
+  const list = db.emptyUserCandidates().filter((u) => u.telegram_id !== ADMIN_ID);
+  if (!list.length) { await ctx.reply('Пустых пользователей нет.'); return; }
+  if (!confirm) {
+    const lines = list.map((u) => `${(u.first_seen || '').slice(0, 10)} · ${u.username ? '@' + u.username : (u.first_name || 'без имени')} · id ${u.telegram_id}`);
+    await ctx.reply(`Без карт, без Premium и без почты: ${list.length}\n\n${lines.join('\n')}\n\nУдалить всех? Напиши:\n/cleanup да`);
+    return;
+  }
+  for (const u of list) db.deleteUserData(u.telegram_id);
+  await ctx.reply(`Удалено: ${list.length}.`);
+});
+
 bot.command('users', async (ctx) => {
   if (!ADMIN_ID || ctx.from.id !== ADMIN_ID) return;
   const rows = db.listUsersForAdmin(40);
@@ -1081,10 +1113,10 @@ bot.command('backup', async (ctx) => {
 
 bot.command('engine', async (ctx) => {
   if (!ADMIN_ID || ctx.from.id !== ADMIN_ID) return; // только для администратора
-  const { SWISSEPH_AVAILABLE } = require('./engine.js');
+  const { SWISSEPH_AVAILABLE, SWE_SOURCE, SWE_ERROR } = require('./engine.js');
   await ctx.reply(SWISSEPH_AVAILABLE
-    ? 'Расчёт: Swiss Ephemeris (режим Moshier)'
-    : 'Расчёт: запасной (Swiss Ephemeris не установился на сервере)');
+    ? `Расчёт: Swiss Ephemeris (режим Moshier, пакет ${SWE_SOURCE})`
+    : 'Расчёт: запасной (Swiss Ephemeris не установился на сервере)' + (SWE_ERROR ? `\nПричина: ${SWE_ERROR}` : '') + `\nNode ${process.version}, ${process.platform}/${process.arch}`);
 });
 
 bot.command('testnotify', async (ctx) => {

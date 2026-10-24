@@ -84,11 +84,14 @@ function toXYZ(p) {
 // ------------------------------------------------------------
 let swe = null;
 let SWE_SOURCE = null;
+let SWE_ERROR = null;
 try {
   // основной вариант: пакет sweph (готовые сборки, ставится без компиляции)
   swe = require('./swe-compat.js');
   SWE_SOURCE = 'sweph';
 } catch (e) {
+  SWE_ERROR = 'sweph: ' + String(e && e.message || e).split('\n')[0].slice(0, 200);
+  console.error('[engine] ' + SWE_ERROR);
   try {
     swe = require('swisseph'); // старый вариант (нужна компиляция при установке)
     SWE_SOURCE = 'swisseph';
@@ -685,6 +688,6 @@ if (typeof module !== 'undefined') {
   module.exports = {
     calculateChart, jdFromDate, lahiriAyanamsha, ramanAyanamsha, krishnamurtiAyanamsha,
     customAyanamsha, ayanamshaFor,
-    sunLongitude, moonLongitude, ascendantSidereal, SWISSEPH_AVAILABLE, SWE_SOURCE,
+    sunLongitude, moonLongitude, ascendantSidereal, SWISSEPH_AVAILABLE, SWE_SOURCE, SWE_ERROR,
   };
 }

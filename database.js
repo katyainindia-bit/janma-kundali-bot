@@ -286,6 +286,34 @@ function listUsersForAdmin(limit = 40) {
     FROM users u ORDER BY u.first_seen DESC LIMIT ?`).all(limit);
 }
 
+// Полное удаление пользователя и всех его данных
+function deleteUserData(userId) {
+  const tx = db.transaction(() => {
+    const charts = db.prepare('SELECT id FROM charts WHERE telegram_id = ?').all(userId);
+    for (const c of charts) db.prepare('DELETE FROM chart_notes WHERE chart_id = ?').run(c.id);
+    db.prepare('DELETE FROM charts WHERE telegram_id = ?').run(userId);
+    db.prepare('DELETE FROM search_goals WHERE telegram_id = ?').run(userId);
+    db.prepare('DELETE FROM notify_sent WHERE telegram_id = ?').run(userId);
+    db.prepare('DELETE FROM referral_rewards WHERE referrer_id = ? OR referred_id = ?').run(userId, userId);
+    db.prepare('UPDATE users SET referred_by = NULL WHERE referred_by = ?').run(userId);
+    for (const t of ['auth_identities', 'sessions', 'link_codes']) {
+      try { db.prepare(`DELETE FROM ${t} WHERE user_id = ?`).run(userId); } catch (e) { /* таблицы может не быть */ }
+    }
+    db.prepare('DELETE FROM usage_daily WHERE user_id = ?').run(userId);
+    return db.prepare('DELETE FROM users WHERE telegram_id = ?').run(userId).changes > 0;
+  });
+  return tx();
+}
+
+// Кандидаты на очистку: без карт, без Premium, без привязанной почты
+function emptyUserCandidates() {
+  return db.prepare(`
+    SELECT u.telegram_id, u.username, u.first_name, u.first_seen FROM users u
+    WHERE NOT EXISTS (SELECT 1 FROM charts c WHERE c.telegram_id = u.telegram_id)
+      AND u.premium_first_at IS NULL AND (u.email IS NULL OR u.email = '')
+    ORDER BY u.first_seen`).all();
+}
+
 function dbInfo() {
   let size = 0; try { size = require('fs').statSync(DB_PATH).size; } catch (e) { /* нет */ }
   return { path: DB_PATH, sizeKB: Math.round(size / 1024), customPath: !!process.env.DB_PATH };
@@ -627,7 +655,7 @@ function deleteSearchGoal(telegramId, id) {
 }
 
 module.exports = {
-  rawDb: db, logUsage, usageStats, exportUsersCsv, listUsersForAdmin, segmentUserIds, dbInfo, autoEnableNotifications, getNotifyUser, listRitualUsersWithPlace, setUserPlace, getUserPlace, getNotifyPrefsRaw, saveNotifyPrefs, wasNotifySent, markNotifySent, countNotifySent,
+  rawDb: db, deleteUserData, emptyUserCandidates, logUsage, usageStats, exportUsersCsv, listUsersForAdmin, segmentUserIds, dbInfo, autoEnableNotifications, getNotifyUser, listRitualUsersWithPlace, setUserPlace, getUserPlace, getNotifyPrefsRaw, saveNotifyPrefs, wasNotifySent, markNotifySent, countNotifySent,
   listSearchGoals, saveSearchGoal, deleteSearchGoal, MAX_SEARCH_GOALS,
   upsertUser, getAllUserIds, getUserCount,
   getUser, isPremium, setTier,

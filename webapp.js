@@ -193,7 +193,8 @@ function startWebApp() {
   app.post('/api/chart', (req, res) => {
     try {
       const { day, month, year, hour, minute, lat, lon, utcOffset, ayanamshaType, nodeType, observationMode, initData } = req.body;
-      { const u = verifyInitData(initData); db.logUsage(u ? u.id : 0, '/api/chart'); } // 0 = гость без входа
+      { const u = verifyInitData(initData); db.logUsage(u ? u.id : 0, '/api/chart'); // 0 = гость без входа
+        if (!u && ipLimited(req, 15)) return res.status(429).json({ error: 'Слишком много построений. Войдите по почте, чтобы продолжить.' }); }
       const validationError = validateBirthParams({ day, month, year, hour, minute, lat, lon, utcOffset });
       if (validationError) return res.status(400).json({ error: validationError });
       // Настройки зодиака/узла берём из сохранённого профиля пользователя, если он
