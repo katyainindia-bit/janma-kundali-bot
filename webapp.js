@@ -11,6 +11,7 @@ const { calculateChart, jdFromDate } = require('./engine.js');
 const { computeVarshaphala } = require('./varshaphala.js');
 const { computeAshtakavarga } = require('./ashtakavarga.js');
 const { computeArudhas } = require('./arudhas.js');
+const { computeShadbala } = require('./shadbala.js');
 const { birthPanchanga } = require('./birth-panchanga.js');
 const { bhriguBindu, specialLagnas, gulikaMandi } = require('./special-points.js');
 const { computeVimshottariDasha, findCurrentDashaChain } = require('./dasha.js');
@@ -316,9 +317,10 @@ function startWebApp() {
         chart = calculateChart({ ...birthParams, second: 0, ayanamshaType, nodeType, customAyanamshaBase });
       }
       let varga;
+      const effKey = resolveVargaKey(key, req.tgUser.id);
       if (key === 'd9') varga = calculateNavamsha(chart);
       else if (key === 'd10') varga = calculateDashamsha(chart);
-      else varga = calculateOtherVarga(chart, key);
+      else varga = calculateOtherVarga(chart, effKey);
       res.json({ varga });
     } catch (e) {
       console.error(e);
@@ -502,7 +504,7 @@ function startWebApp() {
     try {
       const { chart } = req.body;
       if (!chart || !chart.planets || !chart.ascendant) return res.status(400).json({ error: 'Нет натальной карты' });
-      const mode = db.getProSettings(req.tgUser.id).arudha === 'none' ? 'none' : 'exceptions';
+      const mode = db.getProSettings(req.tgUser.id).arudha === 'exceptions' ? 'exceptions' : 'none';
       res.json({ mode, arudhas: computeArudhas(chart, mode) });
     } catch (e) {
       console.error(e);
@@ -516,6 +518,19 @@ function startWebApp() {
       const { chart } = req.body;
       if (!chart || !chart.planets || !chart.ascendant) return res.status(400).json({ error: 'Нет натальной карты' });
       res.json(computeAshtakavarga(chart));
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ---------- Шадбала (Premium) ----------
+  app.post('/api/shadbala', requireTelegramUser, requirePremium, (req, res) => {
+    try {
+      const { chart, lat, lon, utcOffset } = req.body;
+      if (!chart || !chart.planets || !chart.ascendant || chart.jd == null) return res.status(400).json({ error: 'Нет натальной карты' });
+      if (![lat, lon, utcOffset].every((v) => typeof v === 'number' && isFinite(v))) return res.status(400).json({ error: 'Нет места рождения' });
+      res.json(computeShadbala(chart, { lat, lon, utcOffset }));
     } catch (e) {
       console.error(e);
       res.status(500).json({ error: e.message });
@@ -714,7 +729,7 @@ function startWebApp() {
       const FREE_VARGAS = ['d9', 'd10'];
 
       const requestedVargas = (sections && sections.vargas) || [];
-      const allowedVargas = requestedVargas.filter(k => FREE_VARGAS.includes(k) || isPremiumUser);
+      const allowedVargas = requestedVargas.filter(k => FREE_VARGAS.includes(k) || isPremiumUser).map(k => resolveVargaKey(k, req.tgUser.id));
 
       let transitsResult = null;
       if (sections && sections.transits) {
@@ -731,7 +746,7 @@ function startWebApp() {
         name: name || 'Без имени', dateStr, timeStr, placeLabel, chart,
         sections: { chart: !!(sections && sections.chart), vargas: allowedVargas, transits: !!(sections && sections.transits), periods: !!(sections && sections.periods), periodsMode: sections && sections.periodsMode },
         transitsResult, dashaData,
-        arudhas: isPremiumUser ? (() => { try { return computeArudhas(chart, db.getProSettings(req.tgUser.id).arudha); } catch (e) { return null; } })() : null,
+        arudhas: isPremiumUser ? (() => { try { return computeArudhas(chart, db.getProSettings(req.tgUser.id).arudha === 'exceptions' ? 'exceptions' : 'none'); } catch (e) { return null; } })() : null,
       }).then(buf => {
         const token = crypto.randomBytes(16).toString('hex');
         pdfExportCache.set(token, { buffer: buf, expiresAt: Date.now() + 10 * 60 * 1000 });
@@ -744,6 +759,22 @@ function startWebApp() {
       console.error(e);
       res.status(500).json({ error: e.message });
     }
+  });
+
+  // Политика обработки персональных данных (черновик — текст нужно проверить юристу/владелице)
+  app.get('/privacy', (req, res) => {
+    res.type('html').send(`<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Политика конфиденциальности — Janma Kundali</title><style>body{font-family:Georgia,serif;max-width:720px;margin:0 auto;padding:24px 16px;line-height:1.6;color:#3b3430;background:#faf6f0}h1{font-size:22px}h2{font-size:17px;margin-top:24px}</style></head><body>
+<h1>Политика обработки персональных данных</h1>
+<p>Сервис Janma Kundali (институт Katya Das) обрабатывает только те данные, которые нужны для его работы.</p>
+<h2>Какие данные мы храним</h2>
+<p>Адрес электронной почты или идентификатор Telegram; дату, время и место рождения, которые вы вводите для расчёта карты; сохранённые карты, заметки и настройки; сведения о подписке.</p>
+<h2>Зачем</h2>
+<p>Для расчёта и сохранения ваших карт, входа в аккаунт, отправки кодов входа и уведомлений, которые вы включили. Информационные и рекламные письма отправляются только при вашем отдельном согласии.</p>
+<h2>Кому передаём</h2>
+<p>Данные не продаются. Для отправки писем и сообщений используются сервисы рассылок и мессенджер Telegram; для хранения — облачный хостинг.</p>
+<h2>Ваши права</h2>
+<p>Вы можете отозвать согласие, отписаться от писем, запросить исправление или удаление данных, написав на info@katyadas-jyotish.ru.</p>
+</body></html>`);
   });
 
   app.get('/export-download/:token', (req, res) => {
@@ -1031,6 +1062,12 @@ function startWebApp() {
     res.json({ ok: true, referrerStars: r.stars || 0 });
   });
 
+  // Хора (D2): метод берётся из настроек «Для профессионалов» (Парашара или Лабха Мандука)
+  function resolveVargaKey(key, userId) {
+    if (key === 'd2' && db.getProSettings(userId).hora === 'labha_manduka') return 'd2lm';
+    return key;
+  }
+
   // Настройки «Для профессионалов»: только известные ключи и допустимые значения
   const PRO_OPTIONS = {
     sunrise: ['upper', 'center', 'lower'],
@@ -1040,6 +1077,7 @@ function startWebApp() {
     charaKarakas: ['7', '8'],
     arudha: ['exceptions', 'none'],
     gandanta: ['pada', 'quarter'],
+    hora: ['parashara', 'labha_manduka'],
   };
   app.post('/api/pro-settings/update', requireTelegramUser, (req, res) => {
     try {

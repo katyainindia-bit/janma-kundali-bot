@@ -22,12 +22,14 @@ const { sendMessageWithBackoff } = require('./telegram-send.js');
 const ADMIN_ID = process.env.ADMIN_ID ? Number(process.env.ADMIN_ID) : null;
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
-if (!BOT_TOKEN) {
+// DISABLE_BOT=1 — запуск только сайта/веб-приложения (например, на российском сервере, где Telegram недоступен)
+const DISABLE_BOT = process.env.DISABLE_BOT === '1';
+if (!BOT_TOKEN && !DISABLE_BOT) {
   console.error('Ошибка: не задан BOT_TOKEN. Установите переменную окружения BOT_TOKEN.');
   process.exit(1);
 }
 
-const bot = new Telegraf(BOT_TOKEN);
+const bot = new Telegraf(BOT_TOKEN || 'disabled');
 
 // Глобальный перехватчик ошибок Telegraf: без него необработанная ошибка
 // (или отклонённый промис) внутри ЛЮБОГО обработчика — падает мимо всех
@@ -1172,8 +1174,8 @@ bot.command('mystatus', async (ctx) => {
   );
 });
 
-bot.launch();
-console.log('Бот запущен.');
+if (DISABLE_BOT) { console.log('Telegram-бот отключён (DISABLE_BOT=1): работает только сайт.'); }
+else { bot.launch(); console.log('Бот запущен.'); }
 const { SWISSEPH_AVAILABLE } = require('./engine.js');
 console.log(SWISSEPH_AVAILABLE
   ? '✅ Расчёты идут через Swiss Ephemeris (нативный модуль собрался успешно).'

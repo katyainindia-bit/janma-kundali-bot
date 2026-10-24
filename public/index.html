@@ -687,10 +687,6 @@
     <div id="w-reason" style="display:none;background:var(--card);border-radius:12px;padding:10px 14px;font-size:13px;line-height:1.45;margin:-8px 0 16px;"></div>
     <div class="w-card">
       <h2 style="font-size:17px;margin:0 0 12px;">Войти по почте</h2>
-      <div style="margin:0 0 12px;font-size:13px;line-height:1.45;">
-        <label style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;cursor:pointer;"><input type="checkbox" id="w-consent-pd" style="margin-top:3px;flex:none;"><span>Даю согласие на обработку персональных данных (почта, данные рождения) для работы сервиса</span></label>
-        <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer;"><input type="checkbox" id="w-consent-mk" style="margin-top:3px;flex:none;"><span>Хочу получать информационные и рекламные письма от Katya Das (по желанию, можно отписаться)</span></label>
-      </div>
       <div class="field"><label>Почта</label><input type="email" id="w-email" placeholder="name@example.com" autocomplete="email"></div>
       <button class="btn-primary" id="w-send" style="margin-top:8px;">Получить код</button>
       <div id="w-code-block" style="display:none;margin-top:12px;">
@@ -703,6 +699,7 @@
     <div class="w-or" id="w-or-tg" style="display:none;">или</div>
     <button class="btn-secondary" id="w-tg" style="display:none;width:100%;">Войти через Telegram</button>
     <button class="w-link" id="w-guest">Посмотреть свою карту без входа</button>
+    <div style="font-size:11px;line-height:1.5;color:var(--taupe);text-align:center;margin-top:22px;">Входя и регистрируясь, вы принимаете условия сервиса, соглашаетесь на обработку персональных данных (<a href="/privacy" target="_blank" style="color:inherit;text-decoration:underline;">политика</a>) и на получение уведомлений и информационных сообщений от Janma Kundali. Отписаться можно в любой момент.</div>
   </div>
 </div>
 
@@ -828,6 +825,7 @@
       <button class="tab-btn" data-tab="vargas">Варги</button>
       <button class="tab-btn" data-tab="varsha">Варшапхала</button>
       <button class="tab-btn" data-tab="ashtaka">Аштакаварга</button>
+      <button class="tab-btn" data-tab="shadbala">Шадбала</button>
     </div>
 
     <div class="tab-content" id="tab-today">
@@ -1065,6 +1063,17 @@
       </div>
     </div>
 
+    <div class="tab-content" id="tab-shadbala">
+      <div id="sb-locked" class="form-card" style="padding:20px;text-align:center;display:none;">
+        <div style="font-size:32px;margin-bottom:8px;">🔒</div>
+        <h2 style="margin-bottom:8px;">Доступно в Premium</h2>
+        <p style="font-size:13px;color:var(--taupe);margin-bottom:16px;line-height:1.5;">Шадбала по Парашаре: шесть видов силы семи планет, итог в рупах и сравнение с необходимым минимумом.</p>
+        <button class="btn-primary" id="sb-upgrade-btn">Открыть Premium</button>
+      </div>
+      <div id="sb-error" class="error-msg" style="display:none;"></div>
+      <div id="sb-body" style="display:none;"></div>
+    </div>
+
     <div class="tab-content" id="tab-ashtaka">
       <div id="ak-locked" class="form-card" style="padding:20px;text-align:center;display:none;">
         <div style="font-size:32px;margin-bottom:8px;">🔒</div>
@@ -1097,7 +1106,6 @@
           </optgroup>
           <optgroup label="Premium">
             <option value="d2">🔒 Хора (D2) — богатство</option>
-            <option value="d2lm">🔒 Хора — Лабха Мандука (D2)</option>
             <option value="d3">🔒 Дрекана (D3) — братья/сёстры</option>
             <option value="d4">🔒 Чатуртхамша (D4) — недвижимость</option>
             <option value="d7">🔒 Саптамша (D7) — дети</option>
@@ -1750,8 +1758,8 @@
       <div class="field">
         <label for="pro-arudha">Расчёт арудх</label>
         <select id="pro-arudha">
-          <option value="exceptions">С исключениями: если арудха попала в тот же дом или в седьмой от него, берётся десятый (классика, по умолчанию)</option>
-          <option value="none">Без исключений (как у К. Н. Рао в J108)</option>
+          <option value="none">Без исключений (по умолчанию, К. Н. Рао)</option>
+          <option value="exceptions">С исключениями: если арудха попала в тот же дом или в седьмой от него, берётся десятый</option>
         </select>
       </div>
       <div class="field">
@@ -1759,6 +1767,13 @@
         <select id="pro-gandanta">
           <option value="pada">Последняя пада знака воды и первая пада знака огня (6°40′ в сумме, по умолчанию)</option>
           <option value="quarter">Последняя четверть пады и первая четверть пады (1°40′ в сумме)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="pro-hora">Хора (D2)</label>
+        <select id="pro-hora">
+          <option value="parashara">Хора по Парашаре: Солнце и Луна, знаки Лев и Рак (по умолчанию)</option>
+          <option value="labha_manduka">Лабха Мандука Хора (1-й и 11-й): первая половина знака остаётся в своём знаке, вторая переходит в 11-й знак от исходного</option>
         </select>
       </div>
     </div>
@@ -2686,8 +2701,8 @@
     return null;
   }
   const GANDA_MULA_NAK = ['Ашвини', 'Ашлеша', 'Магха', 'Джьештха', 'Мула', 'Ревати'];
-  // Мулатрикона: [знак, от°, до°]. Для Луны границы в источниках расходятся (3°–30° или 4°–30° Тельца), поэтому не показываем.
-  const MULATRIKONA = { 'Солнце': [4, 0, 20], 'Марс': [0, 0, 12], 'Меркурий': [5, 16, 20], 'Юпитер': [8, 0, 10], 'Венера': [6, 0, 15], 'Сатурн': [10, 0, 20] };
+  // Мулатрикона: [знак, от°, до°]. Луна: Телец с 4° до 30° (0–4° — экзальтация).
+  const MULATRIKONA = { 'Солнце': [4, 0, 20], 'Марс': [0, 0, 12], 'Меркурий': [5, 16, 20], 'Юпитер': [8, 0, 10], 'Венера': [6, 0, 15], 'Сатурн': [10, 0, 20], 'Луна': [1, 4, 30] };
   function isMulatrikona(planetName, sign) {
     const m = MULATRIKONA[planetName];
     return !!m && sign.index === m[0] && sign.degInSign >= m[1] && sign.degInSign < m[2];
@@ -2818,6 +2833,7 @@
       if (btn.dataset.tab === 'today') renderTodayTab();
       if (btn.dataset.tab === 'varsha') renderVarshaTab();
       if (btn.dataset.tab === 'ashtaka') renderAshtakaTab();
+      if (btn.dataset.tab === 'shadbala') renderShadbalaTab();
     });
   });
 
@@ -2905,13 +2921,13 @@
   function hideWelcome() { document.getElementById('welcome').style.display = 'none'; }
   document.getElementById('w-send').addEventListener('click', async () => {
     wMsg('');
-    try { if (!document.getElementById('w-consent-pd').checked) throw new Error('Отметьте согласие на обработку персональных данных'); await wApi('/api/auth/email/request', { email: document.getElementById('w-email').value, consentPd: true }); document.getElementById('w-code-block').style.display = 'block'; wMsg('Код отправлен на почту. Он действует 10 минут.'); }
+    try { await wApi('/api/auth/email/request', { email: document.getElementById('w-email').value, consentPd: true }); document.getElementById('w-code-block').style.display = 'block'; wMsg('Код отправлен на почту. Он действует 10 минут.'); }
     catch (e) { wMsg(e.message, true); }
   });
   document.getElementById('w-confirm').addEventListener('click', async () => {
     wMsg('');
     try {
-      const r = await wApi('/api/auth/email/verify', { email: document.getElementById('w-email').value, code: document.getElementById('w-code').value, consentPd: document.getElementById('w-consent-pd').checked, consentMarketing: document.getElementById('w-consent-mk').checked });
+      const r = await wApi('/api/auth/email/verify', { email: document.getElementById('w-email').value, code: document.getElementById('w-code').value, consentPd: true, consentMarketing: true });
       jkSetToken(r.token);
       location.reload();
     } catch (e) { wMsg(e.message, true); }
@@ -2919,7 +2935,7 @@
   document.getElementById('w-tg').addEventListener('click', async () => {
     wMsg('');
     try {
-      if (!document.getElementById('w-consent-pd').checked) throw new Error('Отметьте согласие на обработку персональных данных'); const { code } = await wApi('/api/auth/telegram/start', { consentPd: true, consentMarketing: document.getElementById('w-consent-mk').checked });
+      const { code } = await wApi('/api/auth/telegram/start', { consentPd: true, consentMarketing: true });
       const url = 'https://t.me/' + jkBotUsername + '?start=login_' + code;
       const w = window.open(url, '_blank');
       const m = document.getElementById('w-msg');
@@ -2955,7 +2971,7 @@
   // ---------- Гость без входа: закрытые функции и лимит ----------
   function isGuest() { return !inTelegram() && !jkToken(); }
   const GUEST_LOCK_SVG = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-left:4px;opacity:.7;"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
-  const GUEST_TAB_REASON = { today: 'Энергия дня и главное на сегодня доступны после входа.', dasha: 'Периоды (даши) доступны после входа.', transits: 'Транзиты доступны после входа.', vargas: 'Варги доступны после входа.', varsha: 'Годовая карта (Варшапхала) доступна после входа.', ashtaka: 'Аштакаварга доступна после входа.' };
+  const GUEST_TAB_REASON = { today: 'Энергия дня и главное на сегодня доступны после входа.', dasha: 'Периоды (даши) доступны после входа.', transits: 'Транзиты доступны после входа.', vargas: 'Варги доступны после входа.', varsha: 'Годовая карта (Варшапхала) доступна после входа.', ashtaka: 'Аштакаварга доступна после входа.', shadbala: 'Шадбала доступна после входа.' };
   const GUEST_NAV_REASON = { days: 'Календарь благоприятных дней доступен после входа.', archive: 'Архив карт доступен после входа.', profile: 'Личный кабинет доступен после входа.' };
   function applyGuestLocks() {
     if (!isGuest()) return;
@@ -4603,7 +4619,7 @@
     }
     if (!vargaChart) return;
     renderChartSVGDispatch({ ascendant: vargaChart.ascendant, planets: vargaChart.planets }, 'varga-svg');
-    document.getElementById('varga-single-label').textContent = VARGA_LABELS[currentVargaType] || currentVargaType;
+    document.getElementById('varga-single-label').textContent = (currentVargaType === 'd2' && proSettings.hora === 'labha_manduka') ? 'Хора — Лабха Мандука (D2)' : (VARGA_LABELS[currentVargaType] || currentVargaType);
   }
 
   document.getElementById('varga-select').addEventListener('change', (e) => {
@@ -4786,8 +4802,9 @@
       document.getElementById('pro-combustion').value = proSettings.combustion || 'classic';
       document.getElementById('pro-sade-sati').value = proSettings.sadeSati || 'signs';
       document.getElementById('pro-chara-karakas').value = proSettings.charaKarakas || '7';
-      document.getElementById('pro-arudha').value = proSettings.arudha || 'exceptions';
+      document.getElementById('pro-arudha').value = proSettings.arudha || 'none';
       document.getElementById('pro-gandanta').value = proSettings.gandanta || 'pada';
+      document.getElementById('pro-hora').value = proSettings.hora || 'parashara';
       const nodeIsTrue = (data.nodeType || 'true') === 'true';
       document.getElementById('settings-node-type').checked = nodeIsTrue;
       document.getElementById('settings-node-type-label').textContent = nodeIsTrue ? 'Истинный' : 'Средний';
@@ -4875,11 +4892,13 @@
       if (!res.ok) throw new Error(data.error || 'Ошибка');
       const proRes = await fetch('/api/pro-settings/update', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData: getInitData(), settings: { sunrise: document.getElementById('pro-sunrise').value, gulikaMandi: document.getElementById('pro-gulika-mandi').value, combustion: document.getElementById('pro-combustion').value, sadeSati: document.getElementById('pro-sade-sati').value, charaKarakas: document.getElementById('pro-chara-karakas').value, arudha: document.getElementById('pro-arudha').value, gandanta: document.getElementById('pro-gandanta').value } })
+        body: JSON.stringify({ initData: getInitData(), settings: { sunrise: document.getElementById('pro-sunrise').value, gulikaMandi: document.getElementById('pro-gulika-mandi').value, combustion: document.getElementById('pro-combustion').value, sadeSati: document.getElementById('pro-sade-sati').value, charaKarakas: document.getElementById('pro-chara-karakas').value, arudha: document.getElementById('pro-arudha').value, gandanta: document.getElementById('pro-gandanta').value, hora: document.getElementById('pro-hora').value } })
       });
       const proData = await proRes.json();
       if (!proRes.ok) throw new Error(proData.error || 'Ошибка');
       proSettings = proData.proSettings || {};
+      vargaCache = { forChart: null, data: {} };
+      if (document.getElementById('tab-vargas') && document.getElementById('tab-vargas').classList.contains('active')) { try { renderVargaSingle(); } catch (e) {} }
       if (currentChart) { try { renderPlanetList(currentChart); renderArudhas(currentChart); renderBirthPanchanga(currentChart); } catch (e) {} }
       savedNote.style.display = 'block';
       userChartStyle = chartStyle;
@@ -5415,6 +5434,47 @@
     const bd = document.getElementById('ak-body'); bd.innerHTML = h; bd.style.display = 'block';
   }
   document.getElementById('ak-upgrade-btn').addEventListener('click', showUpgradePrompt);
+
+  // ---------- Шадбала ----------
+  async function renderShadbalaTab() {
+    const errEl = document.getElementById('sb-error'), lockEl = document.getElementById('sb-locked'), bodyEl = document.getElementById('sb-body');
+    errEl.style.display = 'none'; lockEl.style.display = 'none'; bodyEl.style.display = 'none';
+    if (!currentChart || !currentChartMeta) { errEl.textContent = 'Сначала постройте натальную карту на главной.'; errEl.style.display = 'block'; return; }
+    try {
+      const pr = currentChartMeta.params;
+      const res = await fetch('/api/shadbala', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ initData: getInitData(), chart: currentChart, lat: pr.lat, lon: pr.lon, utcOffset: pr.utcOffset }) });
+      const d = await res.json();
+      if (res.status === 403 && d.premiumRequired) { lockEl.style.display = 'block'; return; }
+      if (!res.ok) { errEl.textContent = d.error || 'Ошибка'; errEl.style.display = 'block'; return; }
+      paintShadbala(d);
+    } catch (e) { errEl.textContent = e.message; errEl.style.display = 'block'; }
+  }
+  function paintShadbala(d) {
+    const f1 = (v) => (v == null ? '—' : (Math.round(v * 10) / 10).toString().replace('.', ','));
+    const cs = 'padding:5px 6px;text-align:center;border-bottom:1px solid rgba(0,0,0,.07);font-size:13px;';
+    let h = '<div class="name" style="margin-bottom:4px;">Шадбала (по Парашаре)</div><div style="font-size:12px;color:var(--taupe);margin-bottom:10px;line-height:1.5;">Шесть видов силы в виринах (60 вирин = 1 рупа). Итог в рупах сравнивается с минимумом, который Парашара требует для каждой планеты.</div>';
+    h += '<div style="overflow-x:auto;"><table style="border-collapse:collapse;min-width:620px;width:100%;"><tr>' + ['Планета', 'Стхана', 'Диг', 'Кала', 'Чешта', 'Наисарг.', 'Дришти', 'Итого', 'Рупы', 'Минимум', 'Сила'].map((t) => '<th style="' + cs + 'font-size:11px;color:var(--taupe);">' + t + '</th>').join('') + '</tr>';
+    d.order.forEach((p) => {
+      const x = d.planets[p];
+      const col = x.strong ? 'background:rgba(106,142,98,.22);' : 'background:rgba(168,101,74,.22);';
+      h += '<tr><td style="' + cs + 'text-align:left;font-weight:600;">' + p + '</td><td style="' + cs + '">' + f1(x.sthana.total) + '</td><td style="' + cs + '">' + f1(x.dig) + '</td><td style="' + cs + '">' + f1(x.kala.total) + '</td><td style="' + cs + '">' + f1(x.cheshta) + '</td><td style="' + cs + '">' + f1(x.naisargika) + '</td><td style="' + cs + '">' + f1(x.drik) + '</td><td style="' + cs + '">' + f1(x.total) + '</td><td style="' + cs + 'font-weight:700;' + col + '">' + (Math.round(x.rupas * 100) / 100).toString().replace('.', ',') + '</td><td style="' + cs + '">' + String(x.required).replace('.', ',') + '</td><td style="' + cs + 'font-weight:700;' + col + '">' + (Math.round(x.ratio * 100) / 100).toString().replace('.', ',') + '</td></tr>';
+    });
+    h += '</table></div>';
+    h += '<div style="font-size:12px;color:var(--taupe);margin-top:8px;line-height:1.5;">«Сила» — отношение рупов к минимуму. Больше 1 — планета набрала нужную силу.</div>';
+    if (d.warnings && d.warnings.length) h += '<div style="font-size:12px;color:#a8654a;margin-top:8px;line-height:1.5;">' + d.warnings.map((w) => '⚠ ' + w).join('<br>') + '</div>';
+    h += '<details style="margin-top:14px;"><summary style="cursor:pointer;font-size:13px;font-weight:600;">Подробности по каждой планете</summary>';
+    d.order.forEach((p) => {
+      const x = d.planets[p], k = x.kala, s = x.sthana;
+      h += '<div style="margin-top:12px;"><div style="font-weight:700;margin-bottom:4px;">' + p + '</div><div style="font-size:12px;line-height:1.6;">' +
+        '<b>Стхана</b> ' + f1(s.total) + ': уччха ' + f1(s.uccha) + ', саптаваргаджа ' + f1(s.saptavargaja) + ', оджа-югма ' + f1(s.ojayugma) + ', кендрадi ' + f1(s.kendradi) + ', дреккана ' + f1(s.drekkana) + '<br>' +
+        '<b>Кала</b> ' + f1(k.total) + ': натоннната ' + f1(k.natonnata) + ', пакша ' + f1(k.paksha) + ', трибхага ' + f1(k.tribhaga) + ', абда ' + f1(k.abda) + ', маса ' + f1(k.masa) + ', вара ' + f1(k.vara) + ', хора ' + f1(k.hora) + ', аяна ' + f1(k.ayana) + (k.yuddha ? ', юддха ' + f1(k.yuddha) : '') + '<br>' +
+        '<span style="color:var(--taupe);">Саптаваргаджа по варгам: ' + s.saptavargajaDetails.map((v) => v.varga + ' — ' + v.dignity + ' (' + f1(v.points) + ')').join('; ') + '</span></div></div>';
+    });
+    h += '</details>';
+    h += '<details style="margin-top:14px;"><summary style="cursor:pointer;font-size:13px;font-weight:600;">Какие методы применены</summary><ul style="font-size:12px;line-height:1.6;padding-left:18px;margin-top:8px;">' + d.methods.map((m) => '<li>' + m + '</li>').join('') + '</ul></details>';
+    const bd = document.getElementById('sb-body'); bd.innerHTML = h; bd.style.display = 'block';
+  }
+  document.getElementById('sb-upgrade-btn').addEventListener('click', showUpgradePrompt);
 
   async function renderTodayTab() {
     const errorEl = document.getElementById('today-error-msg');
