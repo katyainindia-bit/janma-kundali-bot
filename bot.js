@@ -611,13 +611,7 @@ bot.start(async (ctx) => {
   if (payload && payload.startsWith('ref_')) {
     const referrerId = Number(payload.slice(4));
     if (referrerId && referrerId !== ctx.from.id) {
-      const linked = db.setReferredBy(ctx.from.id, referrerId);
-      if (linked) {
-        const REFERRAL_SIGNUP_BONUS_DAYS = 3;
-        db.grantPremiumDays(ctx.from.id, REFERRAL_SIGNUP_BONUS_DAYS);
-        db.logReferralReward(referrerId, ctx.from.id, 'signup', REFERRAL_SIGNUP_BONUS_DAYS);
-        await ctx.reply(`Добро пожаловать! Вам начислено ${REFERRAL_SIGNUP_BONUS_DAYS} дня Premium за переход по приглашению.`);
-      }
+      db.setReferredBy(ctx.from.id, referrerId);
     }
   }
   await sendMainMenu(ctx);
@@ -993,18 +987,11 @@ bot.command('setpremium', async (ctx) => {
     await ctx.reply(`⚠️ Пользователь ${targetId} не найден в базе — этот ID ещё ни разу не открывал бота или мини-приложение (нужно хотя бы раз нажать /start или зайти в приложение). Premium НЕ выдан, ничего не изменено.`);
     return;
   }
-  // Реферальный бонус за конверсию — только один раз на пару (пригласивший,
-  // приглашённый), не при каждом продлении Premium этому же человеку.
-  const targetUser = db.getUser(targetId);
-  if (targetUser && targetUser.referred_by && !targetUser.referral_reward_granted) {
-    const REFERRAL_CONVERSION_BONUS_DAYS = 7;
-    db.grantPremiumDays(targetUser.referred_by, REFERRAL_CONVERSION_BONUS_DAYS);
-    db.logReferralReward(targetUser.referred_by, targetId, 'conversion', REFERRAL_CONVERSION_BONUS_DAYS);
-    db.markReferralRewardGranted(targetId);
-    try {
-      await bot.telegram.sendMessage(targetUser.referred_by, `🎉 Ваш приглашённый друг оформил Premium — вам начислено ${REFERRAL_CONVERSION_BONUS_DAYS} дней Premium в благодарность.`);
-    } catch (e) {
-      // пригласивший мог не запускать бота напрямую — не критично
+  // Ручная выдача на N дней считается оплатой: пригласившему идут звёзды.
+  if (days > 0) {
+    const pay = db.recordPayment({ userId: targetId, days, orderId: 'setpremium-' + Date.now() + '-' + targetId, source: 'setpremium', grant: false });
+    if (pay && pay.referrerId) {
+      try { await bot.telegram.sendMessage(pay.referrerId, `Ваш приглашённый друг оформил Premium. Вам начислено звёзд: ${pay.stars}. Каждая звезда = 1 день Premium, обменять можно в «Партнёрской программе».`); } catch (e) {}
     }
   }
   await ctx.reply(days === 0
@@ -1200,6 +1187,22 @@ startWebApp();
 // заметный день по тара-бале, новый значимый транзит.
 const { startNotificationScheduler } = require('./notifications.js');
 startNotificationScheduler(bot);
+
+// Пробный период закончился: один раз пишем и предлагаем продлить. Проверка раз в час.
+async function notifyTrialEnded() {
+  try {
+    for (const id of db.trialEndedToNotify()) {
+      const url = process.env.PREMIUM_PAY_URL;
+      const text = 'Пробный период закончился. Личные уведомления, «Энергия дня», календарь и толкования планет теперь закрыты. Всё, что вы построили, сохранилось.\n\n' + (process.env.RENEW_OFFER_TEXT || 'Продлить Premium со скидкой') + '.';
+      try {
+        await bot.telegram.sendMessage(id, text, url ? { reply_markup: { inline_keyboard: [[{ text: 'Продлить Premium', url }]] } } : undefined);
+      } catch (e) { /* бот заблокирован — пропускаем */ }
+      db.markTrialEndNotified(id);
+    }
+  } catch (e) { console.error('notifyTrialEnded', e.message); }
+}
+setInterval(notifyTrialEnded, 60 * 60 * 1000);
+setTimeout(notifyTrialEnded, 60 * 1000);
 require('./backup.js').startBackupScheduler(bot, ADMIN_ID);
 console.log('Планировщик уведомлений запущен.');
 

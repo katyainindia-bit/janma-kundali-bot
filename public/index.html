@@ -494,6 +494,7 @@
   @media (max-width: 480px) {
     .period-tooltip { max-width: calc(100vw - 20px) !important; font-size: 12px; line-height: 1.4; padding: 8px 10px; }
   }
+  .period-tooltip .tt-close { position: absolute; top: 4px; right: 6px; border: none; background: none; font-size: 18px; line-height: 1; color: var(--taupe); cursor: pointer; padding: 2px 6px; }
   .period-tooltip.visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
   .period-tooltip .period-tooltip-date { display:block; font-size:11px; color: var(--gold); font-weight:600; letter-spacing:.03em; margin-bottom:4px; }
 
@@ -579,7 +580,7 @@
     body.has-results .home-grid { display: block; }
     body.has-results #results { display: flex !important; flex-direction: column; }
     body.has-results #person-bar { order: -2; }
-    body.has-results #guest-banner { order: -1; }
+    body.has-results #guest-banner, body.has-results #trial-banner { order: -1; }
     body.has-results .home-left { position: absolute; top: 0; right: 0; z-index: 30; width: 400px; }
     body.has-results #form-collapsed-btn { width: auto !important; margin: 14px 74px 0 auto !important; padding: 10px 18px; }
     body.has-results #form-card { box-shadow: 0 18px 50px rgba(0,0,0,.16); margin-top: 8px; }
@@ -751,6 +752,13 @@
         <div class="meta" style="white-space:normal;line-height:1.45;">Войдите по почте, чтобы открыть периоды (даши), энергию дня, календарь, архив и уведомления. Карта сохранится и будет на всех ваших устройствах.</div>
       </div>
       <button class="btn-primary" id="guest-banner-login" style="width:auto;margin:0;padding:10px 16px;white-space:nowrap;">Войти</button>
+    </div>
+    <div class="info-card" id="trial-banner" style="display:none;align-items:center;gap:14px;">
+      <div style="flex:1;">
+        <div class="name tb-title" style="margin-bottom:4px;font-size:15px;"></div>
+        <div class="meta tb-text" style="white-space:normal;line-height:1.45;"></div>
+      </div>
+      <button class="btn-primary" id="trial-banner-btn" style="width:auto;margin:0;padding:10px 16px;white-space:nowrap;"></button>
     </div>
     <div class="info-card" id="person-bar">
       <div>
@@ -1366,7 +1374,7 @@
 
   <div class="form-card" style="padding:16px;">
     <h2 style="margin-bottom:10px;">Партнёрская программа</h2>
-    <p style="font-size:13px;color:var(--taupe);margin-bottom:12px;">Приглашайте друзей по своей ссылке — за переход по ней им сразу открывается несколько дней Premium, а вам — бонус, когда они оформят подписку.</p>
+    <p style="font-size:13px;color:var(--taupe);margin-bottom:12px;">Приглашайте друзей по своей ссылке. Когда друг оплатит Premium, вам начислятся звёзды: 1 звезда = 1 день Premium. Звёзды можно обменять на дни прямо здесь.</p>
     <div id="referral-link-block" style="display:none;">
       <div class="field">
         <label>Ваша ссылка</label>
@@ -1375,6 +1383,9 @@
       <button class="btn-secondary" id="referral-copy-btn" style="margin-bottom:14px;">Скопировать ссылку</button>
       <div class="current-period-row"><span class="label">Перешло по ссылке</span><span class="value" id="referral-count">—</span></div>
       <div class="current-period-row"><span class="label">Стали Premium</span><span class="value" id="referral-conversions">—</span></div>
+      <div class="current-period-row"><span class="label">Ваши звёзды</span><span class="value" id="referral-stars">—</span></div>
+      <button class="btn-secondary" id="stars-spend-btn" style="margin-top:12px;margin-bottom:0;display:none;"></button>
+      <div id="stars-note" style="font-size:12px;color:var(--taupe);margin-top:8px;"></div>
     </div>
     <button class="btn-secondary" id="settings-referral-btn" style="margin-bottom:0;">Получить ссылку</button>
   </div>
@@ -1826,12 +1837,13 @@
       planetTooltipEl = document.createElement('div');
       planetTooltipEl.className = 'period-tooltip';
       planetTooltipEl.style.maxWidth = '300px';
+      planetTooltipEl.addEventListener('click', (e) => { if (e.target.closest('.tt-close')) hidePlanetTooltip(); });
       document.body.appendChild(planetTooltipEl);
     }
     return planetTooltipEl;
   }
   function hidePlanetTooltip() {
-    if (planetTooltipEl) planetTooltipEl.classList.remove('visible');
+    if (planetTooltipEl) { planetTooltipEl.classList.remove('visible'); planetTooltipEl.dataset.pinned = ''; }
   }
   // Если подсказка не помещается на экране (особенно на телефоне) — по очереди
   // убираем второстепенные абзацы (.tt-opt, с конца), пока она не влезет.
@@ -1842,6 +1854,7 @@
     while (tip.offsetHeight > limit && opts.length) opts.pop().remove();
   }
   function positionTooltipNear(tip, anchorEl) {
+    if (HOVER_DEVICE && !tip.querySelector('.tt-close')) tip.insertAdjacentHTML('afterbegin', '<button class="tt-close" aria-label="Закрыть">×</button>');
     fitTooltip(tip);
     const rect = anchorEl.getBoundingClientRect();
     const margin = 10;
@@ -1862,15 +1875,19 @@
   // Раньше был клик-переключатель — подсказка "залипала" открытой, и было
   // сложно попасть пальцем мимо неё, чтобы закрыть. Теперь — нажал-держишь,
   // отпустил-закрылось (на мобильном); на десктопе остаётся наведение.
+  const HOVER_DEVICE = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
   function wirePressAndHold(el, showFn, hideFn) {
+    const softHide = () => { if (planetTooltipEl && planetTooltipEl.dataset.pinned === '1') return; hideFn(); };
+    if (HOVER_DEVICE) {
+      // Компьютер: подсказка открывается по клику и остаётся на месте, пока не нажмёте в другом месте или Esc.
+      el.addEventListener('click', () => { showFn(); if (planetTooltipEl) planetTooltipEl.dataset.pinned = '1'; });
+      return;
+    }
     el.addEventListener('touchstart', (e) => { e.preventDefault(); showFn(); }, { passive: false });
-    el.addEventListener('touchend', hideFn);
-    el.addEventListener('touchcancel', hideFn);
-    el.addEventListener('mousedown', showFn);
-    el.addEventListener('mouseenter', showFn);
-    el.addEventListener('mouseup', hideFn);
-    el.addEventListener('mouseleave', hideFn);
+    el.addEventListener('touchend', softHide);
+    el.addEventListener('touchcancel', softHide);
   }
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hidePlanetTooltip(); });
 
   async function showPlanetDetail(anchorEl, planetName, signIndex, isRetrograde, house, nakName, nakPada, chartRef) {    const status = getDignityStatusD1(planetName, signIndex);
     const hasDigBala = DIG_BALA_HOUSE[planetName] === house;
@@ -1890,6 +1907,23 @@
       ${atWar.length ? `<p class="tt-opt" style="color:#a8654a;margin-bottom:8px;">⚔ <b>Планетная война</b> с ${atWar.join(', ')} — обе планеты в одном градусе, борьба ослабляет проигравшую (кто именно — вопрос спорный между традициями).</p>` : ''}
       ${isRetrograde ? '<p class="tt-opt" style="color:#a8654a;margin-bottom:8px;">Ретроградность: темы этой планеты разворачиваются внутрь, требуют пересмотра, а не прямого движения вперёд.</p>' : ''}
     `;
+    // Полное толкование — в Premium. Бесплатно: одно толкование в день на пробу.
+    if (!jkIsPremium()) {
+      let freeNow = false;
+      try {
+        const day = new Date().toISOString().slice(0, 10);
+        const st = JSON.parse(localStorage.getItem('jk_free_tip') || '{}');
+        if (st.day !== day) { localStorage.setItem('jk_free_tip', JSON.stringify({ day, planet: planetName })); freeNow = true; }
+        else freeNow = st.planet === planetName;
+      } catch (e) { freeNow = false; }
+      if (freeNow) {
+        tip.insertAdjacentHTML('beforeend', '<p style="margin:8px 0 0;font-size:11.5px;color:var(--taupe);">Это бесплатное толкование на сегодня. Остальные планеты открываются в Premium.</p>');
+      } else {
+        const head = Array.from(tip.children).slice(0, 2).map((c) => c.outerHTML).join('');
+        tip.innerHTML = head + '<p style="margin:0 0 10px;">🔒 Толкование планеты, её дома и накшатры доступно в Premium.</p><button class="btn-primary tt-unlock" style="margin:0;padding:10px 14px;font-size:13px;">' + unlockLabel() + '</button>';
+        tip.dataset.pinned = '1';
+      }
+    }
     tip.classList.add('visible');
     positionTooltipNear(tip, anchorEl);
   }
@@ -2659,6 +2693,74 @@
     box.addEventListener('click', () => { if (isGuest()) showWelcome('Войдите, чтобы открыть все функции.'); else document.querySelector('.nav-item[data-nav="profile"]').click(); });
     paint();
   })();
+
+  // ---------- Тариф, пробный период ----------
+  let jkTier = null;
+  function jkIsPremium() { return !!(jkTier && jkTier.isPremium); }
+  function jkAlert(msg) {
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showAlert) window.Telegram.WebApp.showAlert(msg); else alert(msg);
+  }
+  async function loadTier() {
+    if (isGuest()) { jkTier = null; updateTrialBanner(); return null; }
+    try {
+      const r = await fetch('/api/tier', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ initData: getInitData() }) });
+      if (r.ok) jkTier = await r.json();
+    } catch (e) {}
+    updateTrialBanner();
+    return jkTier;
+  }
+  function unlockLabel() {
+    if (isGuest()) return 'Войти и попробовать Premium';
+    const t = jkTier || {};
+    if (t.trialAvailable) return 'Попробовать ' + (t.trialDays || 7) + ' дней бесплатно';
+    if (!t.hasTelegram && !t.trialUsed) return 'Привязать Telegram и получить 7 дней';
+    return t.renewText || 'Открыть Premium';
+  }
+  async function startTrialFlow() {
+    if (isGuest()) { showWelcome('Войдите, чтобы попробовать Premium.'); return; }
+    await loadTier();
+    const t = jkTier || {};
+    if (t.isPremium) return;
+    if (t.trialAvailable) {
+      try {
+        const r = await fetch('/api/trial/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ initData: getInitData() }) });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'Ошибка');
+        hidePlanetTooltip();
+        await loadTier();
+        jkAlert('Premium включён на ' + d.days + ' дней. Откройте «Сегодня» и календарь.');
+      } catch (e) { jkAlert(e.message); }
+      return;
+    }
+    if (!t.hasTelegram && !t.trialUsed) {
+      jkAlert('Пробный период включается после привязки Telegram: личные уведомления приходят именно туда. Откройте «Мой аккаунт» → «Почта и вход» → «Привязать Telegram».');
+      const nav = document.querySelector('.nav-item[data-nav="profile"]'); if (nav) nav.click();
+      return;
+    }
+    if (t.payUrl) { window.open(t.payUrl, '_blank'); return; }
+    jkAlert('Оплата Premium скоро будет доступна прямо здесь. Пока обратитесь к @katyadass, чтобы оформить доступ.');
+  }
+  function updateTrialBanner() {
+    const box = document.getElementById('trial-banner');
+    if (!box) return;
+    const t = jkTier;
+    if (!t || t.isPremium) { box.style.display = 'none'; return; }
+    let title = '', text = '', btn = '';
+    if (t.trialAvailable) { title = 'Попробуйте Premium ' + (t.trialDays || 7) + ' дней бесплатно'; text = 'Энергия дня, календарь благоприятных дней, уведомления в Telegram и толкование всех планет.'; btn = 'Включить'; }
+    else if (!t.hasTelegram && !t.trialUsed) { title = '7 дней Premium в подарок'; text = 'Привяжите Telegram: туда приходят личные уведомления, и пробный период включится после этого.'; btn = 'Привязать Telegram'; }
+    else if (t.trialEnded) { title = 'Пробный период закончился'; text = 'Ваши карты и настройки сохранены. Premium можно продлить.'; btn = t.renewText || 'Продлить Premium'; }
+    else { box.style.display = 'none'; return; }
+    box.querySelector('.tb-title').textContent = title;
+    box.querySelector('.tb-text').textContent = text;
+    box.querySelector('#trial-banner-btn').textContent = btn;
+    box.style.display = 'flex';
+  }
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('.tt-unlock') || e.target.closest('#trial-banner-btn')) { e.preventDefault(); startTrialFlow(); }
+  });
+  loadTier().then(() => {
+    try { const d = sessionStorage.getItem('jk_trial_started'); if (d) { sessionStorage.removeItem('jk_trial_started'); jkAlert('Premium включён на ' + d + ' дней. Откройте «Сегодня» и календарь.'); } } catch (e) {}
+  });
 
   // ---------- Установка на экран телефона ----------
   let deferredInstall = null;
@@ -4447,14 +4549,7 @@
     }
   });
 
-  document.getElementById('profile-upgrade-btn').addEventListener('click', () => {
-    const msg = 'Оплата Premium скоро будет доступна прямо здесь. Пока обратитесь к @katyadass, чтобы оформить доступ.';
-    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showAlert) {
-      window.Telegram.WebApp.showAlert(msg);
-    } else {
-      alert(msg);
-    }
-  });
+  document.getElementById('profile-upgrade-btn').addEventListener('click', () => { startTrialFlow(); });
 
   document.getElementById('settings-support-btn').addEventListener('click', () => {
     if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.openTelegramLink) {
@@ -4483,6 +4578,7 @@
       document.getElementById('referral-link-input').value = data.link;
       document.getElementById('referral-count').textContent = data.referredCount;
       document.getElementById('referral-conversions').textContent = data.conversionCount;
+      window.__refData = data; paintStars(data);
       document.getElementById('referral-link-block').style.display = 'block';
       btn.style.display = 'none';
     } catch (e) {
@@ -4493,6 +4589,23 @@
     }
   });
 
+  function paintStars(data) {
+    document.getElementById('referral-stars').textContent = data.stars + ' (всего получено: ' + data.starsEarned + ')';
+    const b = document.getElementById('stars-spend-btn');
+    const min = data.minStars || 5;
+    b.style.display = data.stars >= min ? 'block' : 'none';
+    b.textContent = 'Обменять ' + data.stars + ' на ' + data.stars + ' дн. Premium';
+    document.getElementById('stars-note').textContent = data.stars >= min ? '' : 'Обмен доступен от ' + min + ' звёзд. Сейчас начисляется ' + (data.percent || 30) + '% от оплаченных дней друга.';
+  }
+  document.getElementById('stars-spend-btn').addEventListener('click', async () => {
+    const d = window.__refData; if (!d) return;
+    try {
+      const r = await fetch('/api/stars/spend', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ initData: getInitData(), stars: d.stars }) });
+      const x = await r.json();
+      if (!r.ok) throw new Error(x.error || 'Ошибка');
+      d.stars = x.stars; paintStars(d); jkAlert('Готово: добавлено ' + x.days + ' дн. Premium.'); loadTier();
+    } catch (e) { jkAlert(e.message); }
+  });
   document.getElementById('referral-copy-btn').addEventListener('click', () => {
     const input = document.getElementById('referral-link-input');
     input.select();
@@ -4528,14 +4641,7 @@
   // «Сегодня для меня» (Premium): активная даша + заметные транзиты +
   // качество дня (тара-бала), собранные вместе под конкретную карту.
   // ============================================================
-  function showUpgradePrompt() {
-    const msg = 'Оплата Premium скоро будет доступна прямо здесь. Пока обратитесь к @katyadass, чтобы оформить доступ.';
-    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showAlert) {
-      window.Telegram.WebApp.showAlert(msg);
-    } else {
-      alert(msg);
-    }
-  }
+  function showUpgradePrompt() { startTrialFlow(); }
   document.getElementById('today-upgrade-btn').addEventListener('click', showUpgradePrompt);
 
   // ---------- «Где я сейчас»: одно место для «Сегодня», «Дни» и поиска ----------

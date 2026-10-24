@@ -257,8 +257,10 @@ function pollTgLogin(code) {
   return { token: createSession(r.user_id) };
 }
 
+function findUserByEmail(email) { const e = normalizeEmail(email); return e ? identityUser('email', e) : null; }
+
 function accountInfo(userId) {
   return { userId, hasTelegram: userId > 0, emails: listEmails(userId) };
 }
 
-module.exports = { normalizeEmail, requestEmailCode, checkEmailCode, loginWithEmail, attachEmail, createSession, userBySession, endSession, createLinkCode, consumeLinkCode, createTgLogin, approveTgLogin, pollTgLogin, accountInfo, mergeUsers };
+module.exports = { normalizeEmail, requestEmailCode, checkEmailCode, loginWithEmail, attachEmail, createSession, userBySession, endSession, createLinkCode, consumeLinkCode, createTgLogin, approveTgLogin, pollTgLogin, findUserByEmail, accountInfo, mergeUsers };

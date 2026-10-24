@@ -928,7 +928,50 @@ function startWebApp() {
       customAyanamshaBase: row.custom_ayanamsha_base,
       observationMode: row.observation_mode,
       displayName: row.display_name,
+      stars: row.stars || 0,
+      ...db.trialState(req.tgUser.id),
+      payUrl: process.env.PREMIUM_PAY_URL || null,
+      renewText: process.env.RENEW_OFFER_TEXT || 'Продлить Premium со скидкой',
     });
+  });
+
+  // Пробный период: один раз, по кнопке, только если привязан Telegram
+  app.post('/api/trial/start', requireTelegramUser, (req, res) => {
+    const r = db.startTrial(req.tgUser.id);
+    if (r.error) return res.status(400).json(r);
+    res.json(r);
+  });
+
+  // Звёзды → дни Premium (1 звезда = 1 день)
+  app.post('/api/stars/spend', requireTelegramUser, (req, res) => {
+    const r = db.spendStarsOnPremium(req.tgUser.id, req.body.stars);
+    if (r.error) return res.status(400).json(r);
+    res.json({ ...r, stars: db.getStars(req.tgUser.id) });
+  });
+
+  // Оплата с внешней платёжки (GetCourse, Продамус и т.п.). Защищено секретом PAYMENT_WEBHOOK_SECRET.
+  // Тело: { secret, order_id, days, telegram_id | email, amount }
+  app.post('/api/webhook/payment', async (req, res) => {
+    const secret = process.env.PAYMENT_WEBHOOK_SECRET;
+    if (!secret) return res.status(503).json({ error: 'Приём платежей не настроен' });
+    const given = String(req.body.secret || req.get('x-webhook-secret') || '');
+    const okSecret = given.length === secret.length && require('crypto').timingSafeEqual(Buffer.from(given), Buffer.from(secret));
+    if (!okSecret) return res.status(403).json({ error: 'Неверный секрет' });
+    const days = Math.floor(Number(req.body.days));
+    if (!days || days < 1 || days > 3700) return res.status(400).json({ error: 'Некорректное число дней' });
+    let userId = Number(req.body.telegram_id) || null;
+    if (!userId && req.body.email) userId = accounts.findUserByEmail(req.body.email);
+    if (!userId) return res.status(404).json({ error: 'Пользователь не найден по telegram_id или почте' });
+    const r = db.recordPayment({ userId, days, orderId: req.body.order_id, amount: req.body.amount, source: 'webhook' });
+    if (r.error) return res.status(404).json(r);
+    if (r.duplicate) return res.json({ ok: true, duplicate: true });
+    const tgSend = async (id, text) => {
+      if (!id || id <= 0 || !process.env.BOT_TOKEN) return;
+      try { await fetch('https://api.telegram.org/bot' + process.env.BOT_TOKEN + '/sendMessage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: id, text }) }); } catch (e) {}
+    };
+    await tgSend(userId, 'Оплата получена, Premium продлён на ' + days + ' дн. Спасибо!');
+    if (r.referrerId) await tgSend(r.referrerId, 'Ваш приглашённый друг оформил Premium. Вам начислено звёзд: ' + r.stars + '. Каждая звезда = 1 день Premium, обменять можно в разделе «Партнёрская программа».');
+    res.json({ ok: true, referrerStars: r.stars || 0 });
   });
 
   app.post('/api/settings/update', requireTelegramUser, (req, res) => {
@@ -1038,7 +1081,7 @@ function startWebApp() {
       }
       const link = `https://t.me/${botUsername}?start=ref_${req.tgUser.id}`;
       const stats = db.getReferralStats(req.tgUser.id);
-      res.json({ link, ...stats });
+      res.json({ link, ...stats, percent: db.REFERRAL_PERCENT, minStars: db.MIN_STARS_SPEND });
     } catch (e) {
       console.error(e);
       res.status(500).json({ error: e.message });

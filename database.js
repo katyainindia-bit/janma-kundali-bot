@@ -89,6 +89,30 @@ db.exec(`
   );
 `);
 
+// --- Пробный период, звёздочки, платежи ---
+for (const col of ['trial_used_at TEXT', 'stars INTEGER NOT NULL DEFAULT 0', 'trial_end_notified INTEGER NOT NULL DEFAULT 0']) {
+  try { db.exec('ALTER TABLE users ADD COLUMN ' + col); } catch (e) { /* уже есть */ }
+}
+db.exec(`
+  CREATE TABLE IF NOT EXISTS payments (
+    order_id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    days INTEGER NOT NULL,
+    amount TEXT,
+    source TEXT,
+    created_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS star_ledger (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    delta INTEGER NOT NULL,
+    reason TEXT NOT NULL,
+    ref_user_id INTEGER,
+    order_id TEXT,
+    created_at TEXT NOT NULL
+  );
+`);
+
 // На случай, если база уже существовала до добавления избранного (миграция «на лету»)
 try {
   db.exec('ALTER TABLE charts ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0');
@@ -376,6 +400,78 @@ function grantPremiumDays(telegramId, days) {
   markPremiumFirst(telegramId);
   return true;
 }
+// Пробный период: один раз на аккаунт, только если есть Telegram (положительный id).
+const TRIAL_DAYS = Number(process.env.TRIAL_DAYS || 7);
+function trialState(telegramId) {
+  const row = getUser(telegramId);
+  if (!row) return { hasTelegram: false, trialUsed: false, trialAvailable: false, trialEnded: false };
+  const premium = isPremium(telegramId);
+  const used = !!row.trial_used_at;
+  const paid = !!db.prepare('SELECT 1 FROM payments WHERE user_id = ? LIMIT 1').get(telegramId);
+  return {
+    hasTelegram: telegramId > 0,
+    trialUsed: used,
+    trialAvailable: telegramId > 0 && !used && !premium && !paid && !row.premium_first_at,
+    trialEnded: used && !premium,
+    trialDays: TRIAL_DAYS,
+  };
+}
+function startTrial(telegramId) {
+  if (telegramId <= 0) return { error: 'Пробный период включается после привязки Telegram: уведомления приходят именно туда.', needTelegram: true };
+  const st = trialState(telegramId);
+  if (st.trialUsed) return { error: 'Пробный период уже был использован.' };
+  if (!st.trialAvailable) return { error: 'Пробный период недоступен для этого аккаунта.' };
+  grantPremiumDays(telegramId, TRIAL_DAYS);
+  db.prepare('UPDATE users SET trial_used_at = ? WHERE telegram_id = ?').run(new Date().toISOString(), telegramId);
+  return { ok: true, days: TRIAL_DAYS };
+}
+
+// --- Звёздочки: 1 звезда = 1 день Premium. Начисляются за оплаты приглашённых. ---
+const REFERRAL_PERCENT = Number(process.env.REFERRAL_PERCENT || 30);
+const MIN_STARS_SPEND = Number(process.env.MIN_STARS_SPEND || 5);
+function addStars(userId, delta, reason, refUserId, orderId) {
+  db.prepare('UPDATE users SET stars = stars + ? WHERE telegram_id = ?').run(delta, userId);
+  db.prepare('INSERT INTO star_ledger (user_id, delta, reason, ref_user_id, order_id, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(userId, delta, reason, refUserId || null, orderId || null, new Date().toISOString());
+}
+/** Оплата Premium: выдаёт дни, один раз по order_id, и начисляет звёзды пригласившему. */
+function recordPayment({ userId, days, orderId, amount, source, grant = true }) {
+  const oid = String(orderId || ('manual-' + Date.now() + '-' + userId));
+  if (db.prepare('SELECT 1 FROM payments WHERE order_id = ?').get(oid)) return { duplicate: true };
+  const u = getUser(userId);
+  if (!u) return { error: 'Пользователь не найден' };
+  db.prepare('INSERT INTO payments (order_id, user_id, days, amount, source, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(oid, userId, days, amount == null ? null : String(amount), source || 'manual', new Date().toISOString());
+  if (grant) grantPremiumDays(userId, days);
+  let referrerId = null, stars = 0;
+  if (u.referred_by && u.referred_by !== userId && getUser(u.referred_by)) {
+    stars = Math.max(1, Math.round(days * REFERRAL_PERCENT / 100));
+    referrerId = u.referred_by;
+    addStars(referrerId, stars, 'referral_payment', userId, oid);
+    logReferralReward(referrerId, userId, 'conversion', 0);
+  }
+  return { ok: true, referrerId, stars };
+}
+function getStars(userId) {
+  const r = db.prepare('SELECT stars FROM users WHERE telegram_id = ?').get(userId);
+  return r ? r.stars : 0;
+}
+function spendStarsOnPremium(userId, stars) {
+  stars = Math.floor(Number(stars));
+  if (!stars || stars < MIN_STARS_SPEND) return { error: 'Минимум для обмена: ' + MIN_STARS_SPEND + ' звёзд.' };
+  const info = db.prepare('UPDATE users SET stars = stars - ? WHERE telegram_id = ? AND stars >= ?').run(stars, userId, stars);
+  if (!info.changes) return { error: 'Недостаточно звёзд.' };
+  db.prepare('INSERT INTO star_ledger (user_id, delta, reason, created_at) VALUES (?, ?, ?, ?)').run(userId, -stars, 'spent_premium', new Date().toISOString());
+  grantPremiumDays(userId, stars);
+  return { ok: true, days: stars };
+}
+function trialEndedToNotify() {
+  return db.prepare(`SELECT telegram_id FROM users WHERE trial_used_at IS NOT NULL AND trial_end_notified = 0 AND telegram_id > 0
+    AND (tier != 'premium' OR (premium_until IS NOT NULL AND premium_until < ?))
+    AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.user_id = users.telegram_id)`).all(new Date().toISOString()).map((r) => r.telegram_id);
+}
+function markTrialEndNotified(userId) { db.prepare('UPDATE users SET trial_end_notified = 1 WHERE telegram_id = ?').run(userId); }
+
 function logReferralReward(referrerId, referredId, rewardType, premiumDays) {
   db.prepare('INSERT INTO referral_rewards (referrer_id, referred_id, reward_type, premium_days, created_at) VALUES (?, ?, ?, ?, ?)')
     .run(referrerId, referredId, rewardType, premiumDays, new Date().toISOString());
@@ -388,6 +484,8 @@ function getReferralStats(telegramId) {
     referredCount,
     conversionCount: conversions ? conversions.c : 0,
     totalPremiumDaysEarned: rewards.reduce((sum, r) => sum + (r.days || 0), 0),
+    stars: getStars(telegramId),
+    starsEarned: (db.prepare("SELECT COALESCE(SUM(delta),0) AS s FROM star_ledger WHERE user_id = ? AND delta > 0").get(telegramId) || {}).s || 0,
   };
 }
 function getAllReferralStatsForAdmin(limit = 20) {
@@ -661,6 +759,7 @@ module.exports = {
   getUser, isPremium, setTier,
   setNotifyEnabled, setPrimaryChart, listNotifiableUsers, saveNotifyState, setAstroSettings,
   setRitualNotifyEnabled, listRitualNotifiableUsers, setDisplayName,
+  trialState, startTrial, recordPayment, getStars, spendStarsOnPremium, trialEndedToNotify, markTrialEndNotified, REFERRAL_PERCENT, MIN_STARS_SPEND,
   setReferredBy, markReferralRewardGranted, grantPremiumDays, logReferralReward, getReferralStats, getAllReferralStatsForAdmin,
   saveChart, listCharts, countCharts, getChart, deleteChart, updateChart, renameChart, setFolder, toggleFavorite,
   addNote, listNotes, updateNote, deleteNote,
