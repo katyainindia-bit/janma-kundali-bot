@@ -72,6 +72,7 @@ function requireTelegramUser(req, res, next) {
   if (!user) return res.status(401).json({ error: 'Не удалось проверить пользователя Telegram' });
   req.tgUser = user;
   db.upsertUser({ from: user });
+  db.logUsage(user.id, req.path);
   next();
 }
 
@@ -192,6 +193,7 @@ function startWebApp() {
   app.post('/api/chart', (req, res) => {
     try {
       const { day, month, year, hour, minute, lat, lon, utcOffset, ayanamshaType, nodeType, observationMode, initData } = req.body;
+      { const u = verifyInitData(initData); db.logUsage(u ? u.id : 0, '/api/chart'); } // 0 = гость без входа
       const validationError = validateBirthParams({ day, month, year, hour, minute, lat, lon, utcOffset });
       if (validationError) return res.status(400).json({ error: validationError });
       // Настройки зодиака/узла берём из сохранённого профиля пользователя, если он

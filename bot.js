@@ -1026,6 +1026,49 @@ bot.command('help', async (ctx) => {
   );
 });
 
+const FEATURE_NAMES = {
+  '/api/chart': 'Построение карты', '/api/varga': 'Варги', '/api/today': 'Сегодня', '/api/day-detail': 'Детали дня',
+  '/api/calendar-month': 'Календарь дней', '/api/action-date-search': 'Поиск по цели', '/api/date-search': 'Поиск даты',
+  '/api/year-events': 'Праздники года', '/api/archive/save': 'Сохранение в архив', '/api/archive/list': 'Архив',
+  '/api/export-pdf': 'Выгрузка в PDF', '/api/sade-sati': 'Саде-Сати', '/api/transit-end-date': 'Дата выхода транзита',
+  '/api/notify/prefs': 'Настройки уведомлений', '/api/notify/test': 'Пример уведомления', '/api/account/email/verify': 'Подтверждение почты',
+  '/api/search-goals/save': 'Сохранение цели', '/api/referral/info': 'Реферальная ссылка', '/api/tier': 'Открытие приложения',
+};
+
+bot.command('stats', async (ctx) => {
+  if (!ADMIN_ID || ctx.from.id !== ADMIN_ID) return;
+  const total = db.getUserCount();
+  const part = (d) => { const s = db.usageStats(d); return s; };
+  const d1 = part(1), d7 = part(7);
+  const top = d7.byFeature.slice(0, 12).map((f) => `• ${FEATURE_NAMES[f.endpoint] || f.endpoint} — ${f.hits} раз, ${f.users} чел.`).join('\n') || 'пока нет данных';
+  await ctx.reply(
+    `Всего людей: ${total}\n` +
+    `Сегодня: активных ${d1.activeUsers}, новых ${d1.newUsers}\n` +
+    `За 7 дней: активных ${d7.activeUsers}, новых ${d7.newUsers}\n\n` +
+    `Чем пользуются (7 дней):\n${top}\n\n` +
+    'Гости без входа попадают только в «Построение карты» (число раз). Учёт начался с момента этого обновления.'
+  );
+});
+
+bot.command('export', async (ctx) => {
+  if (!ADMIN_ID || ctx.from.id !== ADMIN_ID) return;
+  const csv = db.exportUsersCsv();
+  const day = new Date().toISOString().slice(0, 10);
+  await ctx.telegram.sendDocument(ctx.chat.id, { source: Buffer.from(csv, 'utf8'), filename: `users-${day}.csv` }, { caption: 'Все пользователи. Открывается в Excel и Google Таблицах. Файл содержит личные данные, храни его аккуратно.' });
+});
+
+bot.command('users', async (ctx) => {
+  if (!ADMIN_ID || ctx.from.id !== ADMIN_ID) return;
+  const rows = db.listUsersForAdmin(40);
+  if (!rows.length) { await ctx.reply('Пользователей пока нет.'); return; }
+  const fmt = (iso) => (iso || '').slice(0, 16).replace('T', ' ');
+  const lines = rows.map((r) =>
+    `${fmt(r.first_seen)} UTC · ${r.username ? '@' + r.username : (r.first_name || 'без имени')} · id ${r.telegram_id} · карт: ${r.charts}` +
+    (r.tier === 'premium' ? ' · Premium' : '') + (r.referred_by ? ` · пришёл от ${r.referred_by}` : ''));
+  const text = `Последние ${rows.length} (новые сверху):\n\n` + lines.join('\n');
+  for (let i = 0; i < text.length; i += 3800) await ctx.reply(text.slice(i, i + 3800));
+});
+
 bot.command('backup', async (ctx) => {
   if (!ADMIN_ID || ctx.from.id !== ADMIN_ID) return;
   try {

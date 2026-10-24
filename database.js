@@ -209,6 +209,43 @@ function upsertUser(ctx) {
   `).run(from.id, from.username || null, from.first_name || null, now, now);
 }
 
+// --- Статистика использования: сколько раз в день человек пользовался каждой функцией ---
+db.exec(`CREATE TABLE IF NOT EXISTS usage_daily (
+  day TEXT NOT NULL, user_id INTEGER NOT NULL, endpoint TEXT NOT NULL, hits INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, user_id, endpoint)
+)`);
+function logUsage(userId, endpoint) {
+  try {
+    const day = new Date().toISOString().slice(0, 10);
+    db.prepare(`INSERT INTO usage_daily (day, user_id, endpoint, hits) VALUES (?, ?, ?, 1)
+      ON CONFLICT(day, user_id, endpoint) DO UPDATE SET hits = hits + 1`).run(day, userId || 0, endpoint);
+  } catch (e) { /* статистика не должна ломать работу */ }
+}
+function usageStats(days) {
+  const since = new Date(Date.now() - (days - 1) * 86400000).toISOString().slice(0, 10);
+  const byFeature = db.prepare(`SELECT endpoint, SUM(hits) AS hits, COUNT(DISTINCT user_id) AS users FROM usage_daily
+    WHERE day >= ? GROUP BY endpoint ORDER BY hits DESC`).all(since);
+  const activeUsers = db.prepare('SELECT COUNT(DISTINCT user_id) AS c FROM usage_daily WHERE day >= ? AND user_id != 0').get(since).c;
+  const newUsers = db.prepare('SELECT COUNT(*) AS c FROM users WHERE substr(first_seen,1,10) >= ?').get(since).c;
+  return { byFeature, activeUsers, newUsers };
+}
+function exportUsersCsv() {
+  const rows = db.prepare(`
+    SELECT u.telegram_id, u.username, u.first_name, u.email, u.phone, u.tier, u.premium_until, u.premium_first_at,
+      u.marketing_consent, u.first_seen, u.last_seen, u.place_json,
+      (SELECT COUNT(*) FROM charts c WHERE c.telegram_id = u.telegram_id) AS charts
+    FROM users u ORDER BY u.first_seen`).all();
+  const esc = (v) => { const s = v == null ? '' : String(v); return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const head = ['id', 'ник', 'имя', 'почта', 'телефон', 'тариф', 'Premium до', 'был Premium с', 'согласие на рассылку', 'пришёл', 'последний визит', 'город', 'карт'];
+  const lines = [head.join(';')];
+  for (const r of rows) {
+    let city = ''; try { city = r.place_json ? (JSON.parse(r.place_json).name || '') : ''; } catch (e) {}
+    lines.push([r.telegram_id, r.username ? '@' + r.username : '', r.first_name, r.email, r.phone, r.tier, r.premium_until, r.premium_first_at,
+      r.marketing_consent ? 'да' : 'нет', r.first_seen, r.last_seen, city, r.charts].map(esc).join(';'));
+  }
+  return '\ufeff' + lines.join('\n');
+}
+
 // --- Метки и сегменты для рассылок ---
 try { db.exec('ALTER TABLE users ADD COLUMN premium_first_at TEXT'); } catch (e) { /* уже есть */ }
 try { db.exec('ALTER TABLE users ADD COLUMN phone TEXT'); } catch (e) { /* уже есть */ }
@@ -239,6 +276,14 @@ function segmentUserIds(seg) {
     f = (r) => { try { return !!r.place_json && String(JSON.parse(r.place_json).name || '').toLowerCase().includes(q); } catch (e) { return false; } };
   } else return null;
   return rows.filter(f).map((r) => r.telegram_id);
+}
+
+// Список людей для администратора: кто, когда пришёл, сколько карт, откуда (реферал)
+function listUsersForAdmin(limit = 40) {
+  return db.prepare(`
+    SELECT u.telegram_id, u.username, u.first_name, u.tier, u.first_seen, u.last_seen, u.referred_by,
+      (SELECT COUNT(*) FROM charts c WHERE c.telegram_id = u.telegram_id) AS charts
+    FROM users u ORDER BY u.first_seen DESC LIMIT ?`).all(limit);
 }
 
 function dbInfo() {
@@ -582,7 +627,7 @@ function deleteSearchGoal(telegramId, id) {
 }
 
 module.exports = {
-  rawDb: db, segmentUserIds, dbInfo, autoEnableNotifications, getNotifyUser, listRitualUsersWithPlace, setUserPlace, getUserPlace, getNotifyPrefsRaw, saveNotifyPrefs, wasNotifySent, markNotifySent, countNotifySent,
+  rawDb: db, logUsage, usageStats, exportUsersCsv, listUsersForAdmin, segmentUserIds, dbInfo, autoEnableNotifications, getNotifyUser, listRitualUsersWithPlace, setUserPlace, getUserPlace, getNotifyPrefsRaw, saveNotifyPrefs, wasNotifySent, markNotifySent, countNotifySent,
   listSearchGoals, saveSearchGoal, deleteSearchGoal, MAX_SEARCH_GOALS,
   upsertUser, getAllUserIds, getUserCount,
   getUser, isPremium, setTier,
