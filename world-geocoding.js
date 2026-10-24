@@ -25,6 +25,19 @@ async function fetchWithTimeout(url, options = {}) {
   }
 }
 
+// Короткое название места из адреса Nominatim: «Город, регион, страна» —
+// без дома, улицы, района, федерального округа и индекса.
+function composeName(place) {
+  const a = place && place.address;
+  if (a) {
+    const name = a.city || a.town || a.village || a.municipality || a.hamlet || a.suburb || a.city_district || a.county || a.state;
+    const parts = [];
+    for (const x of [name, a.state, a.country]) if (x && !parts.includes(x)) parts.push(x);
+    if (parts.length) return parts.join(', ');
+  }
+  return place && place.display_name ? place.display_name : null;
+}
+
 /**
  * Ищет город по названию через Nominatim (OpenStreetMap).
  * Возвращает МАССИВ кандидатов (до limit штук) — раньше молча брался
@@ -32,17 +45,23 @@ async function fetchWithTimeout(url, options = {}) {
  * разных регионах/странах путались без возможности выбрать нужный.
  */
 async function geocodeCityCandidatesRaw(query, limit = 5) {
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=${limit}&accept-language=ru`;
+  const base = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=${limit}&addressdetails=1&accept-language=ru`;
   try {
-    const res = await fetchWithTimeout(url, { headers: { 'User-Agent': USER_AGENT } });
-    if (!res.ok) return [];
-    const data = await res.json();
-    if (!Array.isArray(data)) return [];
+    // сначала только населённые пункты (центр города, а не дом или кафе с таким названием)
+    let data = null;
+    for (const url of [base + '&featureType=settlement', base]) {
+      const res = await fetchWithTimeout(url, { headers: { 'User-Agent': USER_AGENT } });
+      if (!res.ok) continue;
+      const d = await res.json();
+      if (Array.isArray(d) && d.length) { data = d; break; }
+    }
+    if (!data) return [];
+    const seen = new Set();
     return data.map(place => ({
       lat: parseFloat(place.lat),
       lon: parseFloat(place.lon),
-      displayName: place.display_name,
-    }));
+      displayName: composeName(place),
+    })).filter(c => { if (seen.has(c.displayName)) return false; seen.add(c.displayName); return true; });
   } catch (e) {
     console.error('Ошибка геокодирования:', e.message);
     return [];
@@ -142,16 +161,16 @@ function resolveTimezoneForCoords(lat, lon, approxDateUTC, hour, minute) {
  * на самом деле имеется в виду.
  */
 async function reverseGeocode(lat, lon) {
-  const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=ru`;
+  const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&zoom=10&addressdetails=1&accept-language=ru`;
   try {
     const res = await fetchWithTimeout(url, { headers: { 'User-Agent': USER_AGENT } });
     if (!res.ok) return null;
     const data = await res.json();
-    return data && data.display_name ? data.display_name : null;
+    return composeName(data);
   } catch (e) {
     console.error('Ошибка обратного геокодирования:', e.message);
     return null;
   }
 }
 
-module.exports = { geocodeCity, getOffsetHours, resolveWorldCity, resolveWorldCityCandidates, resolveTimezoneForCoords, reverseGeocode };
+module.exports = { composeName, geocodeCity, getOffsetHours, resolveWorldCity, resolveWorldCityCandidates, resolveTimezoneForCoords, reverseGeocode };

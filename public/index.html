@@ -237,6 +237,8 @@
 
   @media (min-width: 1000px) { .vs-grid { display: grid; grid-template-columns: 470px 1fr; gap: 20px; align-items: start; } }
   .vs-col2 { min-width: 0; }
+  .vs-year::-webkit-outer-spin-button, .vs-year::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .vs-year { -moz-appearance: textfield; appearance: textfield; }
   .btn-secondary.active { background: var(--gold, #C8A26B); color: #fff; border-color: transparent; }
   .btn-secondary {
     width: 100%; background: none; border: 1px solid var(--line); color: var(--ink);
@@ -967,14 +969,14 @@
           </div>
           <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:12px;">
             <button class="btn-secondary" id="vs-prev" style="margin:0;width:44px;">‹</button>
-            <input type="number" id="vs-year" style="width:92px;text-align:center;font-size:18px;" min="1900" max="2200">
+            <input type="number" id="vs-year" class="vs-year" style="width:92px;text-align:center;font-size:18px;" min="1900" max="2200">
             <button class="btn-secondary" id="vs-next" style="margin:0;width:44px;">›</button>
           </div>
-          <div style="display:flex;gap:8px;">
-            <button class="btn-secondary vs-place active" data-vplace="here" style="margin:0;flex:1;font-size:12px;">Где я сейчас</button>
-            <button class="btn-secondary vs-place" data-vplace="birth" style="margin:0;flex:1;font-size:12px;">Место рождения</button>
+          <div id="vs-place-line" style="font-size:13px;color:var(--taupe);text-align:center;"></div>
+          <div id="vs-place-edit" style="display:none;position:relative;margin-top:8px;">
+            <input type="text" id="vs-place-input" placeholder="Город" autocomplete="off" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);font-size:14px;box-sizing:border-box;">
+            <div id="vs-place-suggestions" style="display:none;"></div>
           </div>
-          <div id="vs-place-note" style="font-size:12px;color:var(--taupe);text-align:center;margin-top:8px;"></div>
         </div>
         <div id="vs-result" style="display:none;">
           <div style="text-align:center;font-size:13px;color:var(--taupe);margin:4px 0 8px;" id="vs-moment"></div>
@@ -2238,6 +2240,7 @@
       const houseNum = (cell.signIndex - ascIdx + 12) % 12 + 1;
       const cx = cell.x + 50, cy = cell.y + 50;
       housePixelPos[houseNum] = { x: cx, y: cy };
+      if (chart.highlightHouse && houseNum === chart.highlightHouse) svg.appendChild(el('rect', { x: cell.x, y: cell.y, width: 100, height: 100, fill: '#C8A26B', 'fill-opacity': 0.18, stroke: 'none' }));
 
       // Номер дома — маленький, в углу ячейки (не мешает планетам по центру)
       const numText = el('text', { x: cell.x + 10, y: cell.y + 16, 'text-anchor': 'start', 'font-family': 'Playfair Display, serif', 'font-size': houseNum === 1 ? 15 : 12, fill: houseNum === 1 ? '#C8A26B' : '#7A6B5A', 'font-weight': houseNum === 1 ? 700 : 400 });
@@ -2350,7 +2353,7 @@
       return e;
     }
 
-    svg.appendChild(el('polygon', {points: HP[1].map(pt => pt.join(',')).join(' '), fill:'#C8A26B', 'fill-opacity':0.12, stroke:'none'}));
+    svg.appendChild(el('polygon', {points: HP[chart.highlightHouse || 1].map(pt => pt.join(',')).join(' '), fill:'#C8A26B', 'fill-opacity':0.18, stroke:'none'}));
     svg.appendChild(el('polygon', {points:'0,0 400,0 400,400 0,400', fill:'none', stroke:'#C8A26B', 'stroke-width':1.5}));
     svg.appendChild(el('line', {x1:0,y1:0,x2:400,y2:400, stroke:'#C8A26B','stroke-width':1.5}));
     svg.appendChild(el('line', {x1:400,y1:0,x2:0,y2:400, stroke:'#C8A26B','stroke-width':1.5}));
@@ -4909,18 +4912,49 @@
   }
 
   // ---------- Варшапхала ----------
-  let vsMode = 'varsha', vsPlace = 'here', vsYear = null, vsReq = 0;
+  let vsMode = 'varsha', vsPlaceOverride = null, vsYear = null, vsReq = 0;
   const vsEsc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const vsDeg = (lon) => { const d = lon % 30, m = Math.floor((d - Math.floor(d)) * 60); return Math.floor(d) + '°' + String(m).padStart(2, '0') + '′'; };
   const vsPad = (n) => String(n).padStart(2, '0');
   function vsPlaceInfo() {
-    const b = currentChartMeta.params;
-    if (vsPlace === 'here') {
-      const s = getPlace();
-      if (s) return { lat: s.lat, lon: s.lon, utcOffset: s.utcOffset, name: shortPlace(s.name) };
-    }
-    return { lat: b.lat, lon: b.lon, utcOffset: b.utcOffset, name: shortPlace((currentChartMeta.placeLabel) || 'место рождения') };
+    if (vsPlaceOverride) return { lat: vsPlaceOverride.lat, lon: vsPlaceOverride.lon, utcOffset: vsPlaceOverride.utcOffset, name: shortPlace(vsPlaceOverride.name) };
+    const pp = placeParams();
+    return { lat: pp.lat, lon: pp.lon, utcOffset: pp.utcOffset, name: shortPlace(placeName()) };
   }
+  function vsRenderPlaceLine() {
+    const line = document.getElementById('vs-place-line'), edit = document.getElementById('vs-place-edit');
+    edit.style.display = 'none';
+    line.innerHTML = '📍 ' + vsEsc(vsPlaceInfo().name) + ' · <a href="#" id="vs-place-change" style="color:var(--gold);text-decoration:underline;">изменить</a>' + (vsPlaceOverride ? ' · <a href="#" id="vs-place-reset" style="color:var(--gold);text-decoration:underline;">сбросить</a>' : '');
+    document.getElementById('vs-place-change').addEventListener('click', (e) => { e.preventDefault(); edit.style.display = 'block'; document.getElementById('vs-place-input').focus(); });
+    const rs = document.getElementById('vs-place-reset');
+    if (rs) rs.addEventListener('click', (e) => { e.preventDefault(); vsPlaceOverride = null; renderVarshaTab(); });
+  }
+  let vsPlaceTimer = null;
+  document.getElementById('vs-place-input').addEventListener('input', (e) => {
+    clearTimeout(vsPlaceTimer);
+    const q = e.target.value.trim(), box = document.getElementById('vs-place-suggestions');
+    if (q.length < 2) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    vsPlaceTimer = setTimeout(async () => {
+      try {
+        const r = await fetch('/api/geocode-suggest', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q }) });
+        const d = await r.json();
+        if (!d.candidates || !d.candidates.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+        box.style.cssText = 'display:block;position:absolute;z-index:5;background:var(--bg);border:1px solid var(--line);border-radius:10px;margin-top:2px;max-height:220px;overflow-y:auto;width:100%;box-shadow:0 4px 12px rgba(0,0,0,0.08);text-align:left;';
+        box.innerHTML = d.candidates.map((c, i) => '<div data-vi="' + i + '" style="padding:10px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--line);color:var(--ink);">' + vsEsc(c.city) + '</div>').join('');
+        box.querySelectorAll('[data-vi]').forEach((el) => el.addEventListener('click', async () => {
+          const c = d.candidates[Number(el.dataset.vi)];
+          try {
+            const tr = await fetch('/api/timezone-for-coords', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lat: c.lat, lon: c.lon, year: vsYear || new Date().getFullYear(), month: 12, day: 1, hour: 12, minute: 0 }) });
+            const td = await tr.json();
+            if (!tr.ok || typeof td.utcOffset !== 'number') throw new Error('tz');
+            vsPlaceOverride = { name: c.city, lat: c.lat, lon: c.lon, utcOffset: td.utcOffset };
+            box.style.display = 'none'; box.innerHTML = ''; document.getElementById('vs-place-input').value = '';
+            renderVarshaTab();
+          } catch (er) { box.innerHTML = '<div style="padding:10px 12px;font-size:13px;">Не удалось определить часовой пояс. Попробуйте другой город.</div>'; }
+        }));
+      } catch (er) {}
+    }, 350);
+  });
   async function renderVarshaTab() {
     const errEl = document.getElementById('varsha-error'), lockEl = document.getElementById('varsha-locked'), bodyEl = document.getElementById('varsha-body');
     errEl.style.display = 'none'; lockEl.style.display = 'none';
@@ -4929,10 +4963,8 @@
     if (vsYear == null) vsYear = new Date().getFullYear();
     document.getElementById('vs-year').value = vsYear;
     document.querySelectorAll('.vs-mode').forEach((b) => b.classList.toggle('active', b.dataset.vmode === vsMode));
-    document.querySelectorAll('.vs-place').forEach((b) => b.classList.toggle('active', b.dataset.vplace === vsPlace));
     const pl = vsPlaceInfo();
-    const hasHere = !!getPlace();
-    document.getElementById('vs-place-note').textContent = 'Год считается для места: ' + pl.name + (vsPlace === 'here' && !hasHere ? ' (укажите «Где я сейчас» в разделе «Сегодня» — пока берётся место рождения)' : '');
+    vsRenderPlaceLine();
     const my = ++vsReq;
     try {
       const res = await fetch('/api/varshaphala', { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -4948,12 +4980,13 @@
     document.getElementById('vs-result').style.display = 'block';
     const L = d.local;
     document.getElementById('vs-moment').innerHTML = (d.mode === 'tithi' ? 'Титхи-правеша' : 'Варша-правеша') + ' · <b>' + vsPad(L.day) + '.' + vsPad(L.month) + '.' + L.year + ' ' + vsPad(L.hour) + ':' + vsPad(L.minute) + ':' + vsPad(L.second) + '</b> · ' + vsEsc(pl.name) + ' · возраст ' + d.age + (d.mode === 'tithi' ? '<br>Месяц ' + vsEsc(d.extra.natalMasa) + ', ' + vsEsc(d.extra.natalPaksha) + ' пакша, титхи ' + d.extra.natalTithi : '');
+    d.chart.highlightHouse = d.muntha.house; // подсвечен дом, где стоит Мунта
     renderChartSVGDispatch(d.chart, 'varsha-svg');
     const vsh = d.varshesh;
     document.getElementById('vs-summary').innerHTML =
       '<div class="name" style="margin-bottom:6px;">Главное</div>' +
       '<div class="current-period-row"><span class="label">Варша-лагна</span><span class="value">' + vsEsc(d.chart.ascendant.sign.name) + ' ' + vsDeg(d.chart.ascendant.siderealLon) + '</span></div>' +
-      '<div class="current-period-row"><span class="label">Мунта</span><span class="value">' + vsEsc(d.muntha.sign) + ', ' + d.muntha.house + ' дом</span></div>' +
+      '<div class="current-period-row"><span class="label">Мунта (подсвечена на карте)</span><span class="value">' + vsEsc(d.muntha.sign) + ', ' + d.muntha.house + ' дом</span></div>' +
       '<div class="current-period-row"><span class="label">Варшеш (владыка года)</span><span class="value">' + vsEsc(vsh.planet) + '</span></div>' +
       '<div style="font-size:11px;color:var(--taupe);margin-top:6px;">' + (vsh.byAspect ? 'Самая сильная по Панча-варгия бале среди пяти должностных лиц, у которой есть дриштхи к Варша-лагне.' : 'Ни одна из пяти не имеет дриштхи к Варша-лагне, поэтому Варшеш — Мунтеша.') + '</div>';
     document.getElementById('vs-officers').innerHTML = '<div class="name" style="margin-bottom:6px;">Пять должностных лиц</div>' +
@@ -4976,7 +5009,6 @@
     document.getElementById('vs-yogas').innerHTML = '<div class="name" style="margin-bottom:8px;">Таджика-йоги</div>' + (yhtml || '<div style="font-size:13px;color:var(--taupe);">Йог не найдено.</div>');
   }
   document.querySelectorAll('.vs-mode').forEach((b) => b.addEventListener('click', () => { vsMode = b.dataset.vmode; renderVarshaTab(); }));
-  document.querySelectorAll('.vs-place').forEach((b) => b.addEventListener('click', () => { vsPlace = b.dataset.vplace; renderVarshaTab(); }));
   document.getElementById('vs-prev').addEventListener('click', () => { vsYear--; renderVarshaTab(); });
   document.getElementById('vs-next').addEventListener('click', () => { vsYear++; renderVarshaTab(); });
   document.getElementById('vs-year').addEventListener('change', (e) => { const v = parseInt(e.target.value, 10); if (v >= 1900 && v <= 2200) { vsYear = v; renderVarshaTab(); } });
