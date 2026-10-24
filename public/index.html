@@ -557,7 +557,7 @@
     .form-card { padding: 24px; border-radius: 18px; }
     #form-card h2 { margin-bottom: 18px; font-size: 20px; }
     .info-card { border-radius: 18px; }
-    .chart-wrap { max-width: 600px; }
+    .chart-wrap { max-width: 470px; }
     #install-banner { left: auto !important; right: 24px !important; bottom: 24px !important; max-width: 380px; }
 
     /* главная: до карты — форма слева, пояснение справа */
@@ -576,6 +576,9 @@
 
     /* главная: после построения карты — на всю ширину, форма всплывает справа сверху */
     body.has-results .home-grid { display: block; }
+    body.has-results #results { display: flex !important; flex-direction: column; }
+    body.has-results #person-bar { order: -2; }
+    body.has-results #guest-banner { order: -1; }
     body.has-results .home-left { position: absolute; top: 0; right: 0; z-index: 30; width: 400px; }
     body.has-results #form-collapsed-btn { width: auto !important; margin: 14px 74px 0 auto !important; padding: 10px 18px; }
     body.has-results #form-card { box-shadow: 0 18px 50px rgba(0,0,0,.16); margin-top: 8px; }
@@ -585,7 +588,7 @@
     body.has-results #person-bar { position: relative; }
 
     /* вкладка «Карта»: слева квадрат карты, справа таблицы */
-    #tab-chart.active { display: grid; grid-template-columns: minmax(0, 600px) minmax(0, 1fr); gap: 28px; align-items: start; }
+    #tab-chart.active { display: grid; grid-template-columns: minmax(0, 470px) minmax(0, 1fr); gap: 32px; align-items: start; }
     #tab-chart .chart-wrap { position: sticky; top: 24px; }
     #tab-chart .tab-col2 { min-width: 0; }
     /* «Сегодня», аккаунт, транзиты — две колонки карточек */
@@ -646,7 +649,7 @@
       <div class="w-note">Пароль не нужен: мы пришлём код на почту. Вход нужен, чтобы сохранять карты и видеть их на всех устройствах.</div>
     </div>
     <div class="w-or" id="w-or-tg" style="display:none;">или</div>
-    <a class="btn-secondary" id="w-tg" href="#" target="_blank" rel="noopener" style="display:none;text-decoration:none;text-align:center;">Открыть в Telegram</a>
+    <button class="btn-secondary" id="w-tg" style="display:none;width:100%;">Войти через Telegram</button>
     <button class="w-link" id="w-guest">Посмотреть свою карту без входа</button>
   </div>
 </div>
@@ -2564,6 +2567,25 @@
       location.reload();
     } catch (e) { wMsg(e.message, true); }
   });
+  document.getElementById('w-tg').addEventListener('click', async () => {
+    wMsg('');
+    try {
+      const { code } = await wApi('/api/auth/telegram/start', {});
+      const url = 'https://t.me/' + jkBotUsername + '?start=login_' + code;
+      const w = window.open(url, '_blank');
+      const m = document.getElementById('w-msg');
+      m.style.color = '#4f7a52'; m.style.display = 'block';
+      m.innerHTML = 'Откройте Telegram и нажмите «Start» в боте. ' + (w ? '' : '<a href="' + url + '" target="_blank" rel="noopener">Открыть Telegram</a>') + '<br>Жду подтверждения…';
+      const t0 = Date.now();
+      const timer = setInterval(async () => {
+        if (Date.now() - t0 > 5 * 60 * 1000) { clearInterval(timer); wMsg('Время вышло. Нажмите «Войти через Telegram» ещё раз.', true); return; }
+        try {
+          const r = await wApi('/api/auth/telegram/poll', { code });
+          if (r.token) { clearInterval(timer); jkSetToken(r.token); location.reload(); }
+        } catch (e) { clearInterval(timer); wMsg(e.message, true); }
+      }, 2000);
+    } catch (e) { wMsg(e.message, true); }
+  });
   document.getElementById('guest-banner-login').addEventListener('click', () => { showWelcome(); });
   document.getElementById('w-guest').addEventListener('click', () => { try { sessionStorage.setItem('jk_guest', '1'); } catch (e) {} hideWelcome(); maybeShowInstall(); });
   (async function initWelcome() {
@@ -2572,7 +2594,7 @@
       const c = await (await fetch('/api/config')).json();
       jkBotUsername = c.botUsername || null;
       if (jkBotUsername) {
-        const a = document.getElementById('w-tg'); a.href = 'https://t.me/' + jkBotUsername; a.style.display = 'block';
+        document.getElementById('w-tg').style.display = 'block';
         document.getElementById('w-or-tg').style.display = 'block';
       }
     } catch (e) {}

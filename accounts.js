@@ -37,6 +37,11 @@ raw.exec(`
     last_used INTEGER NOT NULL,
     expires_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS tg_logins (
+    code TEXT PRIMARY KEY,
+    user_id INTEGER,
+    expires_at INTEGER NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS link_codes (
     code TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL,
@@ -226,8 +231,34 @@ function consumeLinkCode(code, tgId) {
   return { ok: true };
 }
 
+// ---------- вход на сайт через Telegram ----------
+function createTgLogin() {
+  raw.prepare('DELETE FROM tg_logins WHERE expires_at < ?').run(Date.now());
+  const code = crypto.randomBytes(18).toString('base64url');
+  raw.prepare('INSERT INTO tg_logins (code, user_id, expires_at) VALUES (?, NULL, ?)').run(code, Date.now() + 10 * 60 * 1000);
+  return code;
+}
+/** Вызывается ботом: человек нажал Start по ссылке с сайта. */
+function approveTgLogin(code, tgId) {
+  const r = raw.prepare('SELECT * FROM tg_logins WHERE code = ?').get(String(code || ''));
+  if (!r || r.expires_at < Date.now()) return { error: 'Ссылка устарела. Вернитесь на сайт и нажмите «Войти через Telegram» ещё раз.' };
+  const exists = raw.prepare('SELECT 1 FROM users WHERE telegram_id = ?').get(tgId);
+  if (!exists) return { error: 'Не удалось найти ваш профиль. Нажмите /start и повторите вход с сайта.' };
+  raw.prepare('UPDATE tg_logins SET user_id = ? WHERE code = ?').run(tgId, code);
+  addIdentity(tgId, 'telegram', String(tgId));
+  return { ok: true };
+}
+/** Сайт спрашивает, нажали ли Start. Одноразово выдаёт сессию. */
+function pollTgLogin(code) {
+  const r = raw.prepare('SELECT * FROM tg_logins WHERE code = ?').get(String(code || ''));
+  if (!r || r.expires_at < Date.now()) return { error: 'Время вышло. Попробуйте ещё раз.' };
+  if (r.user_id == null) return { pending: true };
+  raw.prepare('DELETE FROM tg_logins WHERE code = ?').run(code);
+  return { token: createSession(r.user_id) };
+}
+
 function accountInfo(userId) {
   return { userId, hasTelegram: userId > 0, emails: listEmails(userId) };
 }
 
-module.exports = { normalizeEmail, requestEmailCode, checkEmailCode, loginWithEmail, attachEmail, createSession, userBySession, endSession, createLinkCode, consumeLinkCode, accountInfo, mergeUsers };
+module.exports = { normalizeEmail, requestEmailCode, checkEmailCode, loginWithEmail, attachEmail, createSession, userBySession, endSession, createLinkCode, consumeLinkCode, createTgLogin, approveTgLogin, pollTgLogin, accountInfo, mergeUsers };

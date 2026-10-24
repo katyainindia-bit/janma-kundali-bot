@@ -809,6 +809,16 @@ function startWebApp() {
     const { token } = accounts.loginWithEmail(c.email);
     res.json({ ok: true, token });
   });
+  app.post('/api/auth/telegram/start', (req, res) => {
+    if (ipLimited(req, 40)) return res.status(429).json({ error: 'Слишком много запросов. Попробуйте позже.' });
+    res.json({ code: accounts.createTgLogin() });
+  });
+  app.post('/api/auth/telegram/poll', (req, res) => {
+    if (ipLimited(req, 600)) return res.status(429).json({ error: 'Слишком много запросов.' });
+    const r = accounts.pollTgLogin(req.body.code);
+    if (r.error) return res.status(400).json({ error: r.error });
+    res.json(r);
+  });
   app.post('/api/auth/logout', (req, res) => {
     const d = String(req.body.initData || '');
     if (d.startsWith('web:')) accounts.endSession(d.slice(4));

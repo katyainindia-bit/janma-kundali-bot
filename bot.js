@@ -603,6 +603,10 @@ bot.start(async (ctx) => {
     const r = require('./accounts.js').consumeLinkCode(payload.slice(5), ctx.from.id);
     await ctx.reply(r.error ? r.error : 'Готово: Telegram привязан к вашему аккаунту. Все карты и настройки с сайта теперь здесь.');
   }
+  if (payload && payload.startsWith('login_')) {
+    const r = require('./accounts.js').approveTgLogin(payload.slice(6), ctx.from.id);
+    await ctx.reply(r.error ? r.error : 'Готово, вы вошли на сайте. Можно вернуться в браузер.');
+  }
   if (payload && payload.startsWith('ref_')) {
     const referrerId = Number(payload.slice(4));
     if (referrerId && referrerId !== ctx.from.id) {
