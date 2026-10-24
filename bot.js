@@ -605,7 +605,8 @@ bot.start(async (ctx) => {
   }
   if (payload && payload.startsWith('login_')) {
     const r = require('./accounts.js').approveTgLogin(payload.slice(6), ctx.from.id);
-    await ctx.reply(r.error ? r.error : 'Готово, вы вошли на сайте. Можно вернуться в браузер.');
+    await ctx.reply(r.error ? r.error : 'Готово, вы вошли на сайте. Вернитесь в браузер, страница откроется сама.');
+    return;
   }
   if (payload && payload.startsWith('ref_')) {
     const referrerId = Number(payload.slice(4));
