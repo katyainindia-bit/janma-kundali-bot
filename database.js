@@ -102,6 +102,12 @@ db.exec(`
     source TEXT,
     created_at TEXT NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS trial_claims (
+    claim_key TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    ip TEXT,
+    created_at TEXT NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS star_ledger (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
@@ -400,8 +406,11 @@ function grantPremiumDays(telegramId, days) {
   markPremiumFirst(telegramId);
   return true;
 }
-// Пробный период: один раз на аккаунт, только если есть Telegram (положительный id).
+// Пробный период: один раз на человека. Ключи защиты: Telegram-ID и нормализованные почты.
 const TRIAL_DAYS = Number(process.env.TRIAL_DAYS || 7);
+const DISPOSABLE = new Set(['mailinator.com','10minutemail.com','guerrillamail.com','guerrillamail.net','sharklasers.com','tempmail.com','temp-mail.org','temp-mail.io','yopmail.com','trashmail.com','getnada.com','dispostable.com','maildrop.cc','throwawaymail.com','fakeinbox.com','mintemail.com','mohmal.com','emailondeck.com','moakt.com','tmail.com','tmpmail.org','mailnesia.com','spamgourmet.com','burnermail.io','tempail.com','discard.email','mail.tm','1secmail.com','inboxkitten.com','harakirimail.com']);
+function canonEmail(e) { return String(e || '').trim().toLowerCase(); }
+function isDisposableEmail(e) { const at = String(e).lastIndexOf('@'); return at > 0 && DISPOSABLE.has(String(e).slice(at + 1).toLowerCase()); }
 function trialState(telegramId) {
   const row = getUser(telegramId);
   if (!row) return { hasTelegram: false, trialUsed: false, trialAvailable: false, trialEnded: false };
@@ -411,18 +420,35 @@ function trialState(telegramId) {
   return {
     hasTelegram: telegramId > 0,
     trialUsed: used,
-    trialAvailable: telegramId > 0 && !used && !premium && !paid && !row.premium_first_at,
+    trialAvailable: !used && !premium && !paid && !row.premium_first_at,
     trialEnded: used && !premium,
     trialDays: TRIAL_DAYS,
   };
 }
-function startTrial(telegramId) {
-  if (telegramId <= 0) return { error: 'Пробный период включается после привязки Telegram: уведомления приходят именно туда.', needTelegram: true };
+function startTrial(telegramId, opts) {
+  const emails = (opts && opts.emails) || [];
+  const ip = (opts && opts.ip) || null;
   const st = trialState(telegramId);
   if (st.trialUsed) return { error: 'Пробный период уже был использован.' };
   if (!st.trialAvailable) return { error: 'Пробный период недоступен для этого аккаунта.' };
+  if (telegramId <= 0 && !emails.length) return { error: 'Подтвердите почту или войдите через Telegram.' };
+  if (emails.some(isDisposableEmail)) return { error: 'Одноразовые адреса почты не подходят для пробного периода. Используйте основную почту.' };
+  const keys = emails.map((e) => 'em:' + canonEmail(e));
+  if (telegramId > 0) keys.push('tg:' + telegramId);
+  for (const k of keys) {
+    const c = db.prepare('SELECT user_id FROM trial_claims WHERE claim_key = ?').get(k);
+    if (c) return { error: 'Пробный период для этого адреса уже использован.' };
+  }
+  if (ip) {
+    const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+    const n = db.prepare('SELECT COUNT(*) AS c FROM trial_claims WHERE ip = ? AND created_at > ?').get(ip, since).c;
+    if (n >= Number(process.env.TRIAL_PER_IP_DAY || 3)) return { error: 'С этого подключения сегодня уже включали пробный период. Попробуйте завтра или напишите в поддержку.' };
+  }
   grantPremiumDays(telegramId, TRIAL_DAYS);
-  db.prepare('UPDATE users SET trial_used_at = ? WHERE telegram_id = ?').run(new Date().toISOString(), telegramId);
+  const now = new Date().toISOString();
+  db.prepare('UPDATE users SET trial_used_at = ? WHERE telegram_id = ?').run(now, telegramId);
+  const ins = db.prepare('INSERT OR IGNORE INTO trial_claims (claim_key, user_id, ip, created_at) VALUES (?, ?, ?, ?)');
+  for (const k of keys) ins.run(k, telegramId, ip, now);
   return { ok: true, days: TRIAL_DAYS };
 }
 

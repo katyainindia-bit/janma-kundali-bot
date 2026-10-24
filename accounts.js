@@ -173,6 +173,12 @@ function mergeUsers(fromId, toId) {
       if (t[k] == null && f[k] != null) upd[k] = f[k];
     }
     if (f.marketing_consent && !t.marketing_consent) upd.marketing_consent = 1;
+    // пробный период, звёзды, оплаты
+    if (f.trial_used_at || t.trial_used_at) upd.trial_used_at = [f.trial_used_at, t.trial_used_at].filter(Boolean).sort()[0];
+    if ((f.stars || 0) > 0) upd.stars = (t.stars || 0) + f.stars;
+    raw.prepare('UPDATE trial_claims SET user_id = ? WHERE user_id = ?').run(toId, fromId);
+    raw.prepare('UPDATE payments SET user_id = ? WHERE user_id = ?').run(toId, fromId);
+    raw.prepare('UPDATE star_ledger SET user_id = ? WHERE user_id = ?').run(toId, fromId);
     const keys = Object.keys(upd).filter((k) => upd[k] !== undefined);
     if (keys.length) raw.prepare(`UPDATE users SET ${keys.map((k) => k + ' = ?').join(', ')} WHERE telegram_id = ?`).run(...keys.map((k) => upd[k]), toId);
     raw.prepare('DELETE FROM users WHERE telegram_id = ?').run(fromId);

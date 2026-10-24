@@ -235,6 +235,9 @@
     font-size: 19px; color: var(--gold); background: none; border: none; padding: 6px; cursor: pointer; flex-shrink: 0;
   }
 
+  @media (min-width: 1000px) { .vs-grid { display: grid; grid-template-columns: 470px 1fr; gap: 20px; align-items: start; } }
+  .vs-col2 { min-width: 0; }
+  .btn-secondary.active { background: var(--gold, #C8A26B); color: #fff; border-color: transparent; }
   .btn-secondary {
     width: 100%; background: none; border: 1px solid var(--line); color: var(--ink);
     padding: 12px; border-radius: 12px; font-family: 'Inter', sans-serif; font-weight: 600;
@@ -776,6 +779,7 @@
       <button class="tab-btn" data-tab="dasha">Даши</button>
       <button class="tab-btn" data-tab="transits">Транзиты</button>
       <button class="tab-btn" data-tab="vargas">Варги</button>
+      <button class="tab-btn" data-tab="varsha">Варшапхала</button>
     </div>
 
     <div class="tab-content" id="tab-today">
@@ -945,6 +949,45 @@
         </div>
       </div>
       <div id="transits-table"></div>
+    </div>
+
+    <div class="tab-content" id="tab-varsha">
+      <div id="varsha-locked" class="form-card" style="padding:20px;text-align:center;display:none;">
+        <div style="font-size:32px;margin-bottom:8px;">🔒</div>
+        <h2 style="margin-bottom:8px;">Доступно в Premium</h2>
+        <p style="font-size:13px;color:var(--taupe);margin-bottom:16px;line-height:1.5;">Годовая карта: Варша-правеша, Титхи-правеша, Мунта и Варшеша.</p>
+        <button class="btn-primary" id="varsha-upgrade-btn">Открыть Premium</button>
+      </div>
+      <div id="varsha-error" class="error-msg" style="display:none;"></div>
+      <div id="varsha-body">
+        <div class="form-card" style="padding:16px;">
+          <div style="display:flex;gap:8px;margin-bottom:12px;">
+            <button class="btn-secondary vs-mode active" data-vmode="varsha" style="margin:0;flex:1;">Варша-правеша</button>
+            <button class="btn-secondary vs-mode" data-vmode="tithi" style="margin:0;flex:1;">Титхи-правеша</button>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:12px;">
+            <button class="btn-secondary" id="vs-prev" style="margin:0;width:44px;">‹</button>
+            <input type="number" id="vs-year" style="width:92px;text-align:center;font-size:18px;" min="1900" max="2200">
+            <button class="btn-secondary" id="vs-next" style="margin:0;width:44px;">›</button>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn-secondary vs-place active" data-vplace="here" style="margin:0;flex:1;font-size:12px;">Где я сейчас</button>
+            <button class="btn-secondary vs-place" data-vplace="birth" style="margin:0;flex:1;font-size:12px;">Место рождения</button>
+          </div>
+          <div id="vs-place-note" style="font-size:12px;color:var(--taupe);text-align:center;margin-top:8px;"></div>
+        </div>
+        <div id="vs-result" style="display:none;">
+          <div style="text-align:center;font-size:13px;color:var(--taupe);margin:4px 0 8px;" id="vs-moment"></div>
+          <div class="vs-grid">
+          <div class="chart-wrap"><svg class="chart-svg" id="varsha-svg" viewBox="0 0 400 400"></svg></div>
+          <div class="vs-col2">
+          <div class="info-card" id="vs-summary" style="display:block;"></div>
+          <div class="info-card" id="vs-officers" style="display:block;"></div>
+          <div class="info-card" id="vs-planets" style="display:block;"></div>
+          <div class="info-card" id="vs-yogas" style="display:block;"></div>
+          </div></div>
+        </div>
+      </div>
     </div>
 
     <div class="tab-content" id="tab-vargas">
@@ -1917,10 +1960,10 @@
         else freeNow = st.planet === planetName;
       } catch (e) { freeNow = false; }
       if (freeNow) {
-        tip.insertAdjacentHTML('beforeend', '<p style="margin:8px 0 0;font-size:11.5px;color:var(--taupe);">Это бесплатное толкование на сегодня. Остальные планеты открываются в Premium.</p>');
+        tip.insertAdjacentHTML('beforeend', '<p style="margin:8px 0 0;font-size:11.5px;color:var(--taupe);">Это бесплатное толкование на сегодня. ' + (isGuest() ? 'Остальные планеты открываются после входа.' : 'Остальные планеты открываются в Premium.') + '</p>');
       } else {
         const head = Array.from(tip.children).slice(0, 2).map((c) => c.outerHTML).join('');
-        tip.innerHTML = head + '<p style="margin:0 0 10px;">🔒 Толкование планеты, её дома и накшатры доступно в Premium.</p><button class="btn-primary tt-unlock" style="margin:0;padding:10px 14px;font-size:13px;">' + unlockLabel() + '</button>';
+        tip.innerHTML = head + '<p style="margin:0 0 10px;">🔒 ' + lockText() + '</p><button class="btn-primary tt-unlock" style="margin:0;padding:10px 14px;font-size:13px;">' + unlockLabel() + '</button>';
         tip.dataset.pinned = '1';
       }
     }
@@ -2508,6 +2551,7 @@
       document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
       if (btn.dataset.tab === 'vargas') renderVargaSingle();
       if (btn.dataset.tab === 'today') renderTodayTab();
+      if (btn.dataset.tab === 'varsha') renderVarshaTab();
     });
   });
 
@@ -2645,7 +2689,7 @@
   // ---------- Гость без входа: закрытые функции и лимит ----------
   function isGuest() { return !inTelegram() && !jkToken(); }
   const GUEST_LOCK_SVG = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-left:4px;opacity:.7;"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
-  const GUEST_TAB_REASON = { today: 'Энергия дня и главное на сегодня доступны после входа.', dasha: 'Периоды (даши) доступны после входа.', transits: 'Транзиты доступны после входа.', vargas: 'Варги доступны после входа.' };
+  const GUEST_TAB_REASON = { today: 'Энергия дня и главное на сегодня доступны после входа.', dasha: 'Периоды (даши) доступны после входа.', transits: 'Транзиты доступны после входа.', vargas: 'Варги доступны после входа.', varsha: 'Годовая карта (Варшапхала) доступна после входа.' };
   const GUEST_NAV_REASON = { days: 'Календарь благоприятных дней доступен после входа.', archive: 'Архив карт доступен после входа.', profile: 'Личный кабинет доступен после входа.' };
   function applyGuestLocks() {
     if (!isGuest()) return;
@@ -2710,14 +2754,20 @@
     return jkTier;
   }
   function unlockLabel() {
-    if (isGuest()) return 'Войти и попробовать Premium';
+    if (isGuest()) return 'Войти';
     const t = jkTier || {};
-    if (t.trialAvailable) return 'Попробовать ' + (t.trialDays || 7) + ' дней бесплатно';
-    if (!t.hasTelegram && !t.trialUsed) return 'Привязать Telegram и получить 7 дней';
+    if (t.trialAvailable) return 'Открыть Premium на ' + (t.trialDays || 7) + ' дней бесплатно';
     return t.renewText || 'Открыть Premium';
   }
+  function lockText() {
+    const t = jkTier || {};
+    if (isGuest()) return 'Войдите, чтобы открыть толкование и другие возможности.';
+    if (t.trialAvailable) return 'Толкование доступно в Premium. Для вас есть бесплатный период: ' + (t.trialDays || 7) + ' дней.';
+    if (t.trialEnded) return 'Толкование доступно в Premium. Бесплатный период уже закончился.';
+    return 'Толкование доступно в Premium.';
+  }
   async function startTrialFlow() {
-    if (isGuest()) { showWelcome('Войдите, чтобы попробовать Premium.'); return; }
+    if (isGuest()) { showWelcome('Войдите, чтобы открыть больше возможностей.'); return; }
     await loadTier();
     const t = jkTier || {};
     if (t.isPremium) return;
@@ -2732,11 +2782,6 @@
       } catch (e) { jkAlert(e.message); }
       return;
     }
-    if (!t.hasTelegram && !t.trialUsed) {
-      jkAlert('Пробный период включается после привязки Telegram: личные уведомления приходят именно туда. Откройте «Мой аккаунт» → «Почта и вход» → «Привязать Telegram».');
-      const nav = document.querySelector('.nav-item[data-nav="profile"]'); if (nav) nav.click();
-      return;
-    }
     if (t.payUrl) { window.open(t.payUrl, '_blank'); return; }
     jkAlert('Оплата Premium скоро будет доступна прямо здесь. Пока обратитесь к @katyadass, чтобы оформить доступ.');
   }
@@ -2746,9 +2791,8 @@
     const t = jkTier;
     if (!t || t.isPremium) { box.style.display = 'none'; return; }
     let title = '', text = '', btn = '';
-    if (t.trialAvailable) { title = 'Попробуйте Premium ' + (t.trialDays || 7) + ' дней бесплатно'; text = 'Энергия дня, календарь благоприятных дней, уведомления в Telegram и толкование всех планет.'; btn = 'Включить'; }
-    else if (!t.hasTelegram && !t.trialUsed) { title = '7 дней Premium в подарок'; text = 'Привяжите Telegram: туда приходят личные уведомления, и пробный период включится после этого.'; btn = 'Привязать Telegram'; }
-    else if (t.trialEnded) { title = 'Пробный период закончился'; text = 'Ваши карты и настройки сохранены. Premium можно продлить.'; btn = t.renewText || 'Продлить Premium'; }
+    if (t.trialAvailable) { title = 'Откройте Premium: ' + (t.trialDays || 7) + ' дней бесплатно'; text = 'Энергия дня, календарь благоприятных дней, толкование всех планет и личные уведомления' + (t.hasTelegram ? '.' : ' (уведомления приходят в Telegram, его можно привязать в личном кабинете).'); btn = 'Открыть бесплатно'; }
+    else if (t.trialEnded) { title = 'Бесплатный период закончился'; text = 'Ваши карты и настройки сохранены. Premium можно продлить.'; btn = t.renewText || 'Продлить Premium'; }
     else { box.style.display = 'none'; return; }
     box.querySelector('.tb-title').textContent = title;
     box.querySelector('.tb-text').textContent = text;
@@ -4863,6 +4907,80 @@
       }, 350);
     });
   }
+
+  // ---------- Варшапхала ----------
+  let vsMode = 'varsha', vsPlace = 'here', vsYear = null, vsReq = 0;
+  const vsEsc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const vsDeg = (lon) => { const d = lon % 30, m = Math.floor((d - Math.floor(d)) * 60); return Math.floor(d) + '°' + String(m).padStart(2, '0') + '′'; };
+  const vsPad = (n) => String(n).padStart(2, '0');
+  function vsPlaceInfo() {
+    const b = currentChartMeta.params;
+    if (vsPlace === 'here') {
+      const s = getPlace();
+      if (s) return { lat: s.lat, lon: s.lon, utcOffset: s.utcOffset, name: shortPlace(s.name) };
+    }
+    return { lat: b.lat, lon: b.lon, utcOffset: b.utcOffset, name: shortPlace((currentChartMeta.placeLabel) || 'место рождения') };
+  }
+  async function renderVarshaTab() {
+    const errEl = document.getElementById('varsha-error'), lockEl = document.getElementById('varsha-locked'), bodyEl = document.getElementById('varsha-body');
+    errEl.style.display = 'none'; lockEl.style.display = 'none';
+    if (!currentChart || !currentChartMeta) { bodyEl.style.display = 'none'; errEl.textContent = 'Сначала постройте натальную карту на главной.'; errEl.style.display = 'block'; return; }
+    bodyEl.style.display = 'block';
+    if (vsYear == null) vsYear = new Date().getFullYear();
+    document.getElementById('vs-year').value = vsYear;
+    document.querySelectorAll('.vs-mode').forEach((b) => b.classList.toggle('active', b.dataset.vmode === vsMode));
+    document.querySelectorAll('.vs-place').forEach((b) => b.classList.toggle('active', b.dataset.vplace === vsPlace));
+    const pl = vsPlaceInfo();
+    const hasHere = !!getPlace();
+    document.getElementById('vs-place-note').textContent = 'Год считается для места: ' + pl.name + (vsPlace === 'here' && !hasHere ? ' (укажите «Где я сейчас» в разделе «Сегодня» — пока берётся место рождения)' : '');
+    const my = ++vsReq;
+    try {
+      const res = await fetch('/api/varshaphala', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: getInitData(), chart: currentChart, year: vsYear, mode: vsMode, lat: pl.lat, lon: pl.lon, utcOffset: pl.utcOffset }) });
+      const d = await res.json();
+      if (my !== vsReq) return;
+      if (res.status === 403 && d.premiumRequired) { bodyEl.style.display = 'none'; lockEl.style.display = 'block'; return; }
+      if (!res.ok) { document.getElementById('vs-result').style.display = 'none'; errEl.textContent = d.error || 'Ошибка'; errEl.style.display = 'block'; return; }
+      paintVarsha(d, pl);
+    } catch (e) { errEl.textContent = e.message; errEl.style.display = 'block'; }
+  }
+  function paintVarsha(d, pl) {
+    document.getElementById('vs-result').style.display = 'block';
+    const L = d.local;
+    document.getElementById('vs-moment').innerHTML = (d.mode === 'tithi' ? 'Титхи-правеша' : 'Варша-правеша') + ' · <b>' + vsPad(L.day) + '.' + vsPad(L.month) + '.' + L.year + ' ' + vsPad(L.hour) + ':' + vsPad(L.minute) + ':' + vsPad(L.second) + '</b> · ' + vsEsc(pl.name) + ' · возраст ' + d.age + (d.mode === 'tithi' ? '<br>Месяц ' + vsEsc(d.extra.natalMasa) + ', ' + vsEsc(d.extra.natalPaksha) + ' пакша, титхи ' + d.extra.natalTithi : '');
+    renderChartSVGDispatch(d.chart, 'varsha-svg');
+    const vsh = d.varshesh;
+    document.getElementById('vs-summary').innerHTML =
+      '<div class="name" style="margin-bottom:6px;">Главное</div>' +
+      '<div class="current-period-row"><span class="label">Варша-лагна</span><span class="value">' + vsEsc(d.chart.ascendant.sign.name) + ' ' + vsDeg(d.chart.ascendant.siderealLon) + '</span></div>' +
+      '<div class="current-period-row"><span class="label">Мунта</span><span class="value">' + vsEsc(d.muntha.sign) + ', ' + d.muntha.house + ' дом</span></div>' +
+      '<div class="current-period-row"><span class="label">Варшеш (владыка года)</span><span class="value">' + vsEsc(vsh.planet) + '</span></div>' +
+      '<div style="font-size:11px;color:var(--taupe);margin-top:6px;">' + (vsh.byAspect ? 'Самая сильная по Панча-варгия бале среди пяти должностных лиц, у которой есть дриштхи к Варша-лагне.' : 'Ни одна из пяти не имеет дриштхи к Варша-лагне, поэтому Варшеш — Мунтеша.') + '</div>';
+    document.getElementById('vs-officers').innerHTML = '<div class="name" style="margin-bottom:6px;">Пять должностных лиц</div>' +
+      '<table style="width:100%;font-size:13px;border-collapse:collapse;"><tr style="color:var(--taupe);font-size:11px;text-align:left;"><th>Должность</th><th>Планета</th><th>Дом</th><th>ПВБ</th><th title="Дриштхи к Варша-лагне">Дриштхи</th></tr>' +
+      d.officers.map((o) => '<tr' + (o.planet === vsh.planet ? ' style="font-weight:600;color:var(--gold);"' : '') + '><td>' + vsEsc(o.role) + '</td><td>' + vsEsc(o.planet) + '</td><td>' + o.house + '</td><td>' + o.pvb.toFixed(2) + '</td><td>' + (o.aspectsLagna ? '✓' : '—') + '</td></tr>').join('') + '</table>';
+    const pv = {}; d.pvbTable.forEach((r) => { pv[r.planet] = r.pvb; });
+    const order = ['Солнце','Луна','Марс','Меркурий','Юпитер','Венера','Сатурн','Раху','Кету'];
+    document.getElementById('vs-planets').innerHTML = '<div class="name" style="margin-bottom:6px;">Планеты года</div>' +
+      '<table style="width:100%;font-size:13px;border-collapse:collapse;"><tr style="color:var(--taupe);font-size:11px;text-align:left;"><th>Планета</th><th>Знак</th><th>Дом</th><th>Накшатра</th><th>ПВБ</th></tr>' +
+      order.map((n) => { const p = d.chart.planets[n]; if (!p) return ''; return '<tr><td>' + vsEsc(n) + (p.retrograde ? ' ℞' : '') + '</td><td>' + vsEsc(p.sign.name) + ' ' + vsDeg(p.siderealLon) + '</td><td>' + p.house + '</td><td>' + vsEsc(p.nakshatra.name) + '</td><td>' + (pv[n] != null ? pv[n].toFixed(2) : '') + '</td></tr>'; }).join('') + '</table>';
+    const YORDER = ['vartama','rashyanta','purna','ishrafa','nakta','yamaya','manau','kamboola','gairi','khallasara','rudda','duphalli','duttotta','tambira','kutta','durpaha'];
+    const ygroups = {}; (d.yogas || []).forEach((y) => { (ygroups[y.key] = ygroups[y.key] || []).push(y); });
+    const yhtml = YORDER.filter((k) => ygroups[k]).map((k) => {
+      const g = ygroups[k], f = g[0];
+      return '<div style="margin-bottom:12px;"><div style="font-weight:600;">' + vsEsc(f.name) + '</div>' +
+        '<div style="font-size:11px;color:var(--taupe);margin:2px 0 4px;">' + vsEsc(f.how) + '</div>' +
+        g.map((y) => '<div style="font-size:13px;">' + y.planets.map(vsEsc).join(' + ') + (y.kind ? ' <span style="color:var(--taupe);">(' + y.kind + (y.diff != null ? ', ' + y.diff.toFixed(1) + '°' : '') + ')</span>' : '') + (y.flags ? ' <span style="color:var(--taupe);">(' + y.flags.map(vsEsc).join(', ') + ')</span>' : '') + '</div>').join('') +
+        '<div style="font-size:12px;margin-top:4px;color:var(--gold);">→ ' + vsEsc(f.result) + '</div></div>';
+    }).join('');
+    document.getElementById('vs-yogas').innerHTML = '<div class="name" style="margin-bottom:8px;">Таджика-йоги</div>' + (yhtml || '<div style="font-size:13px;color:var(--taupe);">Йог не найдено.</div>');
+  }
+  document.querySelectorAll('.vs-mode').forEach((b) => b.addEventListener('click', () => { vsMode = b.dataset.vmode; renderVarshaTab(); }));
+  document.querySelectorAll('.vs-place').forEach((b) => b.addEventListener('click', () => { vsPlace = b.dataset.vplace; renderVarshaTab(); }));
+  document.getElementById('vs-prev').addEventListener('click', () => { vsYear--; renderVarshaTab(); });
+  document.getElementById('vs-next').addEventListener('click', () => { vsYear++; renderVarshaTab(); });
+  document.getElementById('vs-year').addEventListener('change', (e) => { const v = parseInt(e.target.value, 10); if (v >= 1900 && v <= 2200) { vsYear = v; renderVarshaTab(); } });
+  document.getElementById('varsha-upgrade-btn').addEventListener('click', showUpgradePrompt);
 
   async function renderTodayTab() {
     const errorEl = document.getElementById('today-error-msg');

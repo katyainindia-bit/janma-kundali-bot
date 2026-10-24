@@ -258,4 +258,4 @@ function festivalsForDate(dateISO, lat, lon, utcOffset) {
   return computeYear(year, lat, lon, utcOffset).festivals[dateISO] || [];
 }
 
-module.exports = { MASA_NAMES, masaAtJD, ekadashiNameAt, computeYear, festivalsForDate, FESTIVAL_RULES, tithiAt };
+module.exports = { monthsAround, MASA_NAMES, masaAtJD, ekadashiNameAt, computeYear, festivalsForDate, FESTIVAL_RULES, tithiAt };

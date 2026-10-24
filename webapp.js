@@ -8,6 +8,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 const { calculateChart, jdFromDate } = require('./engine.js');
+const { computeVarshaphala } = require('./varshaphala.js');
 const { bhriguBindu, specialLagnas } = require('./special-points.js');
 const { computeVimshottariDasha, findCurrentDashaChain } = require('./dasha.js');
 const { computeCurrentTransits, transitDignity } = require('./transits.js');
@@ -463,6 +464,23 @@ function startWebApp() {
       const info = db.deleteNote(chartId, noteId);
       if (!info.changes) return res.status(404).json({ error: 'Заметка не найдена' });
       res.json({ ok: true });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ---------- Варшапхала (Premium): Варша-правеша / Титхи-правеша ----------
+  app.post('/api/varshaphala', requireTelegramUser, requirePremium, (req, res) => {
+    try {
+      const { chart, year, mode, lat, lon, utcOffset } = req.body;
+      const y = Number(year);
+      if (!chart || !chart.planets || !chart.ascendant || !Number.isFinite(chart.jd)) return res.status(400).json({ error: 'Нет натальной карты' });
+      if (!Number.isInteger(y) || y < 1900 || y > 2200) return res.status(400).json({ error: 'Год вне диапазона' });
+      if (![lat, lon, utcOffset].every(Number.isFinite) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return res.status(400).json({ error: 'Неверное место' });
+      const r = computeVarshaphala(chart, { year: y, mode: mode === 'tithi' ? 'tithi' : 'varsha', lat, lon, utcOffset });
+      if (r.error) return res.status(404).json({ error: r.error });
+      res.json(r);
     } catch (e) {
       console.error(e);
       res.status(500).json({ error: e.message });
@@ -937,7 +955,7 @@ function startWebApp() {
 
   // Пробный период: один раз, по кнопке, только если привязан Telegram
   app.post('/api/trial/start', requireTelegramUser, (req, res) => {
-    const r = db.startTrial(req.tgUser.id);
+    const r = db.startTrial(req.tgUser.id, { emails: accounts.accountInfo(req.tgUser.id).emails, ip: req.ip });
     if (r.error) return res.status(400).json(r);
     res.json(r);
   });
