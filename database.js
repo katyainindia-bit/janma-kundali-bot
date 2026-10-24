@@ -658,9 +658,10 @@ function toggleFavorite(telegramId, chartId) {
 }
 
 // --- Заметки к карте ---
-function addNote(chartId, noteText, periodStart) {
+try { db.exec('ALTER TABLE chart_notes ADD COLUMN event_date TEXT'); } catch (e) { /* колонка уже есть */ }
+function addNote(chartId, noteText, periodStart, eventDate) {
   const now = new Date().toISOString();
-  const info = db.prepare('INSERT INTO chart_notes (chart_id, note, period_start, created_at) VALUES (?, ?, ?, ?)').run(chartId, noteText, periodStart || null, now);
+  const info = db.prepare('INSERT INTO chart_notes (chart_id, note, period_start, event_date, created_at) VALUES (?, ?, ?, ?, ?)').run(chartId, noteText, periodStart || null, eventDate || null, now);
   return info.lastInsertRowid;
 }
 

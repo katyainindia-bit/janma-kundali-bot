@@ -239,9 +239,9 @@ function startWebApp() {
 
   app.post('/api/dasha', (req, res) => {
     try {
-      const { chart, birthDateUTC } = req.body;
+      const { chart, birthDateUTC, atDate } = req.body;
       const mahadashas = computeVimshottariDasha(chart, new Date(birthDateUTC));
-      const chain = findCurrentDashaChain(mahadashas, new Date());
+      const chain = findCurrentDashaChain(mahadashas, atDate ? new Date(atDate) : new Date());
       res.json({ mahadashas, chain });
     } catch (e) {
       console.error(e);
@@ -429,11 +429,12 @@ function startWebApp() {
 
   app.post('/api/archive/notes/add', requireTelegramUser, requirePremium, (req, res) => {
     try {
-      const { chartId, note, periodStart } = req.body;
+      const { chartId, note, periodStart, eventDate } = req.body;
       if (!note || !note.trim()) return res.status(400).json({ error: 'Пустая заметка' });
       const row = db.getChart(req.tgUser.id, chartId);
       if (!row) return res.status(404).json({ error: 'Карта не найдена' });
-      const noteId = db.addNote(chartId, note.trim(), periodStart);
+      const ed = /^\d{4}-\d{2}-\d{2}$/.test(eventDate || '') ? eventDate : null;
+      const noteId = db.addNote(chartId, note.trim(), periodStart, ed);
       res.json({ id: noteId });
     } catch (e) {
       console.error(e);

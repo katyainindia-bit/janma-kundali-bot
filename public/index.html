@@ -236,6 +236,32 @@
   }
 
   @media (min-width: 1000px) { .vs-grid { display: grid; grid-template-columns: 470px 1fr; gap: 20px; align-items: start; } }
+  @media (min-width: 1000px) { .varga-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 470px)); gap: 28px; align-items: start; } .varga-pair #varga-d1-compare { margin-bottom: 0 !important; } #varga-select-field { max-width: 470px; } }
+  .cs { position: relative; }
+  .cs-btn { width: 100%; text-align: left; padding: 12px 40px 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card-light); font: inherit; font-size: 14px; color: var(--ink); cursor: pointer; position: relative; }
+  .cs-btn::after { content: '›'; position: absolute; right: 16px; top: 50%; transform: translateY(-50%) rotate(90deg); color: var(--gold); font-size: 18px; }
+  .cs.open .cs-btn { border-color: var(--gold); }
+  .cs-list { display: none; position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 20; max-height: 340px; overflow-y: auto; background: var(--card-light); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 14px 40px rgba(0,0,0,.14); padding: 6px; }
+  .cs.open .cs-list { display: block; }
+  .cs-group { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--taupe); padding: 10px 10px 4px; }
+  .cs-item { display: flex; justify-content: space-between; gap: 8px; padding: 9px 10px; border-radius: 9px; font-size: 13.5px; cursor: pointer; }
+  .cs-item:hover { background: var(--card); }
+  .cs-item.sel { background: #F1DFB0; font-weight: 600; }
+  .cs-tag { font-size: 10px; color: var(--gold); background: #FBF3DF; border-radius: 6px; padding: 1px 6px; align-self: center; flex: none; }
+  .lens { margin-top: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--card-light); padding: 12px; }
+  .lens .lens-title { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .lens .lens-row { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; padding: 3px 0; border-bottom: 1px solid var(--line); }
+  .lens .lens-row span:first-child { color: var(--taupe); }
+  .lens .chart-wrap { margin-top: 10px; max-width: 420px; }
+  .note-event { font-size: 11.5px; color: var(--gold); margin-top: 2px; }
+  .note-lens-btn { background: none; border: none; color: var(--gold); font-size: 12px; cursor: pointer; padding: 0; text-decoration: underline; }
+  @media (min-width: 1000px) {
+    #archive-detail-view[style*="display: block"] { display: grid !important; grid-template-columns: minmax(0, 470px) minmax(0, 1fr); gap: 16px 32px; align-items: start; }
+    #archive-detail-view > #archive-back-btn { grid-column: 1 / span 2; width: fit-content; }
+    #archive-detail-view > .info-card { grid-column: 1 / span 2; }
+    #archive-detail-view > .chart-wrap { grid-column: 1; grid-row: 3 / span 5; position: sticky; top: 24px; }
+    #archive-detail-view > .tabs, #archive-detail-view > .tab-content, #archive-detail-view > button { grid-column: 2; }
+  }
   .vs-col2 { min-width: 0; }
   .vs-year::-webkit-outer-spin-button, .vs-year::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   .vs-year { -moz-appearance: textfield; appearance: textfield; }
@@ -450,8 +476,8 @@
   .transit-table .row { display: flex; padding: 9px 12px; border-bottom: 1px solid var(--line); align-items: center; }
   .transit-table .row:last-child { border-bottom: none; }
   .transit-table .row.header { font-weight: 700; color: var(--taupe); font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
-  .transit-table .c-house { width: 26px; font-weight: 700; color: var(--gold); flex-shrink: 0; }
-  .transit-table .c-sign { width: 78px; flex-shrink: 0; }
+  .transit-table .c-house { width: 38px; font-weight: 700; color: var(--gold); flex-shrink: 0; }
+  .transit-table .c-sign { width: 118px; flex-shrink: 0; padding-right: 10px; }
   .transit-table .c-natal { flex: 1; }
   .transit-table .c-transit { flex: 1; color: #6b8299; }
   .dasha-accordion.current > summary { background: var(--card); }
@@ -472,6 +498,13 @@
     border-bottom: 1px solid var(--line);
   }
   .praty-row.current { background: #F1DFB0; color: var(--ink); font-weight: 700; border-radius: 8px; padding-left: 10px; }
+  .dasha-accordion > summary { font-size: 15px; border-left: 4px solid var(--gold); }
+  .dasha-accordion.current > summary { background: #F1DFB0; }
+  .dasha-accordion .inner { padding: 6px 12px 10px 18px; }
+  .antar-row { margin: 4px 0; border-left: 2px solid var(--line); padding-left: 10px; }
+  .antar-row > summary { font-size: 13.5px; font-weight: 600; padding: 9px 4px; }
+  .antar-row.current { border-left-color: var(--gold); }
+  .praty-row { margin-left: 8px; font-size: 12px; font-weight: 400; }
   .note-marker { cursor: pointer; display: inline-flex; align-items: center; vertical-align: middle; margin-left: 4px; color: var(--gold); }
   .note-marker svg { display: block; }
   /* Подсветка фона у периодов с заметкой убрана по просьбе — достаточно
@@ -599,18 +632,26 @@
     #tab-chart .chart-wrap { position: sticky; top: 24px; }
     #tab-chart .tab-col2 { min-width: 0; }
     /* «Сегодня», аккаунт, транзиты — две колонки карточек */
-    #today-content, #page-profile, #tab-transits.active { columns: 2; column-gap: 24px; }
-    #today-content > *, #page-profile > *, #tab-transits > * { break-inside: avoid; }
+    #today-content, #page-profile { columns: 2; column-gap: 24px; }
+    #today-content > *, #page-profile > * { break-inside: avoid; }
     #today-content > #place-bar { column-span: all; }
     #page-profile > .info-card:first-child { column-span: all; }
-    /* даши: слева текущий период, справа список */
-    #tab-dasha.active { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 28px; align-items: start; }
-    #tab-dasha #dasha-current { grid-column: 1; grid-row: 1; position: sticky; top: 24px; }
-    #tab-dasha #dasha-list { grid-column: 2; grid-row: 1 / span 2; min-width: 0; }
-    #tab-dasha #event-composer { grid-column: 1; grid-row: 2; }
+    /* даши: слева список всех периодов, справа текущий период и события */
+    #tab-dasha.active { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 28px; align-items: start; }
+    #tab-dasha #dasha-current { grid-column: 2; grid-row: 1; position: sticky; top: 24px; }
+    #tab-dasha #dasha-list { grid-column: 1; grid-row: 1 / span 2; min-width: 0; }
+    #tab-dasha #event-composer { grid-column: 2; grid-row: 2; }
+    /* транзиты: слева карта, справа момент транзита и описание */
+    #tab-transits.active { display: grid; columns: auto; grid-template-columns: minmax(0, 470px) minmax(0, 1fr); gap: 20px 32px; align-items: start; }
+    #tab-transits.active > .chart-wrap { grid-column: 1; grid-row: 1 / span 2; position: sticky; top: 24px; }
+    #tab-transits.active > .form-card { grid-column: 2; grid-row: 1; margin-bottom: 0 !important; }
+    #tab-transits.active > #transits-table { grid-column: 2; grid-row: 2; }
+    /* годовая карта: карта слева закреплена */
+    .vs-grid > .chart-wrap { position: sticky; top: 24px; }
     /* дни: календарь слева, подробности справа */
-    #daystab-calendar.active { display: grid; grid-template-columns: minmax(0, 700px) minmax(0, 1fr); gap: 24px; align-items: start; }
-    #daystab-search.active, #daystab-year.active { max-width: 900px; }
+    #daystab-calendar.active { display: grid; grid-template-columns: minmax(0, 480px) minmax(0, 1fr); gap: 24px; align-items: start; }
+    #daystab-search.active { max-width: 640px; } .cal-day { aspect-ratio: 1.25 !important; font-size: 13px; }
+    #daystab-year.active { max-width: 900px; }
     /* архив: карточки в сетке */
     #archive-list-view { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; align-items: start; }
     #archive-list-view > * { margin-bottom: 0; }
@@ -912,6 +953,12 @@
         <h2 style="font-size:15px;margin-bottom:6px;" id="event-period-label">—</h2>
         <p style="font-size:12px;color:var(--taupe);margin-bottom:10px;" id="event-positions-label">—</p>
         <textarea id="event-note-text" class="note-edit-area" rows="4" placeholder="Что произошло в этот период?"></textarea>
+        <div class="field" style="margin-top:8px;margin-bottom:0;">
+          <label for="event-note-date">Точная дата события (по желанию)</label>
+          <input type="date" id="event-note-date">
+        </div>
+        <button class="btn-secondary" id="event-lens-btn" style="margin:8px 0 0;">Показать транзит на эту дату</button>
+        <div id="event-lens"></div>
         <div style="display:flex;gap:8px;margin-top:10px;">
           <button class="btn-primary" id="event-save-btn" style="margin-bottom:0;">Сохранить в заметки</button>
           <button class="btn-secondary" id="event-cancel-btn" style="margin-bottom:0;">Отмена</button>
@@ -1010,25 +1057,7 @@
         <button class="btn-primary" id="varga-upgrade-btn">Оформить Premium</button>
       </div>
 
-      <div id="varga-chart-wrap">
-        <div id="varga-d1-compare" style="display:none;margin-bottom:14px;">
-          <div class="varga-chart-label">Раши (D1) — для сравнения</div>
-          <div class="chart-wrap">
-            <svg class="chart-svg" id="varga-svg-d1" viewBox="0 0 400 400"></svg>
-          </div>
-        </div>
-        <div class="varga-chart-label" id="varga-single-label">Раши (D1)</div>
-        <div class="chart-wrap">
-          <svg class="chart-svg" id="varga-svg" viewBox="0 0 400 400"></svg>
-          <div class="legend">
-            <span><i class="dot" style="background:#4f7a52"></i>экзальтация</span>
-            <span><i class="dot" style="background:#4a6d8c"></i>своя обитель</span>
-            <span><i class="dot" style="background:#b23b2e"></i>падение</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="field" style="margin-top:14px;margin-bottom:12px;">
+      <div class="field" id="varga-select-field" style="margin-bottom:12px;">
         <label for="varga-select">Дробная карта</label>
         <select id="varga-select">
           <optgroup label="Бесплатно">
@@ -1078,6 +1107,28 @@
             <option value="12">12-й дом</option>
           </select>
         </div>
+      </div>
+
+      <div id="varga-chart-wrap">
+       <div class="varga-pair">
+        <div id="varga-d1-compare" style="display:none;margin-bottom:14px;">
+          <div class="varga-chart-label">Раши (D1) — для сравнения</div>
+          <div class="chart-wrap">
+            <svg class="chart-svg" id="varga-svg-d1" viewBox="0 0 400 400"></svg>
+          </div>
+        </div>
+        <div class="varga-main">
+        <div class="varga-chart-label" id="varga-single-label">Раши (D1)</div>
+        <div class="chart-wrap">
+          <svg class="chart-svg" id="varga-svg" viewBox="0 0 400 400"></svg>
+          <div class="legend">
+            <span><i class="dot" style="background:#4f7a52"></i>экзальтация</span>
+            <span><i class="dot" style="background:#4a6d8c"></i>своя обитель</span>
+            <span><i class="dot" style="background:#b23b2e"></i>падение</span>
+          </div>
+        </div>
+        </div>
+       </div>
       </div>
 
       <div class="error-msg" id="varga-error-msg"></div>
@@ -1341,8 +1392,16 @@
     <div class="tab-content" id="ad-panel-notes">
       <div class="form-card" style="padding:16px;">
         <div id="ad-notes-list"></div>
-        <textarea id="ad-note-new" class="note-edit-area" placeholder="Новая заметка…" rows="2" style="margin-top:4px;"></textarea>
-        <button class="btn-primary" id="ad-note-add-btn" style="margin-top:10px;">Добавить заметку</button>
+        <textarea id="ad-note-new" class="note-edit-area" placeholder="Новая заметка: что произошло…" rows="3" style="margin-top:4px;"></textarea>
+        <div class="field" style="margin-top:8px;margin-bottom:0;">
+          <label for="ad-note-date">Дата события (по желанию)</label>
+          <input type="date" id="ad-note-date">
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <button class="btn-primary" id="ad-note-add-btn" style="margin:0;flex:1;">Добавить заметку</button>
+          <button class="btn-secondary" id="ad-note-lens-btn" style="margin:0;flex:1;">Период и транзит на дату</button>
+        </div>
+        <div id="ad-note-lens"></div>
       </div>
     </div>
 
@@ -3042,7 +3101,7 @@
     document.getElementById('ad-label').value = row.label;
     document.getElementById('ad-fav-btn').textContent = row.is_favorite ? '⭐' : '☆';
     renderAdFolderChips(row.folder);
-    showAdPanel(null); // при открытии карточки — сразу видна только карта, без развёрнутых панелей
+    showAdPanel(window.matchMedia('(min-width: 1000px)').matches ? 'notes' : null); // на компьютере заметки справа открыты сразу; на телефоне только карта
 
     updateAdPrimaryBtn(chartId);
 
@@ -3054,6 +3113,7 @@
         body: JSON.stringify({ day: row.day, month: row.month, year: row.year, hour: row.hour, minute: row.minute, lat: row.lat, lon: row.lon, utcOffset: row.utc_offset })
       });
       const { chart } = await res.json();
+      archiveChartObj = chart;
       renderChartSVGDispatch(chart, 'archive-chart-svg');
     } catch (e) {
       // тихо игнорируем — карта просто не отрисуется, остальная карточка всё равно рабочая
@@ -3072,12 +3132,16 @@
         <div class="note-item" data-note-id="${n.id}">
           <div class="note-text">${escapeHtml(n.note)}</div>
           <div class="note-date">${n.created_at.slice(0,10).split('-').reverse().join('.')}</div>
+          ${n.event_date ? `<div class="note-event">Событие: ${n.event_date.split('-').reverse().join('.')} · <button class="note-lens-btn" data-lens-date="${n.event_date}">период и транзит</button></div>` : ''}
           <div class="note-actions">
             <button data-edit="${n.id}">Изменить</button>
             <button data-del="${n.id}">Удалить</button>
           </div>
         </div>
       `).join('');
+      listEl.querySelectorAll('[data-lens-date]').forEach(btn => {
+        btn.addEventListener('click', () => { document.getElementById('ad-note-date').value = btn.dataset.lensDate; document.getElementById('ad-note-lens-btn').click(); });
+      });
       listEl.querySelectorAll('[data-edit]').forEach(btn => {
         btn.addEventListener('click', () => startEditNote(chartId, Number(btn.dataset.edit)));
       });
@@ -3112,6 +3176,42 @@
       catch (e) { alert('Не удалось сохранить заметку: ' + e.message); }
     });
   }
+
+
+  // ---------- «Линза события»: период даши и транзит на точную дату поверх натальной карты ----------
+  let lensSeq = 0;
+  async function renderEventLens(target, chart, birthDateUTC, dateISO) {
+    if (!dateISO) { target.innerHTML = '<div class="lens">Выберите дату события.</div>'; return; }
+    target.innerHTML = '<div class="lens">Считаю…</div>';
+    try {
+      const at = new Date(dateISO + 'T12:00:00Z');
+      const res = await fetch('/api/dasha', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chart, birthDateUTC, atDate: at.toISOString() }) });
+      const { chain } = await res.json();
+      const tChart = window.JyotishEngine.calculateChart({ year: at.getUTCFullYear(), month: at.getUTCMonth() + 1, day: at.getUTCDate(), hour: 12, minute: 0, second: 0, utcOffset: 0, lat: 0, lon: 0, ayanamshaType: 'lahiri' });
+      const asc = chart.ascendant.sign.index, planets = {};
+      Object.entries(tChart.planets).forEach(([n, p]) => { planets[n] = { sign: p.sign, nakshatra: p.nakshatra, transitHouse: (p.sign.index - asc + 12) % 12 + 1 }; });
+      const id = 'lens-svg-' + (++lensSeq);
+      const per = (lbl, x) => x ? '<div class="lens-row"><span>' + lbl + '</span><span>' + x.lord + ' (' + fmtDate(x.start) + ' – ' + fmtDate(x.end) + ')</span></div>' : '';
+      const rows = Object.entries(planets).map(([n, p]) => n + ': ' + p.sign.name + ', ' + p.transitHouse + ' дом').join(' · ');
+      target.innerHTML = '<div class="lens"><div class="lens-title">' + dateISO.split('-').reverse().join('.') + '</div>' +
+        (chain ? per('Махадаша', chain.mahadasha) + per('Антардаша', chain.antardasha) + per('Пратьянтардаша', chain.pratyantardasha) : '') +
+        '<div style="font-size:11.5px;color:var(--taupe);margin-top:8px;line-height:1.5;">Транзиты на эту дату (полдень по Гринвичу): ' + escapeHtml(rows) + '</div>' +
+        '<div class="chart-wrap"><svg class="chart-svg" id="' + id + '" viewBox="0 0 400 400"></svg></div></div>';
+      renderChartSVGDispatch(chart, id, { planets });
+    } catch (e) { target.innerHTML = '<div class="lens" style="color:#a8654a;">Не удалось посчитать: ' + escapeHtml(e.message) + '</div>'; }
+  }
+  const birthUTCOf = (p) => new Date(Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, 0) - p.utcOffset * 3600000).toISOString();
+  let archiveChartObj = null;
+  document.getElementById('ad-note-lens-btn').addEventListener('click', () => {
+    const row = archiveCharts.find(c => c.id === archiveDetailId);
+    if (!row || !archiveChartObj) return;
+    renderEventLens(document.getElementById('ad-note-lens'), archiveChartObj, birthUTCOf({ year: row.year, month: row.month, day: row.day, hour: row.hour, minute: row.minute, utcOffset: row.utc_offset }), document.getElementById('ad-note-date').value);
+  });
+  document.getElementById('event-lens-btn').addEventListener('click', () => {
+    if (!currentChart || !currentChartMeta) return;
+    const p = currentChartMeta.params;
+    renderEventLens(document.getElementById('event-lens'), currentChart, birthUTCOf(p), document.getElementById('event-note-date').value);
+  });
 
   document.getElementById('archive-back-btn').addEventListener('click', () => { showArchiveListView(); loadArchive(); });
 
@@ -3175,8 +3275,8 @@
     const text = ta.value.trim();
     if (!text) return;
     try {
-      await archiveApi('notes/add', { chartId: archiveDetailId, note: text });
-      ta.value = '';
+      await archiveApi('notes/add', { chartId: archiveDetailId, note: text, eventDate: document.getElementById('ad-note-date').value || undefined });
+      ta.value = ''; document.getElementById('ad-note-date').value = ''; document.getElementById('ad-note-lens').innerHTML = '';
       await loadAdNotes(archiveDetailId);
     } catch (e) { alert('Не удалось добавить заметку: ' + e.message); }
   });
@@ -4312,6 +4412,35 @@
     renderVargaSingle();
   });
 
+
+  // Красивый выбор дробной карты вместо системной плашки (скрытый select остаётся источником значения)
+  (function () {
+    const sel = document.getElementById('varga-select');
+    if (!sel) return;
+    sel.style.display = 'none';
+    const box = document.createElement('div'); box.className = 'cs';
+    const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'cs-btn';
+    const list = document.createElement('div'); list.className = 'cs-list';
+    const clean = (s) => s.replace('🔒 ', '');
+    const label = () => clean(sel.options[sel.selectedIndex].textContent);
+    function build() {
+      list.innerHTML = '';
+      sel.querySelectorAll('optgroup').forEach((g) => {
+        const gh = document.createElement('div'); gh.className = 'cs-group'; gh.textContent = g.label; list.appendChild(gh);
+        g.querySelectorAll('option').forEach((o) => {
+          const it = document.createElement('div'); it.className = 'cs-item' + (o.value === sel.value ? ' sel' : '');
+          it.innerHTML = '<span>' + clean(o.textContent) + '</span>' + (o.textContent.indexOf('🔒') === 0 ? '<span class="cs-tag">Premium</span>' : '');
+          it.addEventListener('click', () => { sel.value = o.value; sel.dispatchEvent(new Event('change')); btn.textContent = label(); box.classList.remove('open'); build(); });
+          list.appendChild(it);
+        });
+      });
+    }
+    btn.textContent = label(); build();
+    btn.addEventListener('click', () => box.classList.toggle('open'));
+    document.addEventListener('click', (e) => { if (!box.contains(e.target)) box.classList.remove('open'); });
+    box.appendChild(btn); box.appendChild(list); sel.parentNode.insertBefore(box, sel);
+  })();
+
   document.getElementById('varga-upgrade-btn').addEventListener('click', showUpgradePrompt);
 
   document.getElementById('lagna-ref-chips').querySelectorAll('[data-lref]').forEach(btn => {
@@ -4349,7 +4478,7 @@
       const info = await accApi('/api/account/info', {});
       const em = document.getElementById('acc-emails');
       em.innerHTML = info.emails.length ? info.emails.map(e => `<div>✓ ${escapeHtml(e)}</div>`).join('') : '';
-      document.getElementById('acc-email-form').querySelector('label').textContent = info.emails.length ? 'Добавить ещё одну почту' : 'Почта';
+      document.getElementById('acc-email-form').style.display = info.emails.length ? 'none' : 'block'; // одна почта на аккаунт; вторая не нужна, вход и по почте, и через Telegram
       document.getElementById('acc-tg-block').style.display = info.hasTelegram ? 'none' : 'block';
     } catch (e) { /* без аккаунта блок не показываем */ }
   }
@@ -6103,6 +6232,7 @@
     document.getElementById('event-positions-label').textContent = posLines.join(' · ');
     document.getElementById('event-note-text').value = `Период: ${levelWord} ${lords.join('/')} (${startStr}–${endStr})\n${posLines.join('; ')}\n\n`;
     document.getElementById('event-error-msg').style.display = 'none';
+    document.getElementById('event-note-date').value = ''; document.getElementById('event-lens').innerHTML = '';
     panel.style.display = 'block';
     if (panel.scrollIntoView) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
@@ -6143,7 +6273,7 @@
         const { id } = await archiveApi('save', { label: currentChartMeta.name, params: currentChartMeta.params, placeLabel: currentChartMeta.placeLabel });
         currentArchiveChartId = id;
       }
-      await archiveApi('notes/add', { chartId: currentArchiveChartId, note: noteText, periodStart: currentEventPeriodStart });
+      await archiveApi('notes/add', { chartId: currentArchiveChartId, note: noteText, periodStart: currentEventPeriodStart, eventDate: document.getElementById('event-note-date').value || undefined });
       document.getElementById('event-composer').style.display = 'none';
       await refreshPeriodNotes();
       const msg = 'Заметка сохранена в архиве.';
