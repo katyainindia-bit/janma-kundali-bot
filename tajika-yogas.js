@@ -1,160 +1,200 @@
 // ============================================================
-// tajika-yogas.js — йоги годовой карты (Таджика) по таблице и лекции Katya Das.
-// Раху и Кету не участвуют. Дриштхи: оси 1/7, 4/10, 3/11, 5/9 (сидение в одном знаке = 1).
+// tajika-yogas.js — йоги годовой карты (Таджика) по «Таджика Нилаканthi».
+// Йоги считаются между Лагнешем (управитель Варша-лагны) и Карьешем (управитель дома,
+// о котором вопрос). Раху и Кету не участвуют (кроме Иккавала / Индувара — по всем грахам).
+// Орб итхасалы — дипт-амши быстрой планеты (книга, стр. 43). Аспекты: оси 1/7, 4/10, 3/11, 5/9;
+// 2/6/8/12 — нет аспекта.
+// Не считаем (в книге не прочитаны/неоднозначны): Кутта, Дурупха, «будущая» итхасала (бхавишьят).
 // ============================================================
 const pmod = (x, y) => ((x % y) + y) % y;
 const SPEED = ['Луна', 'Меркурий', 'Венера', 'Солнце', 'Марс', 'Юпитер', 'Сатурн']; // от быстрой к медленной
 const DIPT = { Луна: 12, Солнце: 15, Меркурий: 7, Марс: 8, Юпитер: 9, Венера: 7, Сатурн: 9 };
 const COMBUST = { Луна: 12, Марс: 17, Меркурий: 14, Юпитер: 11, Венера: 10, Сатурн: 15 };
-const DEBIL = { Солнце: 6, Луна: 7, Марс: 3, Меркурий: 11, Юпитер: 9, Венера: 5, Сатурн: 0 };
-const DUSTHANA = [6, 8, 12];
-const MITRA_AXES = [3, 5, 9, 11], SHATRU_AXES = [4, 7, 10];
-const DRISHTI = [1, 3, 4, 5, 7, 9, 10, 11];
-const FRIENDS = { Солнце: ['Луна','Марс','Юпитер'], Луна: ['Солнце','Меркурий'], Марс: ['Солнце','Луна','Юпитер'], Меркурий: ['Солнце','Венера'], Юпитер: ['Солнце','Луна','Марс'], Венера: ['Меркурий','Сатурн'], Сатурн: ['Меркурий','Венера'] };
-const ENEMIES = { Солнце: ['Венера','Сатурн'], Луна: [], Марс: ['Меркурий'], Меркурий: ['Луна'], Юпитер: ['Меркурий','Венера'], Венера: ['Солнце','Луна'], Сатурн: ['Солнце','Луна','Марс'] };
+const ASPECT = [1, 3, 4, 5, 7, 9, 10, 11];
+const SHATRU = [1, 4, 7, 10]; // «тулья дришти» — враждебные оси и один знак
+const HOUSE_THEME = { 2: 'деньги', 3: 'братья и сёстры, инициатива', 4: 'дом, покой, счастье', 5: 'дети, творчество', 6: 'здоровье, болезни, враги', 7: 'партнёрство, брак', 8: 'кризисы, потери', 9: 'удача, судьба', 10: 'карьера, положение', 11: 'прибыль, исполнение желаний', 12: 'расходы, больницы, заточение' };
+const KARYA_HOUSES = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
 const TEXT = {
-  vartama: ['Вартама итхасала', 'Классическая итхасала', 'Результат ожидается, в зависимости от качества йог'],
-  rashyanta: ['Рашьянта', 'Быстрый граха находится в 29° и готовится перейти в следующий знак, а оттуда делает итхасала йогу', 'Результат ожидается, в зависимости от качества йог'],
-  purna: ['Пурна итхасала', 'Итхасала в 1° между грахами', 'Максимальный результат'],
-  ishrafa: ['Ишрафа', 'Быстрый граха уходит от медленного', 'Результата нет'],
-  nakta: ['Накта', 'Быстрый граха даёт аспект на грахи в потенциальной итхасала, у которых нет аспекта', 'Результат произойдёт с посторонней помощью'],
-  yamaya: ['Ямайя', 'Медленный граха даёт аспект на грахи в потенциальной итхасала, у которых нет аспекта', 'Произойдёт с посторонней помощью, медленнее и сложнее'],
-  manau: ['Манау йога', 'Аспект Мангала или Шани', 'Может усложнять, ускорять или давать непредсказуемые результаты, в зависимости от качества грах'],
-  kamboola: ['Камбула', 'Есть итхасала и соединение с сильным Чандрой одного из грах', 'Ускорение события Чандрой и усиление результата. Результаты превзойдут ожидания, при шатру дриштхи могут быть небольшие осложнения'],
-  gairi: ['Гаири камбула', 'Камбула йога через Рашьянта', 'Улучшение и усиление результата'],
-  khallasara: ['Кхалласара', 'В Варшапхала слабый Чандра', 'Нет вкуса от результата'],
-  rudda: ['Рудда', 'Граха ретро, слабый, сожжён, в дустхане', 'Результаты могут раскрываться через проблемы'],
-  duphalli: ['Дупхалли-кутта', 'Быстрый граха слабее медленного, медленный очень силён', 'Медленный граха усиливает слабого и даёт хорошие результаты'],
-  duttotta: ['Дутхотта вира', 'Грахи слабы (не важно, есть итхасала или нет, но должны подходить по градусам) и один из них в итхасала с другой сильной грахой', 'Реализация через дополнительную помощь'],
-  tambira: ['Тамбира', 'Итхасалы нет, но есть Рашьянта у одной грахи, и она начинает образовывать итхасалу с двумя грахами, а одна из них сильнейшая', 'Реализация событий с помощью другого'],
-  kutta: ['Кутта', 'Грахи в кендрах или панапхара, в хороших аспектах', 'Благоприятное соединение'],
-  durpaha: ['Дурпаха', 'Грахи в дустханах, сожжены и слабы', 'Препятствия'],
+  ikkavala: ['Иккавала', 'Все грахи в кендрах и панапхарах, ни одной в апоклимах', 'Царское положение, счастье; гасит аришта-йоги'],
+  induvara: ['Индувара', 'Все грахи в апоклимах (3, 6, 9, 12), ни одной в кендрах и панапхарах', 'Нежелательный результат'],
+  vartama: ['Итхасала', 'Быстрый граха позади медленного, между ними есть аспект, они в орбе (дипт-амши быстрого)', 'Дело сбывается'],
+  purna: ['Пурна итхасала', 'Быстрый и медленный граха на одном градусе, различие в минутах', 'Полный результат'],
+  rashyanta: ['Рашьянта', 'Быстрый граха на 29° и из следующего знака даёт итхасалу медленному', 'Дело сбывается, чуть позже'],
+  ishrafa: ['Ишрафа', 'Быстрый граха ушёл вперёд медленного (не менее чем на 1°)', 'Дело разрушается, или результат уже прошёл'],
+  nakta: ['Накта', 'У Лагнеша и Карьеша нет аспекта. Третий граха быстрее обоих аспектирует их, берёт силу у заднего и передаёт переднему', 'Дело сбывается через постороннего человека'],
+  yamaya: ['Ямайя', 'У Лагнеша и Карьеша нет аспекта. Третий граха медленнее обоих аспектирует их и передаёт силу от быстрого к медленному', 'Дело сбывается через постороннего, медленнее и тяжелее'],
+  manau: ['Манау', 'Есть итхасала, а рядом с одним из грах (в его дипт-амши) стоит Марс или Сатурн в враждебном аспекте или в том же знаке', 'Итхасала разрушается, дело срывается'],
+  kamboola: ['Камбула', 'Есть итхасала Лагнеша и Карьеша, и Луна даёт итхасалу одному из них или обоим', 'Усиление результата. Качество зависит от достоинства Луны и грах'],
+  gairi: ['Гаири-камбула', 'Луна «пустая» (нет достоинства и аспекта), на последнем градусе знака; при входе в следующий знак даёт итхасалу сильной планете (в своём знаке или экзальтации)', 'Результат через помощь другого человека'],
+  khallasara: ['Кхалласара', 'Луна «пустая» и не связана итхасалой или соединением с Лагнешем и Карьешем', 'Разрушает результат Камбулы, неблагоприятно'],
+  rudda: ['Рудда', 'Итхасала, где одна из планет сожжена, в падении, в знаке врага или ретроградна', 'Итхасала не даёт результата: слабая планета не может ни взять, ни отдать силу'],
+  duphalli: ['Дупхалли-кутта', 'Медленный граха в достоинстве (свой знак, экзальтация, своя хадда, дрекана, навамша), быстрый без достоинства', 'Дело сбывается с трудом'],
+  duttotta: ['Дутхотта-вира', 'Лагнеш и Карьеш слабы, но есть итхасала, и быстрый соединён с сильной третьей планетой', 'Дело сбывается через помощь другого'],
+  tambira: ['Тамбира', 'Итхасалы нет, одна из планет на 29° и в следующем знаке стоит сильная планета в орбе, связанная с другой планетой пары', 'Дело сбывается'],
 };
 
-function analyze(chart, pvbMap) {
-  const P = {};
+function makeAnalyzer(chart, H) {
   const sunLon = chart.planets['Солнце'].siderealLon;
+  const lagnaSign = chart.ascendant.sign.index;
+  const P = {};
   for (const n of SPEED) {
     const p = chart.planets[n];
-    const sign = p.sign.index, deg = p.siderealLon % 30;
-    const combust = n !== 'Солнце' && Math.abs(((p.siderealLon - sunLon + 540) % 360) - 180) <= COMBUST[n] ? true : (n !== 'Солнце' && Math.min(pmod(p.siderealLon - sunLon, 360), pmod(sunLon - p.siderealLon, 360)) <= COMBUST[n]);
-    const pvb = pvbMap[n] || 0;
+    const lon = p.siderealLon, sign = Math.floor(lon / 30), deg = lon % 30;
+    const signLord = H.LORD[sign];
+    const uttama = signLord === n || H.EXALT[n][0] === sign;
+    const madhyama = H.haddaRuler(lon) === n || H.drekkanaRuler(lon) === n || H.navamshaLord(lon) === n;
+    const debilSign = (H.EXALT[n][0] + 6) % 12;
+    const enemySign = H.FRIENDS[n].e.includes(signLord);
+    const dignity = uttama ? 'высшее' : madhyama ? 'среднее' : (sign === debilSign || enemySign) ? 'низшее' : 'нет';
+    const sep = Math.min(pmod(lon - sunLon, 360), pmod(sunLon - lon, 360));
+    const combust = n !== 'Солнце' && sep <= COMBUST[n];
     const weakFlags = [];
-    if (DUSTHANA.includes(p.house)) weakFlags.push('в дустхане');
-    if (sign === DEBIL[n]) weakFlags.push('в падении');
-    if (combust) weakFlags.push('сожжён');
-    if (pvb <= 7) weakFlags.push('слабая ПВБ');
-    P[n] = { name: n, sign, deg, house: p.house, retro: !!p.retrograde, combust, pvb, weak: weakFlags.length > 0, weakFlags, strong: weakFlags.length === 0 && pvb >= 10, retroFlag: !!p.retrograde };
+    if (combust) weakFlags.push('сожжена');
+    if (sign === debilSign) weakFlags.push('в падении');
+    else if (enemySign) weakFlags.push('в знаке врага');
+    if (p.retrograde) weakFlags.push('ретроградна');
+    P[n] = { name: n, sign, deg, lon, house: p.house, retro: !!p.retrograde, dignity, hasDignity: uttama || madhyama, uttama, weakFlags, weak: weakFlags.length > 0 };
   }
-  return P;
+  return { P, lagnaSign };
 }
-const dist = (a, b) => pmod(b.sign - a.sign, 12) + 1; // дом знака b от знака a
-const hasDrishti = (a, b) => DRISHTI.includes(dist(a, b)) && DRISHTI.includes(dist(b, a));
-const axisKind = (a, b) => {
-  const d = dist(a, b);
-  if (MITRA_AXES.includes(d)) return 'митра';
-  if (SHATRU_AXES.includes(d)) return 'шатру';
-  if (d === 1) return FRIENDS[a.name].includes(b.name) ? 'митра' : ENEMIES[a.name].includes(b.name) ? 'шатру' : 'нейтрально';
-  return null;
-};
 
-function computeTajikaYogas(chart, pvbMap) {
-  const P = analyze(chart, pvbMap);
-  const names = SPEED;
+const dist = (a, b) => pmod(b.sign - a.sign, 12) + 1;
+const hasDrishti = (a, b) => ASPECT.includes(dist(a, b)) && ASPECT.includes(dist(b, a));
+const axisKind = (a, b) => { const d = dist(a, b); return [3, 5, 9, 11].includes(d) ? 'митра' : [4, 7, 10].includes(d) ? 'шатру' : 'один знак'; };
+const fastFirst = (a, b) => (SPEED.indexOf(a.name) <= SPEED.indexOf(b.name) ? [a, b] : [b, a]);
+
+/** Итхасала/ишрафа между быстрым f и медленным s. Возвращает null или {type, diff}. */
+function pairState(f, s) {
+  if (!hasDrishti(f, s)) return null;
+  const orb = DIPT[f.name];
+  const delta = f.retro ? f.deg - s.deg : s.deg - f.deg; // >0: быстрый позади (идёт к медленному)
+  const diff = Math.abs(f.deg - s.deg);
+  if (diff < 1 && diff <= orb) return { type: 'purna', diff, kind: axisKind(f, s) };
+  if (diff > orb) return null;
+  return { type: delta > 0 ? 'vartama' : 'ishrafa', diff, kind: axisKind(f, s) };
+}
+
+function computeTajikaYogas(chart, pvbMap, H) {
+  if (!H) return [];
+  const { P, lagnaSign } = makeAnalyzer(chart, H);
   const out = [];
   const add = (key, planets, extra) => out.push({ key, name: TEXT[key][0], how: TEXT[key][1], result: TEXT[key][2], planets, ...(extra || {}) });
-  const ith = []; // найденные итхасалы {f, s, diff, kind, purna}
-  const orb = (a, b) => (DIPT[a] + DIPT[b]) / 2;
+  const lagnesh = H.LORD[lagnaSign];
+  const L = P[lagnesh];
 
-  for (let i = 0; i < names.length; i++) for (let j = i + 1; j < names.length; j++) {
-    const f = P[names[i]], s = P[names[j]]; // f — быстрее
-    if (!hasDrishti(f, s)) continue;
-    const diff = Math.abs(f.deg - s.deg), o = orb(f.name, s.name);
-    const approaching = f.retro ? f.deg > s.deg : f.deg < s.deg;
-    const kind = axisKind(f, s);
-    if (diff < 1) { ith.push({ f, s, diff, kind, purna: true }); continue; }
-    if (diff > o) continue;
-    if (approaching) ith.push({ f, s, diff, kind, purna: false });
-    else add('ishrafa', [f.name, s.name], { diff, kind });
-  }
-  for (const y of ith) {
-    add(y.purna ? 'purna' : 'vartama', [y.f.name, y.s.name], { diff: y.diff, kind: y.kind });
-  }
-  const hasIth = (a, b) => ith.some(y => (y.f.name === a && y.s.name === b) || (y.f.name === b && y.s.name === a));
+  // Иккавала / Индувара — по всем грахам
+  const houses = SPEED.map(n => P[n].house);
+  const kp = [1, 2, 4, 5, 7, 8, 10, 11], ap = [3, 6, 9, 12];
+  if (houses.every(h => kp.includes(h))) add('ikkavala', []);
+  else if (houses.every(h => ap.includes(h))) add('induvara', []);
 
-  // Рашьянта: быстрый в 29°+, из следующего знака даёт итхасалу
-  const rash = [];
-  for (let i = 0; i < names.length; i++) for (let j = i + 1; j < names.length; j++) {
-    const f = P[names[i]], s = P[names[j]];
-    if (f.deg < 29 || f.retro || hasIth(f.name, s.name)) continue;
-    const nextSign = (f.sign + 1) % 12;
-    const d1 = pmod(s.sign - nextSign, 12) + 1, d2 = pmod(nextSign - s.sign, 12) + 1;
-    if (DRISHTI.includes(d1) && DRISHTI.includes(d2) && s.deg <= orb(f.name, s.name)) { rash.push({ f, s }); add('rashyanta', [f.name, s.name], { diff: s.deg + (30 - f.deg) }); }
+  // Карьеши: по домам
+  const byPair = {}; // 'Лагнеш|Карьеш' -> {K, houses[]}
+  for (const h of KARYA_HOUSES) {
+    const kn = H.LORD[(lagnaSign + h - 1) % 12];
+    if (kn === lagnesh) continue;
+    (byPair[kn] = byPair[kn] || { K: P[kn], houses: [] }).houses.push(h);
   }
 
-  // Накта / Ямайя: потенциальная итхасала без аспекта, посредник даёт аспект обоим
-  for (let i = 0; i < names.length; i++) for (let j = i + 1; j < names.length; j++) {
-    const f = P[names[i]], s = P[names[j]];
-    if (hasDrishti(f, s)) continue;
-    const diff = Math.abs(f.deg - s.deg);
-    if (diff > orb(f.name, s.name) || !(f.retro ? f.deg > s.deg : f.deg < s.deg)) continue;
-    for (const t of names) {
-      if (t === f.name || t === s.name) continue;
-      const T = P[t];
-      if (!hasDrishti(T, f) || !hasDrishti(T, s)) continue;
-      const ti = SPEED.indexOf(t);
-      if (ti < SPEED.indexOf(f.name)) add('nakta', [f.name, s.name, t], { diff });
-      else if (ti > SPEED.indexOf(s.name)) add('yamaya', [f.name, s.name, t], { diff });
-    }
-  }
-
-  // Манау: Марс или Шани аспектируют обе планеты итхасалы
-  for (const y of ith) for (const m of ['Марс', 'Сатурн']) {
-    if (m === y.f.name || m === y.s.name) continue;
-    if (hasDrishti(P[m], y.f) && hasDrishti(P[m], y.s)) add('manau', [y.f.name, y.s.name, m]);
-  }
-
-  // Камбула / Гаири камбула
   const moon = P['Луна'];
-  if (moon.strong) for (const y of ith) {
-    if (y.f.name === 'Луна' || y.s.name === 'Луна') continue;
-    if (moon.sign === y.f.sign || moon.sign === y.s.sign) add('kamboola', [y.f.name, y.s.name, 'Луна']);
-    else if (moon.deg >= 29 && ((moon.sign + 1) % 12 === y.f.sign || (moon.sign + 1) % 12 === y.s.sign)) add('gairi', [y.f.name, y.s.name, 'Луна']);
-  }
-  // Кхалласара
-  if (moon.weak) add('khallasara', ['Луна'], { flags: moon.weakFlags });
+  const moonVoid = () => !moon.hasDignity && moon.dignity !== 'низшее' &&
+    !SPEED.some(n => n !== 'Луна' && hasDrishti(P[n], moon) && Math.abs(P[n].deg - moon.deg) <= DIPT['Луна']);
+  const enemyAspect = (m, x) => SHATRU.includes(dist(m, x)) && Math.abs(m.deg - x.deg) <= DIPT[x.name];
 
-  // Рудда: планеты итхасал, которые ретро / слабы / сожжены / в дустхане
-  const inIth = new Set(); ith.forEach(y => { inIth.add(y.f.name); inIth.add(y.s.name); });
-  for (const n of inIth) { const p = P[n]; const fl = [...(p.retro ? ['ретроградна'] : []), ...p.weakFlags]; if (fl.length) add('rudda', [n], { flags: fl }); }
+  for (const { K, houses: hs } of Object.values(byPair)) {
+    const [f, s] = fastFirst(L, K);
+    const label = 'Лагнеш ' + lagnesh + ' и Карьеш ' + K.name + ' (' + hs.map(h => h + '-й дом').join(', ') + ')';
+    const themes = hs.map(h => h + '-й: ' + HOUSE_THEME[h]).join('; ');
+    const ctx = { label, houses: hs, themes };
+    const st = pairState(f, s);
+    let ith = null;
 
-  // Дупхалли-кутта: быстрый слабее медленного, медленный очень силён
-  for (const y of ith) if (y.f.pvb < y.s.pvb && y.s.pvb >= 12) add('duphalli', [y.f.name, y.s.name]);
-
-  // Дутхотта вира: две слабые грахи подходят по градусам, и одна в итхасала с сильной
-  for (let i = 0; i < names.length; i++) for (let j = i + 1; j < names.length; j++) {
-    const a = P[names[i]], b = P[names[j]];
-    if (!a.weak || !b.weak || Math.abs(a.deg - b.deg) > orb(a.name, b.name)) continue;
-    for (const c of names) {
-      if (c === a.name || c === b.name || !P[c].strong) continue;
-      if (hasIth(a.name, c)) add('duttotta', [a.name, b.name, c]);
-      else if (hasIth(b.name, c)) add('duttotta', [b.name, a.name, c]);
+    if (st && (st.type === 'vartama' || st.type === 'purna')) {
+      ith = st;
+      add(st.type, [f.name, s.name], { ...ctx, diff: st.diff, kind: st.kind });
+    } else if (st && st.type === 'ishrafa') {
+      add('ishrafa', [f.name, s.name], { ...ctx, diff: st.diff, kind: st.kind });
     }
+
+    // Рашьянта: быстрый на 29°+ идёт в следующий знак и там даёт итхасалу
+    let rashyanta = false;
+    if (!ith && !st && f.deg >= 29 && !f.retro) {
+      const nextSign = (f.sign + 1) % 12;
+      const d1 = pmod(s.sign - nextSign, 12) + 1, d2 = pmod(nextSign - s.sign, 12) + 1;
+      if (ASPECT.includes(d1) && ASPECT.includes(d2) && s.deg <= DIPT[f.name]) {
+        rashyanta = true;
+        add('rashyanta', [f.name, s.name], { ...ctx, diff: s.deg + (30 - f.deg) });
+      }
+    }
+
+    // Накта / Ямайя: аспекта между Лагнешем и Карьешем нет, но по градусам они бы сошлись
+    if (!hasDrishti(f, s) && (f.retro ? f.deg > s.deg : f.deg < s.deg) && Math.abs(s.deg - f.deg) <= DIPT[f.name]) {
+      for (const tn of SPEED) {
+        if (tn === f.name || tn === s.name) continue;
+        const T = P[tn];
+        if (!hasDrishti(T, f) || !hasDrishti(T, s)) continue;
+        const ti = SPEED.indexOf(tn);
+        if (ti < SPEED.indexOf(f.name) && T.deg < f.deg && (s.deg - T.deg) <= DIPT[tn]) add('nakta', [f.name, s.name, tn], { ...ctx, diff: s.deg - f.deg });
+        else if (ti > SPEED.indexOf(s.name) && Math.abs(T.deg - f.deg) <= DIPT[tn] && Math.abs(T.deg - s.deg) <= DIPT[tn]) add('yamaya', [f.name, s.name, tn], { ...ctx, diff: s.deg - f.deg });
+      }
+    }
+
+    if (ith) {
+      // Манау: Марс или Сатурн рядом (в дипт-амши) с одним из двух, в враждебном аспекте или в том же знаке
+      for (const mn of ['Марс', 'Сатурн']) {
+        if (mn === f.name || mn === s.name) continue;
+        const M = P[mn];
+        if (enemyAspect(M, f) || enemyAspect(M, s)) add('manau', [f.name, s.name, mn], ctx);
+      }
+      // Камбула: Луна в итхасале с одним или обоими
+      if (f.name !== 'Луна' && s.name !== 'Луна') {
+        const withF = pairState(moon, f), withS = pairState(moon, s);
+        const ok = [withF, withS].filter(x => x && (x.type === 'vartama' || x.type === 'purna'));
+        if (ok.length) {
+          add('kamboola', [f.name, s.name, 'Луна'], { ...ctx, moonDignity: moon.dignity, both: ok.length === 2, flags: ['Луна: достоинство ' + moon.dignity + (ok.length === 2 ? ', итхасала с обоими' : '')] });
+        } else if (moonVoid() && moon.deg >= 29 && !moon.retro) {
+          // Гаири-камбула: Луна идёт в следующий знак к сильной планете и даёт ей итхасалу
+          const ns = (moon.sign + 1) % 12;
+          for (const qn of SPEED) {
+            const Q = P[qn];
+            if (qn === 'Луна' || Q.sign !== ns || !Q.uttama || Q.deg > DIPT['Луна']) continue;
+            add('gairi', [f.name, s.name, 'Луна', qn], ctx);
+          }
+        }
+      }
+      // Рудда: итхасала, где слабая планета
+      const wk = [f, s].filter(X => X.weak).map(X => X.name + ': ' + X.weakFlags.join(', '));
+      if (wk.length) add('rudda', [f.name, s.name], { ...ctx, flags: wk });
+      // Дупхалли-кутта: медленный в достоинстве, быстрый без достоинства
+      if (s.hasDignity && !f.hasDignity) add('duphalli', [f.name, s.name], { ...ctx, flags: [s.name + ': достоинство ' + s.dignity] });
+      // Дутхотта-вира: оба слабы, быстрый соединён с сильной медленной третьей
+      if (f.weak && s.weak) {
+        for (const qn of SPEED) {
+          if (qn === f.name || qn === s.name) continue;
+          const Q = P[qn];
+          if (SPEED.indexOf(qn) > SPEED.indexOf(f.name) && Q.hasDignity && Q.sign === f.sign && Math.abs(Q.deg - f.deg) <= DIPT[f.name]) add('duttotta', [f.name, s.name, qn], ctx);
+        }
+      }
+    } else if (!st) {
+      // Кхалласара: Луна «пустая» и не связана с Лагнешем и Карьешем
+      if (f.name !== 'Луна' && s.name !== 'Луна' && moonVoid()) {
+        const linked = [f, s].some(X => pairState(moon, X) || moon.sign === X.sign);
+        if (!linked) add('khallasara', ['Луна'], ctx);
+      }
+      // Тамбира: итхасалы нет, одна из планет на 29°, в следующем знаке сильная планета связана с другой
+      for (const [X, Y] of [[f, s], [s, f]]) {
+        if (X.deg < 29 || X.retro) continue;
+        const ns = (X.sign + 1) % 12;
+        for (const qn of SPEED) {
+          const Q = P[qn];
+          if (qn === X.name || qn === Y.name || Q.sign !== ns || !Q.uttama || Q.deg > DIPT[X.name]) continue;
+          if (hasDrishti(Q, Y) && Math.abs(Q.deg - Y.deg) <= DIPT[Q.name]) add('tambira', [X.name, Y.name, qn], ctx);
+        }
+      }
+    }
+    void rashyanta;
   }
-
-  // Тамбира: итхасалы нет, у одной грахи рашьянта, она начинает итхасалу с двумя, одна из них сильнейшая
-  const byFast = {};
-  rash.forEach(r => { (byFast[r.f.name] = byFast[r.f.name] || []).push(r.s); });
-  for (const [fn, list] of Object.entries(byFast)) if (list.length >= 2 && list.some(p => p.strong)) add('tambira', [fn, ...list.map(p => p.name)]);
-
-  // Кутта: итхасала в митра-дриштхи, обе грахи в кендрах/панапхара
-  const KP = [1, 2, 4, 5, 7, 8, 10, 11];
-  for (const y of ith) if (y.kind === 'митра' && KP.includes(y.f.house) && KP.includes(y.s.house)) add('kutta', [y.f.name, y.s.name]);
-
-  // Дурпаха: итхасала двух слабых грах (дустхана, сожжены, слабы)
-  for (const y of ith) if (y.f.weak && y.s.weak) add('durpaha', [y.f.name, y.s.name]);
-
   return out;
 }
 module.exports = { computeTajikaYogas };

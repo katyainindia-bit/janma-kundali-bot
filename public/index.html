@@ -986,6 +986,9 @@
           <div class="info-card" id="vs-summary" style="display:block;"></div>
           <div class="info-card" id="vs-officers" style="display:block;"></div>
           <div class="info-card" id="vs-planets" style="display:block;"></div>
+          <div class="info-card" id="vs-bala" style="display:block;overflow-x:auto;"></div>
+          <div class="info-card" id="vs-mudda" style="display:block;"></div>
+          <div class="info-card" id="vs-sahams" style="display:block;overflow-x:auto;"></div>
           <div class="info-card" id="vs-yogas" style="display:block;"></div>
           </div></div>
         </div>
@@ -4997,13 +5000,27 @@
     document.getElementById('vs-planets').innerHTML = '<div class="name" style="margin-bottom:6px;">Планеты года</div>' +
       '<table style="width:100%;font-size:13px;border-collapse:collapse;"><tr style="color:var(--taupe);font-size:11px;text-align:left;"><th>Планета</th><th>Знак</th><th>Дом</th><th>Накшатра</th><th>ПВБ</th></tr>' +
       order.map((n) => { const p = d.chart.planets[n]; if (!p) return ''; return '<tr><td>' + vsEsc(n) + (p.retrograde ? ' ℞' : '') + '</td><td>' + vsEsc(p.sign.name) + ' ' + vsDeg(p.siderealLon) + '</td><td>' + p.house + '</td><td>' + vsEsc(p.nakshatra.name) + '</td><td>' + (pv[n] != null ? pv[n].toFixed(2) : '') + '</td></tr>'; }).join('') + '</table>';
-    const YORDER = ['vartama','rashyanta','purna','ishrafa','nakta','yamaya','manau','kamboola','gairi','khallasara','rudda','duphalli','duttotta','tambira','kutta','durpaha'];
+    document.getElementById('vs-bala').innerHTML = '<div class="name" style="margin-bottom:6px;">Бала</div>' +
+      '<div style="font-size:11px;color:var(--taupe);margin-bottom:6px;">Панча-варгия: Грига (до 30) + Уччха (до 20) + Худда (до 15) + Дреккана (до 10) + Навамша (до 5), сумма делится на 4. Харша — до 20.</div>' +
+      '<table style="width:100%;font-size:12px;border-collapse:collapse;min-width:420px;"><tr style="color:var(--taupe);font-size:11px;text-align:left;"><th>Планета</th><th>Грига</th><th>Уччха</th><th>Худда</th><th>Дрек.</th><th>Нав.</th><th>ПВБ</th><th>Сила</th><th>Харша</th></tr>' +
+      d.pvbTable.map((r) => '<tr><td>' + vsEsc(r.planet) + '</td><td>' + r.griha + '</td><td>' + r.uccha + '</td><td>' + r.hudda + '</td><td>' + r.drekkana + '</td><td>' + r.navamsha + '</td><td><b>' + r.pvb.toFixed(2) + '</b></td><td>' + vsEsc(r.label) + '</td><td>' + r.harsha + '</td></tr>').join('') + '</table>';
+    const nowJD = Date.now() / 86400000 + 2440587.5;
+    document.getElementById('vs-mudda').innerHTML = '<div class="name" style="margin-bottom:6px;">Мудда-даша</div>' +
+      (d.mudda || []).map((m) => {
+        const cur = nowJD >= m.fromJD && nowJD < m.toJD;
+        return '<details' + (cur ? ' open' : '') + ' style="margin-bottom:6px;font-size:13px;"><summary style="cursor:pointer;' + (cur ? 'font-weight:600;color:var(--gold);' : '') + '">' + vsEsc(m.lord) + ' · ' + m.from + ' — ' + m.to + '</summary>' +
+          '<div style="padding:4px 0 4px 12px;font-size:12px;">' + m.antars.map((a) => { const c2 = nowJD >= a.fromJD && nowJD < a.toJD; return '<div' + (c2 ? ' style="font-weight:600;color:var(--gold);"' : '') + '>' + vsEsc(m.lord) + ' \\ ' + vsEsc(a.lord) + ' · ' + a.from + ' — ' + a.to + '</div>'; }).join('') + '</div></details>';
+      }).join('');
+    document.getElementById('vs-sahams').innerHTML = '<div class="name" style="margin-bottom:6px;">Сахамы</div>' +
+      '<table style="width:100%;font-size:12px;border-collapse:collapse;min-width:420px;"><tr style="color:var(--taupe);font-size:11px;text-align:left;"><th>Имя</th><th>Значение</th><th>Спхута</th><th>Бхава</th><th>Накшатра</th></tr>' +
+      (d.sahams || []).map((x) => '<tr><td>' + vsEsc(x.name) + '</td><td>' + vsEsc(x.mean) + '</td><td>' + vsEsc(x.sign) + ' ' + vsDeg(x.lon) + '</td><td>' + x.house + '</td><td>' + vsEsc(x.nakshatra) + '</td></tr>').join('') + '</table>';
+    const YORDER = ['ikkavala','induvara','vartama','purna','rashyanta','ishrafa','nakta','yamaya','manau','kamboola','gairi','khallasara','rudda','duphalli','duttotta','tambira'];
     const ygroups = {}; (d.yogas || []).forEach((y) => { (ygroups[y.key] = ygroups[y.key] || []).push(y); });
     const yhtml = YORDER.filter((k) => ygroups[k]).map((k) => {
       const g = ygroups[k], f = g[0];
       return '<div style="margin-bottom:12px;"><div style="font-weight:600;">' + vsEsc(f.name) + '</div>' +
         '<div style="font-size:11px;color:var(--taupe);margin:2px 0 4px;">' + vsEsc(f.how) + '</div>' +
-        g.map((y) => '<div style="font-size:13px;">' + y.planets.map(vsEsc).join(' + ') + (y.kind ? ' <span style="color:var(--taupe);">(' + y.kind + (y.diff != null ? ', ' + y.diff.toFixed(1) + '°' : '') + ')</span>' : '') + (y.flags ? ' <span style="color:var(--taupe);">(' + y.flags.map(vsEsc).join(', ') + ')</span>' : '') + '</div>').join('') +
+        g.map((y) => '<div style="font-size:13px;margin-bottom:3px;">' + (y.label ? vsEsc(y.label) + '<div style="font-size:11px;color:var(--taupe);">' + y.planets.map(vsEsc).join(' + ') + ' · ' + vsEsc(y.themes) + '</div>' : y.planets.map(vsEsc).join(' + ')) + (y.kind ? ' <span style="color:var(--taupe);">(' + y.kind + (y.diff != null ? ', ' + y.diff.toFixed(1) + '°' : '') + ')</span>' : '') + (y.flags ? ' <span style="color:var(--taupe);">(' + y.flags.map(vsEsc).join(', ') + ')</span>' : '') + '</div>').join('') +
         '<div style="font-size:12px;margin-top:4px;color:var(--gold);">→ ' + vsEsc(f.result) + '</div></div>';
     }).join('');
     document.getElementById('vs-yogas').innerHTML = '<div class="name" style="margin-bottom:8px;">Таджика-йоги</div>' + (yhtml || '<div style="font-size:13px;color:var(--taupe);">Йог не найдено.</div>');
