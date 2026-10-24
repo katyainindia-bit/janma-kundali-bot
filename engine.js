@@ -83,10 +83,18 @@ function toXYZ(p) {
 // без падения приложения.
 // ------------------------------------------------------------
 let swe = null;
+let SWE_SOURCE = null;
 try {
-  swe = require('swisseph');
+  // основной вариант: пакет sweph (готовые сборки, ставится без компиляции)
+  swe = require('./swe-compat.js');
+  SWE_SOURCE = 'sweph';
 } catch (e) {
-  swe = null;
+  try {
+    swe = require('swisseph'); // старый вариант (нужна компиляция при установке)
+    SWE_SOURCE = 'swisseph';
+  } catch (e2) {
+    swe = null;
+  }
 }
 const SWISSEPH_AVAILABLE = !!swe;
 const SWE_PLANET = {
@@ -677,6 +685,6 @@ if (typeof module !== 'undefined') {
   module.exports = {
     calculateChart, jdFromDate, lahiriAyanamsha, ramanAyanamsha, krishnamurtiAyanamsha,
     customAyanamsha, ayanamshaFor,
-    sunLongitude, moonLongitude, ascendantSidereal, SWISSEPH_AVAILABLE,
+    sunLongitude, moonLongitude, ascendantSidereal, SWISSEPH_AVAILABLE, SWE_SOURCE,
   };
 }
