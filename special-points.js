@@ -11,9 +11,13 @@
 // оба отдельно, сам не являясь зависимостью ни для одного из них.
 // ============================================================
 
-const { jdFromDate, sunLongitude, moonLongitude, lahiriAyanamsha, ramanAyanamsha, krishnamurtiAyanamsha } = require('./engine.js');
+const { jdFromDate, ascendantSidereal, nakshatraOf, sunLongitude, moonLongitude, lahiriAyanamsha, ramanAyanamsha, krishnamurtiAyanamsha } = require('./engine.js');
 const { sunriseSunsetMinutesUTC } = require('./panchanga.js');
 
+// Восход/закат: высота центра Солнца над горизонтом в момент события.
+// upper — верхний край диска с рефракцией (стандарт); center — центр диска на линии горизонта, без рефракции; lower — нижний край диска на горизонте.
+const SUN_ALT = { upper: -0.8333, center: 0, lower: 0.2667 };
+function sunAltitude(opts) { return (opts && SUN_ALT[opts.sunrise] != null) ? SUN_ALT[opts.sunrise] : SUN_ALT.upper; }
 function pmod(x, m) { return ((x % m) + m) % m; }
 
 function ayanamshaByType(jd, ayanamshaType, customAyanamshaBase) {
@@ -54,9 +58,9 @@ function bhriguBindu(moonSidLon, rahuSidLon) {
  * долготы Солнца В МОМЕНТ ВОСХОДА в день события, плюс поправка на время,
  * прошедшее от восхода до самого момента, с разной скоростью для каждой.
  */
-function specialLagnas(year, month, day, hour, minute, second, utcOffset, lat, lon, ayanamshaType, customAyanamshaBase) {
+function specialLagnas(year, month, day, hour, minute, second, utcOffset, lat, lon, ayanamshaType, customAyanamshaBase, opts) {
   const dateUTCNoon = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
-  const sunTimes = sunriseSunsetMinutesUTC(dateUTCNoon, lat, lon);
+  const sunTimes = sunriseSunsetMinutesUTC(dateUTCNoon, lat, lon, sunAltitude(opts));
   if (sunTimes.polarNight || sunTimes.polarDay) return null; // за полярным кругом восхода может не быть
 
   const jdEvent = jdFromDate(year, month, day, hour, minute, second, utcOffset);
@@ -80,4 +84,42 @@ function specialLagnas(year, month, day, hour, minute, second, utcOffset, lat, l
   return { ghatiLagna: formatSignResult(ghatiLagna), horaLagna: formatSignResult(horaLagna), bhavaLagna: formatSignResult(bhavaLagna) };
 }
 
-module.exports = { bhriguBindu, specialLagnas };
+
+/**
+ * Гулика и Манди (Парашара): день (восход–закат) и ночь (закат–восход) делятся на 8 долей.
+ * Днём доли идут от управителя дня недели, ночью — от пятого по счёту от него; восьмая доля без управителя.
+ * Гулика = асцендент в НАЧАЛЕ доли Сатурна, Манди = асцендент в СЕРЕДИНЕ доли Сатурна.
+ * День недели — по восходу (до восхода идёт предыдущий день).
+ */
+function gulikaMandi(year, month, day, hour, minute, second, utcOffset, lat, lon, ayanamshaType, customAyanamshaBase, opts) {
+  const jdEvent = jdFromDate(year, month, day, hour, minute, second, utcOffset);
+  const dayInfo = (off) => {
+    const d = new Date(Date.UTC(year, month - 1, day + off, 12, 0, 0));
+    const t = sunriseSunsetMinutesUTC(d, lat, lon, sunAltitude(opts));
+    if (t.polarNight || t.polarDay) return null;
+    const base = jdFromDate(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(), 0, 0, 0, 0);
+    return { rise: base + t.sunriseUTC / 1440, set: base + t.sunsetUTC / 1440, dow: d.getUTCDay() };
+  };
+  const days = {};
+  for (const o of [-1, 0, 1, 2]) { days[o] = dayInfo(o); if (!days[o]) return null; }
+  let part = null;
+  for (const o of [-1, 0, 1]) {
+    const a = days[o], b = days[o + 1];
+    if (jdEvent >= a.rise && jdEvent < a.set) { part = { from: a.rise, to: a.set, dow: a.dow, night: false }; break; }
+    if (jdEvent >= a.set && jdEvent < b.rise) { part = { from: a.set, to: b.rise, dow: a.dow, night: true }; break; }
+  }
+  if (!part) return null;
+  // Порядок управителей по дням недели: Солнце, Луна, Марс, Меркурий, Юпитер, Венера, Сатурн (Сатурн = 6)
+  const first = part.night ? (part.dow + 4) % 7 : part.dow;
+  const j = (6 - first + 7) % 7; // номер доли Сатурна (0..6)
+  const len = (part.to - part.from) / 8;
+  const startJD = part.from + len * j;
+  const midJD = startJD + len / 2;
+  const asc = (jd) => ascendantSidereal(jd, lat, lon, ayanamshaType || 'lahiri', customAyanamshaBase);
+  const withNak = (lon) => Object.assign(formatSignResult(lon), { nakshatra: nakshatraOf(lon) });
+  // По умолчанию: Гулика в начале доли Сатурна, Манди в середине. Вариант 'mandi_start' — наоборот.
+  const swap = opts && opts.gulikaMandi === 'mandi_start';
+  return { gulika: withNak(asc(swap ? midJD : startJD)), mandi: withNak(asc(swap ? startJD : midJD)) };
+}
+
+module.exports = { bhriguBindu, specialLagnas, gulikaMandi };

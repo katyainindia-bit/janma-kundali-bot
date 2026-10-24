@@ -104,7 +104,7 @@ function embedImage(doc, buffer, topY) {
  * @param {object} [opts.transitsResult] - нужен, если sections.transits
  * @param {object} [opts.dashaData] - { mahadashas, chain }, нужен, если sections.periods
  */
-function buildChartExportPDF({ name, dateStr, timeStr, placeLabel, chart, sections, transitsResult, dashaData }) {
+function buildChartExportPDF({ name, dateStr, timeStr, placeLabel, chart, sections, transitsResult, dashaData, arudhas }) {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: 'A4', margin: 50, bufferPages: true });
     const chunks = [];
@@ -129,6 +129,33 @@ function buildChartExportPDF({ name, dateStr, timeStr, placeLabel, chart, sectio
       newPage('Натальная карта');
       const buf = renderNorthIndianPNG(chart, { noHeader: true });
       embedImage(doc, buf, 140);
+
+      // Вторая страница: специальные точки, панчанга рождения, арудхи
+      const SIGNS = ['Овен','Телец','Близнецы','Рак','Лев','Дева','Весы','Скорпион','Стрелец','Козерог','Водолей','Рыбы'];
+      const fmtPt = (pt) => pt && pt.sign ? `${pt.sign.name} ${Math.floor(pt.sign.degInSign)}°${String(Math.floor((pt.sign.degInSign % 1) * 60)).padStart(2, '0')}'` : '';
+      const pts = [['Бхригу-бинду', chart.bhriguBindu], ['Хора-лагна', chart.horaLagna], ['Гхати-лагна', chart.ghatiLagna], ['Бхава-лагна', chart.bhavaLagna], ['Гулика', chart.gulika], ['Манди', chart.mandi]].filter((r) => r[1] && r[1].sign);
+      const bp = chart.birthPanchanga;
+      if (pts.length || bp || (arudhas && arudhas.length)) {
+        newPage('Точки и панчанга рождения');
+        let y = 152;
+        if (pts.length) {
+          y = drawSectionTitle(doc, 'Специальные точки', y);
+          pts.forEach(([label, pt]) => { y = drawPeriodRow(doc, label, fmtPt(pt) + (pt.nakshatra ? `  ·  ${pt.nakshatra.name} (пада ${pt.nakshatra.pada})` : ''), y); });
+          y += 12;
+        }
+        if (bp) {
+          y = drawSectionTitle(doc, 'Панчанга момента рождения', y);
+          y = drawPeriodRow(doc, 'Вара', bp.vara, y);
+          y = drawPeriodRow(doc, 'Титхи', `${bp.tithi.name}, ${String(bp.tithi.paksha).toLowerCase()}`, y);
+          y = drawPeriodRow(doc, 'Йога', bp.yoga.name, y);
+          y = drawPeriodRow(doc, 'Карана', bp.karana.name, y);
+          y += 12;
+        }
+        if (arudhas && arudhas.length) {
+          y = drawSectionTitle(doc, 'Арудха-пады', y);
+          arudhas.forEach((a) => { y = ensureSpace(doc, y, 24, 'Точки и панчанга рождения', subtitle); y = drawPeriodRow(doc, a.key, `${SIGNS[a.signIndex]}  ·  ${a.house} дом`, y); });
+        }
+      }
     }
 
     if (sections.vargas && sections.vargas.length > 0) {

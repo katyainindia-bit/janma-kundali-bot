@@ -39,7 +39,7 @@ function equationOfTimeMinutes(date) {
  * Восход и закат Солнца (в минутах от полуночи UTC) для заданной календарной даты и места.
  * Возвращает { sunriseUTC, sunsetUTC } в минутах от 00:00 UTC того дня.
  */
-function sunriseSunsetMinutesUTC(dateUTCNoon, lat, lon) {
+function sunriseSunsetMinutesUTC(dateUTCNoon, lat, lon, altitudeDeg) {
   const jd = jdFromDate(
     dateUTCNoon.getUTCFullYear(), dateUTCNoon.getUTCMonth() + 1, dateUTCNoon.getUTCDate(),
     12, 0, 0, 0
@@ -48,7 +48,7 @@ function sunriseSunsetMinutesUTC(dateUTCNoon, lat, lon) {
   const latRad = lat * D2R;
 
   // -0.8333° — стандартная поправка на атмосферную рефракцию и видимый радиус солнечного диска
-  const cosH0 = (Math.sin(-0.8333 * D2R) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
+  const cosH0 = (Math.sin((altitudeDeg == null ? -0.8333 : altitudeDeg) * D2R) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
 
   if (cosH0 > 1) return { polarNight: true };
   if (cosH0 < -1) return { polarDay: true };

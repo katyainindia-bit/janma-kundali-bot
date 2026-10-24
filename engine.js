@@ -686,6 +686,7 @@ if (typeof window !== 'undefined') {
 }
 if (typeof module !== 'undefined') {
   module.exports = {
+    nakshatraOf,
     calculateChart, jdFromDate, lahiriAyanamsha, ramanAyanamsha, krishnamurtiAyanamsha,
     customAyanamsha, ayanamshaFor,
     sunLongitude, moonLongitude, ascendantSidereal, SWISSEPH_AVAILABLE, SWE_SOURCE, SWE_ERROR,

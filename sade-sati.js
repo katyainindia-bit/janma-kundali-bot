@@ -15,13 +15,16 @@ const SCAN_STEP_DAYS = 10;
 const SCAN_MAX_DAYS_END = 11 * 365; // если Саде Сати уже идёт — целиком укладывается в ~9 лет, 11 хватает с запасом
 const SCAN_MAX_DAYS_START = 32 * 365; // если ещё не началась — разрыв между циклами может доходить до ~20-22 лет (цикл Сатурна ~29.5 лет), нужен полный цикл, чтобы гарантированно найти следующее начало
 
-function saturnSignIndexAt(date, lat, lon, utcOffset, ayanamshaType, customAyanamshaBase) {
+function saturnAt(date, lat, lon, utcOffset, ayanamshaType, customAyanamshaBase) {
   const chart = calculateChart({
     year: date.getUTCFullYear(), month: date.getUTCMonth() + 1, day: date.getUTCDate(),
     hour: date.getUTCHours(), minute: date.getUTCMinutes(), second: 0,
     lat, lon, utcOffset, ayanamshaType: ayanamshaType || 'lahiri', customAyanamshaBase,
   });
-  return chart.planets['Сатурн'].sign.index;
+  return chart.planets['Сатурн'];
+}
+function saturnSignIndexAt(date, lat, lon, utcOffset, ayanamshaType, customAyanamshaBase) {
+  return saturnAt(date, lat, lon, utcOffset, ayanamshaType, customAyanamshaBase).sign.index;
 }
 
 function sadeSatiPhase(saturnSignIdx, moonSignIdx) {
@@ -32,18 +35,34 @@ function sadeSatiPhase(saturnSignIdx, moonSignIdx) {
   return null;
 }
 
+// Режим «45°»: Сатурн в пределах 45° от натальной Луны (по долготе, в обе стороны).
+// Фазы делим по 30°-дугам: до Луны (−45…−15°) — восходящая, около Луны (−15…+15°) — пиковая,
+// после Луны (+15…+45°) — заходящая.
+function sadeSatiPhaseDeg(saturnLon, moonLon) {
+  let d = ((saturnLon - moonLon + 540) % 360) - 180; // −180…180
+  if (d < -45 || d > 45) return null;
+  if (d < -15) return { phase: 'Восходящая (Сатурн до Луны, в пределах 45°)', part: 1 };
+  if (d <= 15) return { phase: 'Пиковая (Сатурн рядом с Луной)', part: 2 };
+  return { phase: 'Заходящая (Сатурн после Луны, в пределах 45°)', part: 3 };
+}
+
 /**
  * Текущий статус Саде Сати + прогноз ближайшей границы (начала или окончания).
  */
-function computeSadeSati(natalChart, now, lat, lon, utcOffset) {
+function computeSadeSati(natalChart, now, lat, lon, utcOffset, mode) {
   const moonSignIdx = natalChart.planets['Луна'].sign.index;
   // Аянамшу и кастомную базу берём с натальной карты, а не захардкоженный
   // Лахири — иначе для пользователей с другими настройками транзитный
   // Сатурн и натальная Луна оказываются в разных системах отсчёта.
   const ayanamshaType = natalChart.ayanamshaType || 'lahiri';
   const customAyanamshaBase = natalChart.customAyanamshaBase || null;
-  const currentSaturnSign = saturnSignIndexAt(now, lat, lon, utcOffset, ayanamshaType, customAyanamshaBase);
-  const currentPhase = sadeSatiPhase(currentSaturnSign, moonSignIdx);
+  const deg45 = mode === 'deg45';
+  const moonLon = natalChart.planets['Луна'].siderealLon;
+  const phaseAt = (date) => {
+    const sat = saturnAt(date, lat, lon, utcOffset, ayanamshaType, customAyanamshaBase);
+    return deg45 ? sadeSatiPhaseDeg(sat.siderealLon, moonLon) : sadeSatiPhase(sat.sign.index, moonSignIdx);
+  };
+  const currentPhase = phaseAt(now);
 
   const dayMs = 24 * 3600 * 1000;
   let daysAheadToChange = null;
@@ -53,8 +72,7 @@ function computeSadeSati(natalChart, now, lat, lon, utcOffset) {
     // Ищем момент выхода из Саде Сати (когда Сатурн уйдёт из 12-1-2 дома от Луны)
     for (let d = SCAN_STEP_DAYS; d <= SCAN_MAX_DAYS_END; d += SCAN_STEP_DAYS) {
       const checkDate = new Date(now.getTime() + d * dayMs);
-      const signAtCheck = saturnSignIndexAt(checkDate, lat, lon, utcOffset, ayanamshaType, customAyanamshaBase);
-      if (!sadeSatiPhase(signAtCheck, moonSignIdx)) {
+      if (!phaseAt(checkDate)) {
         daysAheadToChange = d;
         willBe = 'end';
         break;
@@ -64,8 +82,7 @@ function computeSadeSati(natalChart, now, lat, lon, utcOffset) {
     // Ищем момент входа в Саде Сати (когда Сатурн войдёт в 12-й дом от Луны)
     for (let d = SCAN_STEP_DAYS; d <= SCAN_MAX_DAYS_START; d += SCAN_STEP_DAYS) {
       const checkDate = new Date(now.getTime() + d * dayMs);
-      const signAtCheck = saturnSignIndexAt(checkDate, lat, lon, utcOffset, ayanamshaType, customAyanamshaBase);
-      if (sadeSatiPhase(signAtCheck, moonSignIdx)) {
+      if (phaseAt(checkDate)) {
         daysAheadToChange = d;
         willBe = 'start';
         break;

@@ -9,7 +9,10 @@ const crypto = require('crypto');
 
 const { calculateChart, jdFromDate } = require('./engine.js');
 const { computeVarshaphala } = require('./varshaphala.js');
-const { bhriguBindu, specialLagnas } = require('./special-points.js');
+const { computeAshtakavarga } = require('./ashtakavarga.js');
+const { computeArudhas } = require('./arudhas.js');
+const { birthPanchanga } = require('./birth-panchanga.js');
+const { bhriguBindu, specialLagnas, gulikaMandi } = require('./special-points.js');
 const { computeVimshottariDasha, findCurrentDashaChain } = require('./dasha.js');
 const { computeCurrentTransits, transitDignity } = require('./transits.js');
 const { computePanchanga, computeTaraBala, computeDayNakshatraSegments, moonSignSpan } = require('./panchanga.js');
@@ -224,9 +227,13 @@ function startWebApp() {
       // Бхригу-бинду и специальные лагны — не критичны для основного расчёта,
       // поэтому неполадка здесь не должна ронять весь ответ карты.
       try {
-        const sl = specialLagnas(year, month, day, hour, minute, 0, utcOffset, lat, lon, params.ayanamshaType, customAyanamshaBase);
+        const proOpts = (() => { const u = verifyInitData(initData); return u ? db.getProSettings(u.id) : {}; })();
+        const sl = specialLagnas(year, month, day, hour, minute, 0, utcOffset, lat, lon, params.ayanamshaType, customAyanamshaBase, proOpts);
         chart.bhriguBindu = bhriguBindu(chart.planets['Луна'].siderealLon, chart.planets['Раху'].siderealLon);
         if (sl) Object.assign(chart, sl);
+        const gm = gulikaMandi(year, month, day, hour, minute, 0, utcOffset, lat, lon, params.ayanamshaType, customAyanamshaBase, proOpts);
+        if (gm) Object.assign(chart, gm);
+        chart.birthPanchanga = birthPanchanga(year, month, day, hour, minute, lat, lon, utcOffset, params.ayanamshaType, customAyanamshaBase, proOpts);
       } catch (e) {
         console.error('Ошибка спецточек (не критично):', e.message);
       }
@@ -490,6 +497,31 @@ function startWebApp() {
     }
   });
 
+  // ---------- Арудха-пады (Premium) ----------
+  app.post('/api/arudhas', requireTelegramUser, requirePremium, (req, res) => {
+    try {
+      const { chart } = req.body;
+      if (!chart || !chart.planets || !chart.ascendant) return res.status(400).json({ error: 'Нет натальной карты' });
+      const mode = db.getProSettings(req.tgUser.id).arudha === 'none' ? 'none' : 'exceptions';
+      res.json({ mode, arudhas: computeArudhas(chart, mode) });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ---------- Аштакаварга (Premium) ----------
+  app.post('/api/ashtakavarga', requireTelegramUser, requirePremium, (req, res) => {
+    try {
+      const { chart } = req.body;
+      if (!chart || !chart.planets || !chart.ascendant) return res.status(400).json({ error: 'Нет натальной карты' });
+      res.json(computeAshtakavarga(chart));
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // ---------- «Сегодня для меня» (Premium): даши + транзиты + кара дня, собранные вместе ----------
   app.post('/api/today', requireTelegramUser, requirePremium, (req, res) => {
     try {
@@ -699,6 +731,7 @@ function startWebApp() {
         name: name || 'Без имени', dateStr, timeStr, placeLabel, chart,
         sections: { chart: !!(sections && sections.chart), vargas: allowedVargas, transits: !!(sections && sections.transits), periods: !!(sections && sections.periods), periodsMode: sections && sections.periodsMode },
         transitsResult, dashaData,
+        arudhas: isPremiumUser ? (() => { try { return computeArudhas(chart, db.getProSettings(req.tgUser.id).arudha); } catch (e) { return null; } })() : null,
       }).then(buf => {
         const token = crypto.randomBytes(16).toString('hex');
         pdfExportCache.set(token, { buffer: buf, expiresAt: Date.now() + 10 * 60 * 1000 });
@@ -901,7 +934,7 @@ function startWebApp() {
   app.post('/api/sade-sati', requireTelegramUser, requirePremium, (req, res) => {
     try {
       const { chart, lat, lon, utcOffset } = req.body;
-      const result = computeSadeSati(chart, new Date(), lat, lon, utcOffset);
+      const result = computeSadeSati(chart, new Date(), lat, lon, utcOffset, db.getProSettings(req.tgUser.id).sadeSati);
       res.json(result);
     } catch (e) {
       console.error(e);
@@ -950,6 +983,7 @@ function startWebApp() {
       ayanamshaVariant: row.ayanamsha_variant,
       customAyanamshaBase: row.custom_ayanamsha_base,
       observationMode: row.observation_mode,
+      proSettings: db.getProSettings(req.tgUser.id),
       displayName: row.display_name,
       stars: row.stars || 0,
       ...db.trialState(req.tgUser.id),
@@ -995,6 +1029,33 @@ function startWebApp() {
     await tgSend(userId, 'Оплата получена, Premium продлён на ' + days + ' дн. Спасибо!');
     if (r.referrerId) await tgSend(r.referrerId, 'Ваш приглашённый друг оформил Premium. Вам начислено звёзд: ' + r.stars + '. Каждая звезда = 1 день Premium, обменять можно в разделе «Партнёрская программа».');
     res.json({ ok: true, referrerStars: r.stars || 0 });
+  });
+
+  // Настройки «Для профессионалов»: только известные ключи и допустимые значения
+  const PRO_OPTIONS = {
+    sunrise: ['upper', 'center', 'lower'],
+    gulikaMandi: ['gulika_start', 'mandi_start'],
+    combustion: ['classic', 'classic_moon', 'parashara_j108', 'ratha_j108', 'off'],
+    sadeSati: ['signs', 'deg45'],
+    charaKarakas: ['7', '8'],
+    arudha: ['exceptions', 'none'],
+    gandanta: ['pada', 'quarter'],
+  };
+  app.post('/api/pro-settings/update', requireTelegramUser, (req, res) => {
+    try {
+      const incoming = req.body.settings || {};
+      const cur = db.getProSettings(req.tgUser.id);
+      for (const k of Object.keys(PRO_OPTIONS)) {
+        if (incoming[k] === undefined) continue;
+        if (!PRO_OPTIONS[k].includes(incoming[k])) return res.status(400).json({ error: 'Некорректное значение: ' + k });
+        cur[k] = incoming[k];
+      }
+      db.setProSettings(req.tgUser.id, cur);
+      res.json({ proSettings: cur });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
   });
 
   app.post('/api/settings/update', requireTelegramUser, (req, res) => {

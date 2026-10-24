@@ -827,6 +827,7 @@
       <button class="tab-btn" data-tab="transits">Транзиты</button>
       <button class="tab-btn" data-tab="vargas">Варги</button>
       <button class="tab-btn" data-tab="varsha">Варшапхала</button>
+      <button class="tab-btn" data-tab="ashtaka">Аштакаварга</button>
     </div>
 
     <div class="tab-content" id="tab-today">
@@ -911,12 +912,29 @@
         <button class="btn-secondary" id="lagna-reset-btn" style="margin-top:12px;margin-bottom:0;">Сбросить на время рождения</button>
       </div>
 
+      <div class="form-card" id="arudha-card" style="padding:16px;display:none;">
+        <div class="varga-chart-label" style="margin-bottom:10px;">Арудха-пады</div>
+        <div id="arudha-body"></div>
+      </div>
+
+      <div class="form-card" id="birth-panchanga-card" style="padding:16px;display:none;">
+        <div class="varga-chart-label" style="margin-bottom:10px;">Панчанга момента рождения</div>
+        <div id="birth-panchanga-body"></div>
+      </div>
+
+      <div class="form-card" id="friendship-card" style="padding:16px;display:none;overflow-x:auto;">
+        <div class="varga-chart-label" style="margin-bottom:10px;">Отношения планет</div>
+        <div id="friendship-body"></div>
+      </div>
+
       <div class="form-card" id="special-points-card" style="padding:16px;display:none;">
         <div class="varga-chart-label" style="margin-bottom:10px;">Бхригу-бинду и специальные лагны</div>
         <div class="current-period-row"><span class="label">Бхригу-бинду</span><span class="value" id="sp-bhrigu-bindu">—</span></div>
         <div class="current-period-row"><span class="label">Хора-лагна</span><span class="value" id="sp-hora-lagna">—</span></div>
         <div class="current-period-row"><span class="label">Гхати-лагна</span><span class="value" id="sp-ghati-lagna">—</span></div>
         <div class="current-period-row"><span class="label">Бхава-лагна</span><span class="value" id="sp-bhava-lagna">—</span></div>
+        <div class="current-period-row" id="sp-gulika-row" style="display:none;"><span class="label">Гулика</span><span class="value" id="sp-gulika">—</span></div>
+        <div class="current-period-row" id="sp-mandi-row" style="display:none;"><span class="label">Манди</span><span class="value" id="sp-mandi">—</span></div>
       </div>
 
       <div style="display:flex;align-items:center;gap:12px;padding:0 16px 6px;font-size:10px;color:var(--taupe);text-transform:uppercase;letter-spacing:.03em;">
@@ -1045,6 +1063,17 @@
           </div></div>
         </div>
       </div>
+    </div>
+
+    <div class="tab-content" id="tab-ashtaka">
+      <div id="ak-locked" class="form-card" style="padding:20px;text-align:center;display:none;">
+        <div style="font-size:32px;margin-bottom:8px;">🔒</div>
+        <h2 style="margin-bottom:8px;">Доступно в Premium</h2>
+        <p style="font-size:13px;color:var(--taupe);margin-bottom:16px;line-height:1.5;">Аштакаварга: очки (бинду) по знакам и домам для каждой планеты и общая таблица Сарва.</p>
+        <button class="btn-primary" id="ak-upgrade-btn">Открыть Premium</button>
+      </div>
+      <div id="ak-error" class="error-msg" style="display:none;"></div>
+      <div id="ak-body" class="info-card" style="display:none;overflow-x:auto;"></div>
     </div>
 
     <div class="tab-content" id="tab-vargas">
@@ -1675,6 +1704,64 @@
       </div>
       <label class="toggle-switch"><input type="checkbox" id="settings-theme"><span class="toggle-slider"></span></label>
     </div>
+    <div id="pro-settings-block" style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(0,0,0,.1);">
+      <h2 style="margin-bottom:4px;font-size:18px;">Для профессионалов</h2>
+      <p style="font-size:12px;color:var(--taupe);margin-bottom:14px;line-height:1.5;">Тонкие настройки расчёта, как в профессиональных программах. Если вы не уверены, оставьте значения по умолчанию.</p>
+      <div class="field">
+        <label for="pro-sunrise">Восход: положение диска Солнца</label>
+        <select id="pro-sunrise">
+          <option value="upper">Верхний край диска с рефракцией (по умолчанию)</option>
+          <option value="center">Центр диска на линии горизонта, без рефракции (как в J108)</option>
+          <option value="lower">Нижний край диска на линии горизонта</option>
+        </select>
+        <div style="font-size:11px;color:var(--taupe);margin-top:4px;">Сейчас влияет на Гулику, Манди, специальные лагны (Хора, Гхати, Бхава) и вару рождения.</div>
+      </div>
+      <div class="field">
+        <label for="pro-gulika-mandi">Гулика и Манди</label>
+        <select id="pro-gulika-mandi">
+          <option value="gulika_start">Гулика в начале части Сатурна, Манди в середине (по умолчанию)</option>
+          <option value="mandi_start">Манди в начале части Сатурна, Гулика в середине</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="pro-combustion">Сожжение планет (астангата)</label>
+        <select id="pro-combustion">
+          <option value="classic">Классический набор: Мр 17°, Мк 14° (ретро 12°), Юп 11°, Вн 10° (ретро 8°), Шн 15° (по умолчанию)</option>
+          <option value="classic_moon">Классический набор и Луна 12°</option>
+          <option value="parashara_j108">Набор «Парашара» как в J108: Лн 12°, Мр 17°, Мк 13° (ретро 12°), Юп 11°, Вн 9° (ретро 8°), Шн 16°</option>
+          <option value="ratha_j108">Как в J108 «по Ратху»: тот же набор, но Меркурий сгорает только в прямом движении, Венера только в ретро</option>
+          <option value="off">Не учитывать</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="pro-sade-sati">Саде-сати</label>
+        <select id="pro-sade-sati">
+          <option value="signs">Сатурн проходит по 12-му, 1-му и 2-му домам от Луны (по умолчанию)</option>
+          <option value="deg45">Сатурн в пределах 45° от Луны</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="pro-chara-karakas">Количество чара-карак</label>
+        <select id="pro-chara-karakas">
+          <option value="7">7 карак: АК, АмК, БК, МК, ПК, ГК, ДК (по умолчанию)</option>
+          <option value="8">8 карак: добавляется ПиК, в расчёте участвует Раху</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="pro-arudha">Расчёт арудх</label>
+        <select id="pro-arudha">
+          <option value="exceptions">С исключениями: если арудха попала в тот же дом или в седьмой от него, берётся десятый (классика, по умолчанию)</option>
+          <option value="none">Без исключений (как у К. Н. Рао в J108)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="pro-gandanta">Границы зоны Гандатты</label>
+        <select id="pro-gandanta">
+          <option value="pada">Последняя пада знака воды и первая пада знака огня (6°40′ в сумме, по умолчанию)</option>
+          <option value="quarter">Последняя четверть пады и первая четверть пады (1°40′ в сумме)</option>
+        </select>
+      </div>
+    </div>
     <div id="settings-node-note" style="display:none;font-size:12px;color:#a8654a;margin-bottom:10px;"></div>
     <div id="settings-saved-note" style="display:none;font-size:12px;color:#4f7a52;margin-bottom:10px;">Сохранено.</div>
     <button class="btn-primary" id="settings-save-btn" style="margin-bottom:0;">Сохранить</button>
@@ -2015,6 +2102,9 @@
       ${story.p2 ? `<p class="tt-opt" style="margin-bottom:8px;">${story.p2}</p>` : ''}
       ${karaka ? `<p class="tt-opt" style="margin-bottom:8px;"><b>${CHARA_KARAKA_NAMES[karaka]} (${karaka})</b> — ${CHARA_KARAKA_MEANINGS[karaka]}.</p>` : ''}
       ${hasDigBala ? '<p class="tt-opt" style="margin-bottom:8px;">◈ <b>Есть диг-бала</b> — планета в доме своей направленной силы, это усиливает её.</p>' : ''}
+      ${chartRef && chartRef.planets[planetName] && gandantaOf(chartRef.planets[planetName].sign) ? '<p class="tt-opt" style="color:#a8654a;margin-bottom:8px;"><b>Гандатта</b> — ' + GANDANTA_TEXT[gandantaOf(chartRef.planets[planetName].sign)] + '. Узел кармической напряжённости: темы планеты проходят через переходные, трудно устойчивые состояния.</p>' : ''}
+      ${chartRef && chartRef.planets[planetName] && isMulatrikona(planetName, chartRef.planets[planetName].sign) ? '<p class="tt-opt" style="margin-bottom:8px;"><b>Мулатрикона</b> — планета в самой сильной части своего знака, после экзальтации.</p>' : ''}
+      ${chartRef && chartRef.planets[planetName] && planetName !== 'Раху' && planetName !== 'Кету' && isVargottama(chartRef.planets[planetName]) ? '<p class="tt-opt" style="margin-bottom:8px;"><b>Варготтама</b> — в навамше планета стоит в том же знаке, что и в карте рождения. Это усиливает её.</p>' : ''}
       ${combust ? '<p style="color:#a8654a;margin-bottom:8px;">☉ <b>Сожжена</b> — планета слишком близко к Солнцу, её сила ослаблена.</p>' : ''}
       ${atWar.length ? `<p class="tt-opt" style="color:#a8654a;margin-bottom:8px;">⚔ <b>Планетная война</b> с ${atWar.join(', ')} — обе планеты в одном градусе, борьба ослабляет проигравшую (кто именно — вопрос спорный между традициями).</p>` : ''}
       ${isRetrograde ? '<p class="tt-opt" style="color:#a8654a;margin-bottom:8px;">Ретроградность: темы этой планеты разворачиваются внутрь, требуют пересмотра, а не прямого движения вперёд.</p>' : ''}
@@ -2107,19 +2197,30 @@
   // У Раху/Кету дигбала классически не определяется (нет в большинстве текстов).
   const DIG_BALA_HOUSE = { 'Юпитер': 1, 'Меркурий': 1, 'Солнце': 10, 'Марс': 10, 'Сатурн': 7, 'Луна': 4, 'Венера': 4 };
 
-  // Сожжение (Астангата) — классические орбы (градусов от Солнца), при попадании
-  // в которые планета считается "сожжённой" и ослабленной. Луну сознательно не
-  // включаю — среди традиций есть расхождение, применять ли к ней сожжение вообще.
-  const COMBUSTION_ORB = { 'Марс': 17, 'Меркурий': 14, 'Юпитер': 11, 'Венера': 10, 'Сатурн': 15 };
+  // Сожжение (Астангата): по умолчанию без Луны (среди традиций есть расхождение,
+  // применять ли к ней сожжение), Луну можно включить в настройках.
+  // Наборы орбов сожжения (градусы от Солнца): [прямое движение, ретро]. Выбор — в настройках «Для профессионалов».
+  const COMBUSTION_SETS = {
+    classic: { 'Марс': [17, 17], 'Меркурий': [14, 12], 'Юпитер': [11, 11], 'Венера': [10, 8], 'Сатурн': [15, 15] },
+    classic_moon: { 'Луна': [12, 12], 'Марс': [17, 17], 'Меркурий': [14, 12], 'Юпитер': [11, 11], 'Венера': [10, 8], 'Сатурн': [15, 15] },
+    parashara_j108: { 'Луна': [12, 12], 'Марс': [17, 17], 'Меркурий': [13, 12], 'Юпитер': [11, 11], 'Венера': [9, 8], 'Сатурн': [16, 16] },
+    ratha_j108: { 'Луна': [12, 12], 'Марс': [17, 17], 'Меркурий': [13, 0], 'Юпитер': [11, 11], 'Венера': [0, 8], 'Сатурн': [16, 16] },
+    off: {},
+  };
+  let proSettings = {};
   function angularDistance(lon1, lon2) {
     let d = Math.abs(lon1 - lon2) % 360;
     return d > 180 ? 360 - d : d;
   }
+  // Варготтама: знак планеты в D1 и в навамше совпадает. Навамша: 9 частей по 3°20' подряд от Овна.
+  function isVargottama(p) { return !!p && Math.floor(p.siderealLon * 9 / 30) % 12 === p.sign.index; }
   function isCombust(chart, planetName) {
-    if (!COMBUSTION_ORB[planetName]) return false;
-    const sunLon = chart.planets['Солнце'].siderealLon;
-    const pLon = chart.planets[planetName].siderealLon;
-    return angularDistance(sunLon, pLon) <= COMBUSTION_ORB[planetName];
+    const set = COMBUSTION_SETS[proSettings.combustion] || COMBUSTION_SETS.classic;
+    const orb = set[planetName];
+    if (!orb || !chart.planets[planetName]) return false;
+    const lim = chart.planets[planetName].retrograde ? orb[1] : orb[0];
+    if (!lim) return false;
+    return angularDistance(chart.planets['Солнце'].siderealLon, chart.planets[planetName].siderealLon) <= lim;
   }
 
   // Планетная война (Граха-юддха) — две из пяти планет (не считая светил и узлов)
@@ -2150,27 +2251,33 @@
   // эту роль. Ретроградность на ранжирование не влияет (используем градус
   // "как есть" — так же считает J108).
   const CHARA_KARAKA_ORDER = ['АК', 'АмК', 'БК', 'МК', 'ПК', 'ГК', 'ДК'];
+  const CHARA_KARAKA_ORDER_8 = ['АК', 'АмК', 'БК', 'МК', 'ПиК', 'ПК', 'ГК', 'ДК'];
   const CHARA_KARAKA_NAMES = {
     'АК': 'Атмакарака', 'АмК': 'Аматьякарака', 'БК': 'Бхратрикарака',
-    'МК': 'Матрикарака', 'ПК': 'Путракарака', 'ГК': 'Гнатикарака', 'ДК': 'Даракарака',
+    'МК': 'Матрикарака', 'ПиК': 'Питрикарака', 'ПК': 'Путракарака', 'ГК': 'Гнатикарака', 'ДК': 'Даракарака',
   };
   const CHARA_KARAKA_MEANINGS = {
     'АК': 'сигнификатор души, главная жизненная тема и путь',
     'АмК': 'сигнификатор карьеры, статуса, советников',
     'БК': 'сигнификатор братьев/сестёр, мужества, инициативы',
     'МК': 'сигнификатор матери, дома, эмоционального фундамента',
+    'ПиК': 'сигнификатор отца, предков, наставников',
     'ПК': 'сигнификатор детей, творчества, интеллекта',
     'ГК': 'сигнификатор родственников, конкурентов, преград',
     'ДК': 'сигнификатор партнёра, брака, отношений',
   };
+  // 7 карак: семь планет по градусу в знаке. 8 карак: к ним добавляется Раху, его градус считается
+  // в обратную сторону (30° минус градус в знаке). Выбор — в настройках «Для профессионалов».
   function computeCharaKarakas(chart) {
-    const planets = ['Солнце', 'Луна', 'Марс', 'Меркурий', 'Юпитер', 'Венера', 'Сатурн'];
+    const eight = proSettings.charaKarakas === '8';
+    const planets = ['Солнце', 'Луна', 'Марс', 'Меркурий', 'Юпитер', 'Венера', 'Сатурн'].concat(eight ? ['Раху'] : []);
     const withDeg = planets
       .filter(name => chart.planets[name])
-      .map(name => ({ name, deg: chart.planets[name].sign.degInSign }));
+      .map(name => ({ name, deg: name === 'Раху' ? 30 - chart.planets[name].sign.degInSign : chart.planets[name].sign.degInSign }));
     withDeg.sort((a, b) => b.deg - a.deg);
+    const order = eight ? CHARA_KARAKA_ORDER_8 : CHARA_KARAKA_ORDER;
     const result = {};
-    withDeg.forEach((item, i) => { result[item.name] = CHARA_KARAKA_ORDER[i]; });
+    withDeg.forEach((item, i) => { result[item.name] = order[i]; });
     return result;
   }
 
@@ -2569,6 +2676,85 @@
     return { planetPixelPos, housePixelPos };
   }
 
+  // ---- Гандатта (стык знаков воды и огня), Ганда-мула, Мулатрикона, отношения планет ----
+  function gandantaZone() { return proSettings.gandanta === 'quarter' ? 50 / 60 : 200 / 60; } // градусов с каждой стороны стыка
+  // 'end' — конец знака воды (Рак, Скорпион, Рыбы), 'start' — начало знака огня (Лев, Стрелец, Овен)
+  function gandantaOf(sign) {
+    const z = gandantaZone();
+    if ([3, 7, 11].includes(sign.index) && sign.degInSign >= 30 - z) return 'end';
+    if ([4, 8, 0].includes(sign.index) && sign.degInSign < z) return 'start';
+    return null;
+  }
+  const GANDA_MULA_NAK = ['Ашвини', 'Ашлеша', 'Магха', 'Джьештха', 'Мула', 'Ревати'];
+  // Мулатрикона: [знак, от°, до°]. Для Луны границы в источниках расходятся (3°–30° или 4°–30° Тельца), поэтому не показываем.
+  const MULATRIKONA = { 'Солнце': [4, 0, 20], 'Марс': [0, 0, 12], 'Меркурий': [5, 16, 20], 'Юпитер': [8, 0, 10], 'Венера': [6, 0, 15], 'Сатурн': [10, 0, 20] };
+  function isMulatrikona(planetName, sign) {
+    const m = MULATRIKONA[planetName];
+    return !!m && sign.index === m[0] && sign.degInSign >= m[1] && sign.degInSign < m[2];
+  }
+  const GANDANTA_TEXT = { end: 'конец знака воды (стык с огнём)', start: 'начало знака огня (стык с водой)' };
+  const REL7 = ['Солнце', 'Луна', 'Марс', 'Меркурий', 'Юпитер', 'Венера', 'Сатурн'];
+  const REL_SHORT = { 'Солнце': 'Су', 'Луна': 'Ча', 'Марс': 'Ма', 'Меркурий': 'Бу', 'Юпитер': 'Гу', 'Венера': 'Шу', 'Сатурн': 'Ша' };
+  // Панчадха-майтри: постоянная дружба + временная (планета в 2, 3, 4, 10, 11, 12 доме от другой — временный друг)
+  function planetRelation(chart, a, b) {
+    const nat = (FRIENDS_D1[a] || []).includes(b) ? 1 : ((ENEMIES_D1[a] || []).includes(b) ? -1 : 0);
+    const h = ((chart.planets[b].sign.index - chart.planets[a].sign.index + 12) % 12) + 1;
+    const temp = [2, 3, 4, 10, 11, 12].includes(h) ? 1 : -1;
+    return nat + temp; // 2 близкий друг, 1 друг, 0 нейтральный, -1 враг, -2 заклятый враг
+  }
+  const REL_VIEW = { 2: ['Близкий друг', '#2f6b3a'], 1: ['Друг', '#5f8f5a'], 0: ['Нейтральный', '#8a8070'], '-1': ['Враг', '#c0775a'], '-2': ['Заклятый враг', '#9b3a2a'] };
+  function renderFriendship(chart) {
+    const card = document.getElementById('friendship-card'), body = document.getElementById('friendship-body');
+    if (!chart.planets || !REL7.every((n) => chart.planets[n])) { card.style.display = 'none'; return; }
+    card.style.display = 'block';
+    const cs = 'padding:5px 7px;text-align:center;border-bottom:1px solid rgba(0,0,0,.07);font-size:12px;';
+    let h = '<div style="font-size:12px;color:var(--taupe);margin-bottom:8px;line-height:1.45;">Как планета в строке относится к планете в столбце: постоянная дружба плюс временная по положению в этой карте.</div><table style="border-collapse:collapse;min-width:420px;width:100%;"><tr><th style="' + cs + '"></th>' + REL7.map((n) => '<th style="' + cs + 'font-weight:600;">' + REL_SHORT[n] + '</th>').join('') + '</tr>';
+    REL7.forEach((a) => {
+      h += '<tr><td style="' + cs + 'text-align:left;font-weight:600;">' + REL_SHORT[a] + '</td>';
+      REL7.forEach((b) => {
+        if (a === b) { h += '<td style="' + cs + 'color:#bbb;">·</td>'; return; }
+        const v = planetRelation(chart, a, b); const r = REL_VIEW[v];
+        h += '<td title="' + a + ' → ' + b + ': ' + r[0] + '" style="' + cs + 'color:' + r[1] + ';font-weight:700;">' + ({ 2: 'БД', 1: 'Д', 0: 'Н', '-1': 'В', '-2': 'ЗВ' })[v] + '</td>';
+      });
+      h += '</tr>';
+    });
+    h += '</table><div style="font-size:11px;color:var(--taupe);margin-top:8px;line-height:1.5;">БД — близкий друг, Д — друг, Н — нейтральный, В — враг, ЗВ — заклятый враг. Раху и Кету здесь не участвуют.</div>';
+    body.innerHTML = h;
+  }
+  function renderBirthPanchanga(chart) {
+    const card = document.getElementById('birth-panchanga-card'), body = document.getElementById('birth-panchanga-body');
+    const bp = chart.birthPanchanga;
+    if (!bp) { card.style.display = 'none'; return; }
+    card.style.display = 'block';
+    const row = (l, v) => '<div class="current-period-row"><span class="label">' + l + '</span><span class="value">' + v + '</span></div>';
+    const moon = chart.planets['Луна'];
+    const gm = moon && GANDA_MULA_NAK.includes(moon.nakshatra.name);
+    body.innerHTML =
+      row('Вара', bp.vara) +
+      (bp.beforeSunrise ? '<div style="font-size:11px;color:var(--taupe);margin:-2px 0 6px;">Рождение до восхода (' + bp.sunrise + '), поэтому вара берётся от предыдущих суток.</div>' : '') +
+      row('Титхи', bp.tithi.name + ', ' + bp.tithi.paksha.toLowerCase()) +
+      row('Накшатра Луны', moon.nakshatra.name + ' (пада ' + moon.nakshatra.pada + ')') +
+      row('Йога', bp.yoga.name) +
+      row('Карана', bp.karana.name) +
+      (gm ? '<div style="font-size:12px;color:#a8654a;margin-top:8px;line-height:1.5;">Луна в накшатре ' + moon.nakshatra.name + ': это Ганда-мула.</div>' : '');
+  }
+
+  async function renderArudhas(chart) {
+    const card = document.getElementById('arudha-card'), body = document.getElementById('arudha-body');
+    if (isGuest()) { card.style.display = 'none'; return; }
+    card.style.display = 'block';
+    body.innerHTML = '<div style="font-size:12px;color:var(--taupe);">Загрузка…</div>';
+    try {
+      const res = await fetch('/api/arudhas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ initData: getInitData(), chart }) });
+      const d = await res.json();
+      if (res.status === 403 && d.premiumRequired) { body.innerHTML = '<div style="font-size:13px;color:var(--taupe);line-height:1.5;">Арудха-пады доступны в Premium.</div>'; return; }
+      if (!res.ok) { body.innerHTML = '<div style="font-size:12px;color:#a8654a;">' + (d.error || 'Ошибка') + '</div>'; return; }
+      const SIGNS = ['Овен','Телец','Близнецы','Рак','Лев','Дева','Весы','Скорпион','Стрелец','Козерог','Водолей','Рыбы'];
+      body.innerHTML = d.arudhas.map((a) => '<div class="current-period-row" title="' + a.title + '"><span class="label">' + a.key + '</span><span class="value">' + SIGNS[a.signIndex] + ' · ' + a.house + ' дом</span></div>').join('') +
+        '<div style="font-size:11px;color:var(--taupe);margin-top:8px;line-height:1.4;">Арудха — образ дома в мире: то, как его тему видят окружающие. AL — арудха лагны, UL — упапада (12-й дом). Расчёт: ' + (d.mode === 'none' ? 'без исключений (как у К. Н. Рао)' : 'с исключениями (классика)') + '. Метод меняется в настройках, раздел «Для профессионалов».</div>';
+    } catch (e) { body.innerHTML = '<div style="font-size:12px;color:#a8654a;">' + e.message + '</div>'; }
+  }
+
   function renderSpecialPoints(chart) {
     const card = document.getElementById('special-points-card');
     if (!chart.bhriguBindu || !chart.ghatiLagna) { card.style.display = 'none'; return; }
@@ -2578,6 +2764,13 @@
     document.getElementById('sp-hora-lagna').textContent = fmt(chart.horaLagna);
     document.getElementById('sp-ghati-lagna').textContent = fmt(chart.ghatiLagna);
     document.getElementById('sp-bhava-lagna').textContent = fmt(chart.bhavaLagna);
+    [['gulika', chart.gulika], ['mandi', chart.mandi]].forEach(([k, p]) => {
+      const row = document.getElementById('sp-' + k + '-row');
+      if (!p) { row.style.display = 'none'; return; }
+      const house = ((p.sign.index - chart.ascendant.sign.index + 12) % 12) + 1;
+      document.getElementById('sp-' + k).textContent = fmt(p) + ' · ' + house + ' дом' + (p.nakshatra ? ' · ' + p.nakshatra.name + ' (пада ' + p.nakshatra.pada + ')' : '');
+      row.style.display = '';
+    });
   }
 
   function renderPlanetList(chart) {
@@ -2586,7 +2779,7 @@
     const asc = chart.ascendant;
     let html = `<div class="planet-row" style="background:var(--card);">
       <div class="sym" style="color:var(--gold)">Asc</div>
-      <div class="pname">Лагна</div>
+      <div class="pname">Лагна${gandantaOf(asc.sign) ? ` <span title="Гандатта — ${GANDANTA_TEXT[gandantaOf(asc.sign)]}" style="color:#a8654a;font-size:11px;font-weight:700;">Г</span>` : ''}</div>
       <div class="pdeg">${dms(asc.sign.degInSign)}</div>
       <div class="psign">${asc.sign.name}<br><span style="font-size:11px;">${asc.nakshatra.name} (пада ${asc.nakshatra.pada})</span></div>
     </div>`;
@@ -2596,11 +2789,13 @@
       const color = dignityColor(name, p.sign.index);
       const hasDigBala = DIG_BALA_HOUSE[name] === p.house;
       const combust = isCombust(chart, name);
+      const vargot = name !== 'Раху' && name !== 'Кету' && isVargottama(p);
+      const gand = gandantaOf(p.sign);
       const atWar = planetsAtWarWith(chart, name);
       const karaka = karakas[name];
       return `<div class="planet-row" data-planet="${name}" data-signidx="${p.sign.index}" data-retro="${p.retrograde ? '1' : '0'}" data-house="${p.house}" data-nak="${p.nakshatra.name}" data-pada="${p.nakshatra.pada}">
         <div class="sym" style="color:${color}">${p.retrograde ? `<span style="display:inline-block;border-top:2px solid currentColor;padding-top:3px;">${PLANET_SYMBOLS[name]}</span>` : PLANET_SYMBOLS[name]}</div>
-        <div class="pname">${name}${karaka ? ` <span title="${CHARA_KARAKA_NAMES[karaka]} — ${CHARA_KARAKA_MEANINGS[karaka]}" style="color:var(--gold);font-size:11px;font-weight:700;border:1px solid var(--gold);border-radius:3px;padding:0 3px;">${karaka}</span>` : ''}${hasDigBala ? ' <span title="Диг-бала — направленная сила" style="color:var(--gold);font-size:11px;">◈</span>' : ''}${combust ? ' <span title="Сожжена (близко к Солнцу)" style="color:#a8654a;font-size:11px;">☉</span>' : ''}${atWar.length ? ` <span title="Планетная война с ${atWar.join(', ')}" style="color:#a8654a;font-size:11px;">⚔</span>` : ''}</div>
+        <div class="pname">${name}${karaka ? ` <span title="${CHARA_KARAKA_NAMES[karaka]} — ${CHARA_KARAKA_MEANINGS[karaka]}" style="color:var(--gold);font-size:11px;font-weight:700;border:1px solid var(--gold);border-radius:3px;padding:0 3px;">${karaka}</span>` : ''}${hasDigBala ? ' <span title="Диг-бала — направленная сила" style="color:var(--gold);font-size:11px;">◈</span>' : ''}${gand ? ` <span title="Гандатта — ${GANDANTA_TEXT[gand]}" style="color:#a8654a;font-size:11px;font-weight:700;">Г</span>` : ''}${vargot ? ' <span title="Варготтама — в навамше тот же знак, планета сильна" style="color:var(--gold);font-size:11px;font-weight:700;">V</span>' : ''}${combust ? ' <span title="Сожжена (близко к Солнцу)" style="color:#a8654a;font-size:11px;">☉</span>' : ''}${atWar.length ? ` <span title="Планетная война с ${atWar.join(', ')}" style="color:#a8654a;font-size:11px;">⚔</span>` : ''}</div>
         <div class="pdeg">${dms(p.sign.degInSign)}</div>
         <div class="psign">${p.sign.name}<br><span style="font-size:11px;">${p.nakshatra.name} (пада ${p.nakshatra.pada})</span></div>
       </div>`;
@@ -2622,6 +2817,7 @@
       if (btn.dataset.tab === 'vargas') renderVargaSingle();
       if (btn.dataset.tab === 'today') renderTodayTab();
       if (btn.dataset.tab === 'varsha') renderVarshaTab();
+      if (btn.dataset.tab === 'ashtaka') renderAshtakaTab();
     });
   });
 
@@ -2759,7 +2955,7 @@
   // ---------- Гость без входа: закрытые функции и лимит ----------
   function isGuest() { return !inTelegram() && !jkToken(); }
   const GUEST_LOCK_SVG = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-left:4px;opacity:.7;"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
-  const GUEST_TAB_REASON = { today: 'Энергия дня и главное на сегодня доступны после входа.', dasha: 'Периоды (даши) доступны после входа.', transits: 'Транзиты доступны после входа.', vargas: 'Варги доступны после входа.', varsha: 'Годовая карта (Варшапхала) доступна после входа.' };
+  const GUEST_TAB_REASON = { today: 'Энергия дня и главное на сегодня доступны после входа.', dasha: 'Периоды (даши) доступны после входа.', transits: 'Транзиты доступны после входа.', vargas: 'Варги доступны после входа.', varsha: 'Годовая карта (Варшапхала) доступна после входа.', ashtaka: 'Аштакаварга доступна после входа.' };
   const GUEST_NAV_REASON = { days: 'Календарь благоприятных дней доступен после входа.', archive: 'Архив карт доступен после входа.', profile: 'Личный кабинет доступен после входа.' };
   function applyGuestLocks() {
     if (!isGuest()) return;
@@ -2818,7 +3014,7 @@
     if (isGuest()) { jkTier = null; updateTrialBanner(); return null; }
     try {
       const r = await fetch('/api/tier', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ initData: getInitData() }) });
-      if (r.ok) jkTier = await r.json();
+      if (r.ok) { jkTier = await r.json(); if (jkTier.proSettings) proSettings = jkTier.proSettings; }
     } catch (e) {}
     updateTrialBanner();
     return jkTier;
@@ -3110,7 +3306,7 @@
     try {
       const res = await fetch('/api/chart', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ day: row.day, month: row.month, year: row.year, hour: row.hour, minute: row.minute, lat: row.lat, lon: row.lon, utcOffset: row.utc_offset })
+        body: JSON.stringify({ day: row.day, month: row.month, year: row.year, hour: row.hour, minute: row.minute, lat: row.lat, lon: row.lon, utcOffset: row.utc_offset, initData: getInitData() })
       });
       const { chart } = await res.json();
       archiveChartObj = chart;
@@ -3378,7 +3574,7 @@
     }
     const chartRes = await fetch('/api/chart', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ day, month, year, hour, minute, lat, lon, utcOffset })
+      body: JSON.stringify({ day, month, year, hour, minute, lat, lon, utcOffset, initData: getInitData() })
     });
     const { chart } = await chartRes.json();
 
@@ -3395,6 +3591,9 @@
     renderChartSVGDispatch(chart, 'chart-svg');
     renderPlanetList(chart);
     renderSpecialPoints(chart);
+    renderArudhas(chart);
+    renderBirthPanchanga(chart);
+    renderFriendship(chart);
     currentChart = chart;
     currentChartMeta = { name, params: { day, month, year, hour, minute, lat, lon, utcOffset }, placeLabel };
     updateBookmarkBtnState();
@@ -4581,6 +4780,14 @@
       if (data.displayName) document.getElementById('account-display-name').value = data.displayName;
       ritualLabel.textContent = data.notifyRitualsEnabled ? 'Вкл' : 'Выкл';
 
+      proSettings = data.proSettings || {};
+      document.getElementById('pro-sunrise').value = proSettings.sunrise || 'upper';
+      document.getElementById('pro-gulika-mandi').value = proSettings.gulikaMandi || 'gulika_start';
+      document.getElementById('pro-combustion').value = proSettings.combustion || 'classic';
+      document.getElementById('pro-sade-sati').value = proSettings.sadeSati || 'signs';
+      document.getElementById('pro-chara-karakas').value = proSettings.charaKarakas || '7';
+      document.getElementById('pro-arudha').value = proSettings.arudha || 'exceptions';
+      document.getElementById('pro-gandanta').value = proSettings.gandanta || 'pada';
       const nodeIsTrue = (data.nodeType || 'true') === 'true';
       document.getElementById('settings-node-type').checked = nodeIsTrue;
       document.getElementById('settings-node-type-label').textContent = nodeIsTrue ? 'Истинный' : 'Средний';
@@ -4666,6 +4873,14 @@
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Ошибка');
+      const proRes = await fetch('/api/pro-settings/update', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: getInitData(), settings: { sunrise: document.getElementById('pro-sunrise').value, gulikaMandi: document.getElementById('pro-gulika-mandi').value, combustion: document.getElementById('pro-combustion').value, sadeSati: document.getElementById('pro-sade-sati').value, charaKarakas: document.getElementById('pro-chara-karakas').value, arudha: document.getElementById('pro-arudha').value, gandanta: document.getElementById('pro-gandanta').value } })
+      });
+      const proData = await proRes.json();
+      if (!proRes.ok) throw new Error(proData.error || 'Ошибка');
+      proSettings = proData.proSettings || {};
+      if (currentChart) { try { renderPlanetList(currentChart); renderArudhas(currentChart); renderBirthPanchanga(currentChart); } catch (e) {} }
       savedNote.style.display = 'block';
       userChartStyle = chartStyle;
       if (currentChart) renderChartSVGDispatch(currentChart, 'chart-svg');
@@ -5165,6 +5380,41 @@
   document.getElementById('vs-next').addEventListener('click', () => { vsYear++; renderVarshaTab(); });
   document.getElementById('vs-year').addEventListener('change', (e) => { const v = parseInt(e.target.value, 10); if (v >= 1900 && v <= 2200) { vsYear = v; renderVarshaTab(); } });
   document.getElementById('varsha-upgrade-btn').addEventListener('click', showUpgradePrompt);
+  // ---------- Аштакаварга ----------
+  async function renderAshtakaTab() {
+    const errEl = document.getElementById('ak-error'), lockEl = document.getElementById('ak-locked'), bodyEl = document.getElementById('ak-body');
+    errEl.style.display = 'none'; lockEl.style.display = 'none'; bodyEl.style.display = 'none';
+    if (!currentChart) { errEl.textContent = 'Сначала постройте натальную карту на главной.'; errEl.style.display = 'block'; return; }
+    try {
+      const res = await fetch('/api/ashtakavarga', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ initData: getInitData(), chart: currentChart }) });
+      const d = await res.json();
+      if (res.status === 403 && d.premiumRequired) { lockEl.style.display = 'block'; return; }
+      if (!res.ok) { errEl.textContent = d.error || 'Ошибка'; errEl.style.display = 'block'; return; }
+      paintAshtaka(d);
+    } catch (e) { errEl.textContent = e.message; errEl.style.display = 'block'; }
+  }
+  function paintAshtaka(d) {
+    const SIGNS = ['Овен','Телец','Близнецы','Рак','Лев','Дева','Весы','Скорпион','Стрелец','Козерог','Водолей','Рыбы'];
+    const lag = d.lagnaIndex;
+    const cs = 'padding:5px 6px;text-align:center;border-bottom:1px solid rgba(0,0,0,.07);font-size:13px;';
+    let h = '<div class="name" style="margin-bottom:4px;">Аштакаварга</div><div style="font-size:12px;color:var(--taupe);margin-bottom:10px;line-height:1.5;">Дома считаются от лагны (' + SIGNS[lag] + '). Рамкой отмечен знак, где стоит сама планета.</div>';
+    h += '<table style="border-collapse:collapse;min-width:640px;width:100%;"><tr><th style="' + cs + 'text-align:left;"></th>';
+    for (let i = 0; i < 12; i++) h += '<th style="' + cs + 'font-weight:600;">' + (i + 1) + '<div style="font-size:10px;font-weight:400;color:var(--taupe);">' + SIGNS[(lag + i) % 12] + '</div></th>';
+    h += '<th style="' + cs + '">Σ</th></tr>';
+    const PL = ['Солнце','Луна','Марс','Меркурий','Юпитер','Венера','Сатурн'];
+    PL.forEach((p) => {
+      const row = d.houses.bhinna[p]; const tot = row.reduce((a, b) => a + b, 0);
+      h += '<tr><td style="' + cs + 'text-align:left;">' + p + '</td>';
+      row.forEach((v, i) => { const own = ((lag + i) % 12) === d.planetSign[p]; h += '<td style="' + cs + (own ? 'outline:1px solid var(--gold);outline-offset:-2px;' : '') + '">' + v + '</td>'; });
+      h += '<td style="' + cs + 'color:var(--taupe);">' + tot + '</td></tr>';
+    });
+    h += '<tr><td style="' + cs + 'text-align:left;font-weight:700;">Сарва</td>';
+    d.houses.sarva.forEach((v) => { const bg = v >= 28 ? 'background:rgba(106,142,98,.22);' : (v < 25 ? 'background:rgba(168,101,74,.22);' : ''); h += '<td style="' + cs + 'font-weight:700;' + bg + '">' + v + '</td>'; });
+    h += '<td style="' + cs + 'font-weight:700;">' + d.sarva.reduce((a, b) => a + b, 0) + '</td></tr></table>';
+    h += '<div style="font-size:12px;color:var(--taupe);margin-top:10px;line-height:1.5;">В Сарве среднее значение дома 28: зелёным отмечены дома с 28 и выше (сильнее поддерживают свои темы), терракотовым — ниже 25. Общая сумма всегда 337.</div>';
+    const bd = document.getElementById('ak-body'); bd.innerHTML = h; bd.style.display = 'block';
+  }
+  document.getElementById('ak-upgrade-btn').addEventListener('click', showUpgradePrompt);
 
   async function renderTodayTab() {
     const errorEl = document.getElementById('today-error-msg');

@@ -160,6 +160,11 @@ try {
   // столбец уже есть — игнорируем
 }
 try {
+  db.exec("ALTER TABLE users ADD COLUMN pro_settings TEXT NOT NULL DEFAULT '{}'");
+} catch (e) {
+  // столбец уже есть — игнорируем
+}
+try {
   db.exec("ALTER TABLE users ADD COLUMN node_type TEXT NOT NULL DEFAULT 'true'");
 } catch (e) {
   // столбец уже есть — игнорируем
@@ -562,6 +567,16 @@ function setAstroSettings(telegramId, { nodeType, zodiacType, chartStyle, ayanam
   return info.changes > 0;
 }
 
+// --- Настройки «Для профессионалов» (JSON; пустое значение = умолчания приложения) ---
+function getProSettings(telegramId) {
+  const row = getUser(telegramId);
+  if (!row || !row.pro_settings) return {};
+  try { const o = JSON.parse(row.pro_settings); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; }
+}
+function setProSettings(telegramId, obj) {
+  return db.prepare('UPDATE users SET pro_settings = ? WHERE telegram_id = ?').run(JSON.stringify(obj || {}), telegramId).changes > 0;
+}
+
 function setPrimaryChart(telegramId, chartId) {
   return db.prepare('UPDATE users SET primary_chart_id = ? WHERE telegram_id = ?').run(chartId, telegramId);
 }
@@ -784,7 +799,7 @@ module.exports = {
   listSearchGoals, saveSearchGoal, deleteSearchGoal, MAX_SEARCH_GOALS,
   upsertUser, getAllUserIds, getUserCount,
   getUser, isPremium, setTier,
-  setNotifyEnabled, setPrimaryChart, listNotifiableUsers, saveNotifyState, setAstroSettings,
+  setNotifyEnabled, setPrimaryChart, listNotifiableUsers, saveNotifyState, setAstroSettings, getProSettings, setProSettings,
   setRitualNotifyEnabled, listRitualNotifiableUsers, setDisplayName,
   trialState, startTrial, recordPayment, getStars, spendStarsOnPremium, trialEndedToNotify, markTrialEndNotified, REFERRAL_PERCENT, MIN_STARS_SPEND,
   setReferredBy, markReferralRewardGranted, grantPremiumDays, logReferralReward, getReferralStats, getAllReferralStatsForAdmin,
